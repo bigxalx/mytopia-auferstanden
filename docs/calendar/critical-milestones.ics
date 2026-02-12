@@ -1,0 +1,104 @@
+BEGIN:VCALENDAR
+PRODID:-//Mytopia Auferstanden//Critical Milestones//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Mytopia Critical Milestones
+X-WR-TIMEZONE:Europe/Berlin
+BEGIN:VEVENT
+UID:mytopia-cms-decision-20260213@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260213
+DTEND;VALUE=DATE:20260214
+SUMMARY:CMS decision deadline (Contentful vs Sanity)
+DESCRIPTION:Critical planning gate for Sprint 1 implementation.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-testing-start-20260315@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260315
+DTEND;VALUE=DATE:20260316
+SUMMARY:Testing start (Phase 1)
+DESCRIPTION:Internal and external alpha testing begins.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-internal-store-buffer-20260420@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260420
+DTEND;VALUE=DATE:20260421
+SUMMARY:Internal store submission target (buffer)
+DESCRIPTION:Recommended internal target to protect against review delays.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-store-submission-20260430@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260430
+DTEND;VALUE=DATE:20260501
+SUMMARY:Latest store submission deadline
+DESCRIPTION:Latest acceptable App Store and Play Store submission date.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-launch-20260520@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260520
+DTEND;VALUE=DATE:20260521
+SUMMARY:Phase 1 app launch target
+DESCRIPTION:Public release target for the new app.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-wildwechsel-20260527@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260527
+DTEND;VALUE=DATE:20260601
+SUMMARY:Festival Wildwechsel (first checkpoint)
+DESCRIPTION:Festival window with first Mytopia checkpoint.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-rehearsal-start-20260813@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;TZID=Europe/Berlin:20260813T180000
+DTEND;TZID=Europe/Berlin:20260813T200000
+SUMMARY:Phase 2 rehearsal start
+DESCRIPTION:Rehearsal phase begins.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-technical-setup-20260824@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260824
+DTEND;VALUE=DATE:20260825
+SUMMARY:Technical setup in original venue
+DESCRIPTION:From this point forward all rehearsals are in the original venue.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-full-run-20260910@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;TZID=Europe/Berlin:20260910T180000
+DTEND;TZID=Europe/Berlin:20260910T210000
+SUMMARY:Full technical run
+DESCRIPTION:Complete technical run rehearsal.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-dress-rehearsal-20260916@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;TZID=Europe/Berlin:20260916T180000
+DTEND;TZID=Europe/Berlin:20260916T210000
+SUMMARY:Dress rehearsal
+DESCRIPTION:Main rehearsal before final rehearsal.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-final-rehearsal-20260917@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;TZID=Europe/Berlin:20260917T193000
+DTEND;TZID=Europe/Berlin:20260917T220000
+SUMMARY:Final rehearsal
+DESCRIPTION:General rehearsal.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-premiere-20260918@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;TZID=Europe/Berlin:20260918T193000
+DTEND;TZID=Europe/Berlin:20260918T230000
+SUMMARY:Premiere
+DESCRIPTION:Premiere performance.
+END:VEVENT
+END:VCALENDAR

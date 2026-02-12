@@ -1,0 +1,48 @@
+BEGIN:VCALENDAR
+PRODID:-//Mytopia Auferstanden//Team Deadlines//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Mytopia Team Deadlines
+X-WR-TIMEZONE:Europe/Berlin
+BEGIN:VEVENT
+UID:mytopia-cms-gate-20260213@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260213
+DTEND;VALUE=DATE:20260214
+SUMMARY:Decision gate - CMS locked
+DESCRIPTION:Final decision required: Contentful or Sanity.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-setup-lock-20260220@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260220
+DTEND;VALUE=DATE:20260221
+SUMMARY:Setup lock deadline
+DESCRIPTION:Anton deliverables due: content model requirements, editorial workflow, moderation team nomination.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-testing-package-20260310@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260310
+DTEND;VALUE=DATE:20260311
+SUMMARY:Testing content package deadline
+DESCRIPTION:Anton deliverables due: first narrative/task package and moderation rubric.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-submission-content-lock-20260401@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260401
+DTEND;VALUE=DATE:20260402
+SUMMARY:Submission content lock
+DESCRIPTION:Final Phase 1 content and store/legal copy due.
+END:VEVENT
+BEGIN:VEVENT
+UID:mytopia-phase2-prep-20260801@mytopia-auferstanden
+DTSTAMP:20260209T120000Z
+DTSTART;VALUE=DATE:20260801
+DTEND;VALUE=DATE:20260802
+SUMMARY:Phase 2 prep deadline
+DESCRIPTION:Live interaction definitions and stage script alignment due.
+END:VEVENT
+END:VCALENDAR
