@@ -33,6 +33,19 @@
     "plugins": [
       "expo-router",
       [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static",
+            "forceStaticLinking": [
+              "RNFBApp",
+              "RNFBAuth"
+            ]
+          }
+        }
+      ],
+      "@react-native-firebase/app",
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",

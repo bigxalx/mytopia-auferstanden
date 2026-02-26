@@ -7,8 +7,10 @@ Current focus is pre-production planning and implementation setup.
 ## Quick Links
 
 - [Action Brief](docs/README.md)
-- [Main Task Board](docs/tasks.md)
+- [Linear Team Board (Source of Truth)](https://linear.app/mytopia)
+- [Task Board Snapshot (Legacy)](docs/tasks.md)
 - [Project Brief](docs/project-brief.md)
+- [Project Context (DE): Erweiterung Projekt √My](docs/project-context-sqrtmy-de.md)
 - [Roadmap](docs/roadmap.md)
 - [Architecture Decisions](docs/architecture-decisions.md)
 - [Open Questions](docs/open-questions.md)
@@ -41,5 +43,6 @@ This README is kept suitable for open-source repository usage.
 
 Internal execution context is maintained in:
 
+- Linear (`https://linear.app/mytopia`, Team `MYT`) for active task tracking
 - [docs/README.md](docs/README.md)
-- [docs/tasks.md](docs/tasks.md)
+- [docs/tasks.md](docs/tasks.md) as a non-canonical snapshot

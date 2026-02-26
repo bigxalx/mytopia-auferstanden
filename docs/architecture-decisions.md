@@ -15,11 +15,12 @@ This file captures working decisions and unresolved choices.
 9. Migration communication from old app to new app should be multi-wave (teaser, beta invite, launch push).
 10. Moderation ownership is Anton plus a theatre moderation team.
 11. Ranking should be season-specific, with season control managed through CMS configuration.
+12. Phase 1 MVP scope is locked as Lean MVP (auth continuity, feed/push baseline, quiz/GPS loops, scoring, private ranking/profile).
+13. Firebase continuity strategy is locked as same project + clean new namespace + legacy summary import.
 
 ## Tentative Decisions
 
-1. Reuse the same Firebase project unless a strong reason appears to split.
-2. Keep carry-over from old app lightweight, as summarized legacy status rather than full detail migration.
+1. Keep carry-over from old app lightweight, as summarized legacy status rather than full detail migration.
 
 ## Proposed Technical Direction
 

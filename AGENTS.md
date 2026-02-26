@@ -1,0 +1,18 @@
+# AGENTS: Task Tracking Source of Truth
+
+## Task System
+
+- Use Linear as the canonical task system for this repository.
+- Workspace/team board: https://linear.app/mytopia
+- Team key: `MYT`
+- Primary project: `Mytopia Auferstanden Phase 1`
+
+## Daily Work Rule
+
+- When asked for "today's task", check Linear first (assigned issues, due dates, and status).
+- Prefer Linear issue identifiers (for example `MYT-9`) in updates and commit/PR context.
+
+## Docs Sync Rule
+
+- `docs/tasks.md` is a local snapshot only and can lag behind Linear.
+- Keep planning/status truth in Linear; update docs only for durable context.
