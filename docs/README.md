@@ -16,6 +16,7 @@ Background reference:
 - [`project-brief.md`](project-brief.md)
 - [`project-context-sqrtmy-de.md`](project-context-sqrtmy-de.md)
 - App local setup + native troubleshooting: [`../mytopia-auferstanden-app/README.md`](../mytopia-auferstanden-app/README.md)
+- Firestore v2 schema/rules baseline: [`firestore-v2-schema.md`](firestore-v2-schema.md)
 
 ## Immediate Actions
 

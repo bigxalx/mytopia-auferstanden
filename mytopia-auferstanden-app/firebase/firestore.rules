@@ -1,0 +1,167 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && request.auth.token[role] == true;
+    }
+
+    function isModerator() {
+      return hasRole('admin') || hasRole('moderator');
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isSubmissionOwner(data) {
+      return isSignedIn() && data.ownerUid == request.auth.uid;
+    }
+
+    function hasOnlyKeys(data, keys) {
+      return data.keys().hasOnly(keys);
+    }
+
+    function hasRequiredKeys(data, keys) {
+      return data.keys().hasAll(keys);
+    }
+
+    function isAllowedUserProfileWrite(uid) {
+      return request.resource.data.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.email is string
+        && hasOnlyKeys(request.resource.data, [
+          'uid',
+          'displayName',
+          'email',
+          'photoURL',
+          'createdAt',
+          'updatedAt'
+        ]);
+    }
+
+    function isAllowedUserSubmissionPayload(data) {
+      return hasOnlyKeys(data, [
+          'ownerUid',
+          'taskId',
+          'type',
+          'status',
+          'text',
+          'photoPath',
+          'createdAt',
+          'updatedAt',
+          'submittedAt'
+        ])
+        && hasRequiredKeys(data, [
+          'ownerUid',
+          'taskId',
+          'type',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.ownerUid is string
+        && data.taskId is string
+        && data.type in ['text', 'photo']
+        && data.status in ['draft', 'pending'];
+    }
+
+    function isAllowedScoreEvent(eventId) {
+      return hasOnlyKeys(request.resource.data, [
+          'uid',
+          'delta',
+          'reason',
+          'sourceType',
+          'sourceId',
+          'idempotencyKey',
+          'createdAt',
+          'createdBy',
+          'metadata'
+        ])
+        && hasRequiredKeys(request.resource.data, [
+          'uid',
+          'delta',
+          'reason',
+          'sourceType',
+          'sourceId',
+          'idempotencyKey',
+          'createdAt',
+          'createdBy'
+        ])
+        && request.resource.data.uid is string
+        && request.resource.data.delta is int
+        && request.resource.data.delta != 0
+        && request.resource.data.reason in [
+          'task_approved',
+          'moderation_penalty',
+          'legacy_import',
+          'manual_adjustment'
+        ]
+        && request.resource.data.sourceType in ['submission', 'import', 'admin']
+        && request.resource.data.sourceId is string
+        && request.resource.data.idempotencyKey is string
+        && request.resource.data.idempotencyKey.size() > 0
+        && request.resource.data.idempotencyKey == eventId
+        && request.resource.data.createdBy is string;
+    }
+
+    match /v2/users/{uid} {
+      allow read: if isOwner(uid) || isModerator();
+      allow create: if isOwner(uid) && isAllowedUserProfileWrite(uid);
+      allow update: if isAllowedUserProfileWrite(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    match /v2/tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow write: if isModerator();
+    }
+
+    match /v2/submissions/{submissionId} {
+      allow read: if isModerator() || isSubmissionOwner(resource.data);
+      allow create: if isModerator()
+        || (isSubmissionOwner(request.resource.data) && isAllowedUserSubmissionPayload(request.resource.data));
+      allow update: if isModerator()
+        || (
+          isSubmissionOwner(resource.data)
+          && isSubmissionOwner(request.resource.data)
+          && isAllowedUserSubmissionPayload(request.resource.data)
+          && resource.data.status in ['draft', 'pending']
+          && request.resource.data.status in ['draft', 'pending']
+          && request.resource.data.taskId == resource.data.taskId
+          && request.resource.data.type == resource.data.type
+          && request.resource.data.createdAt == resource.data.createdAt
+        );
+      allow delete: if isModerator()
+        || (isSubmissionOwner(resource.data) && resource.data.status in ['draft', 'pending']);
+    }
+
+    match /v2/scoreEvents/{eventId} {
+      allow read: if isModerator() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isModerator() && isAllowedScoreEvent(eventId);
+      allow update, delete: if false;
+    }
+
+    match /v2/leaderboard/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Legacy app namespace (currently deployed in production).
+    // Keep this until legacy reads/writes are fully retired.
+    match /users/{userId}/{documents=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Catch-all deny for any path not explicitly covered above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -99,6 +99,27 @@ Notes:
 - `android/local.properties` is machine-local and should not be committed.
 - `bun run android` should work without `prebuild` for JS-only changes once the native app is installed.
 
+## Firestore V2 (MYT-12)
+
+Firestore schema and security artifacts for the clean `v2/*` namespace:
+
+- `firebase/firestore.rules`
+- `firebase/firestore.indexes.json`
+- `src/core/firestore/schema.ts`
+- `../docs/firestore-v2-schema.md`
+
+Deploy commands (Firebase CLI required):
+
+```bash
+cd firebase
+firebase deploy --project mytopia-6c440 --config firebase.json --only firestore
+```
+
+Important:
+
+- This rules baseline intentionally isolates `v2`.
+- Because old/new apps currently share a Firebase project, merge legacy rules before production deploy.
+
 ## Debug Logs (Expo-Recommended Workflow)
 
 Use these commands to capture reproducible logs I can analyze directly.
