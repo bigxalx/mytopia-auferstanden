@@ -16,6 +16,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="welcome-back" />
           <Stack.Screen name="tasks/[taskId]" options={{ headerShown: true, title: 'Task' }} />
         </Stack>
       </AppProviders>

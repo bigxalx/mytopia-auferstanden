@@ -12,20 +12,25 @@ import {
   signUpWithEmailPassword,
   subscribeAuthState,
 } from '@/src/core/firebase/authClient';
+import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
 
 export type SessionUser = {
   displayName: string;
   email: string;
   id: string;
   legacySummary?: {
+    citizenship?: Record<string, unknown>;
+    properties?: unknown[];
     rankSnapshot: number;
     totalPoints: number;
   };
 };
 
 type SessionContextValue = {
+  dismissWelcomeBack: () => void;
   isHydrated: boolean;
   sendPasswordReset: (email: string) => Promise<AuthActionResult>;
+  shouldShowWelcomeBack: boolean;
   signInWithEmail: (email: string, password: string) => Promise<AuthActionResult>;
   signOut: () => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<AuthActionResult>;
@@ -36,28 +41,62 @@ const SessionContext = createContext<SessionContextValue | undefined>(undefined)
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [isHydrated, setIsHydrated] = useState(false);
+  const [shouldShowWelcomeBack, setShouldShowWelcomeBack] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
     let hasHydrated = false;
-    const unsubscribe = subscribeAuthState((firebaseUser) => {
-      if (firebaseUser && firebaseUser.emailVerified) {
-        setUser(mapSessionUser(firebaseUser));
-      } else {
-        setUser(null);
-      }
+    let isActive = true;
+    let authEventVersion = 0;
 
-      if (!hasHydrated) {
-        setIsHydrated(true);
-        hasHydrated = true;
-      }
+    const unsubscribe = subscribeAuthState((firebaseUser) => {
+      const version = authEventVersion + 1;
+      authEventVersion = version;
+
+      void (async () => {
+        if (firebaseUser && firebaseUser.emailVerified) {
+          try {
+            const synced = await syncSessionProfile(firebaseUser);
+            if (!isActive || authEventVersion !== version) {
+              return;
+            }
+
+            setUser(synced.profile);
+            setShouldShowWelcomeBack(synced.importedLegacySummary);
+          } catch (error) {
+            console.error('Failed to hydrate session from Firestore profile.', error);
+            if (!isActive || authEventVersion !== version) {
+              return;
+            }
+
+            setUser(mapSessionUser(firebaseUser));
+            setShouldShowWelcomeBack(false);
+          }
+        } else {
+          if (!isActive || authEventVersion !== version) {
+            return;
+          }
+
+          setShouldShowWelcomeBack(false);
+          setUser(null);
+        }
+
+        if (!hasHydrated) {
+          setIsHydrated(true);
+          hasHydrated = true;
+        }
+      })();
     });
 
-    return unsubscribe;
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
   const value = useMemo<SessionContextValue>(
     () => ({
+      dismissWelcomeBack: () => setShouldShowWelcomeBack(false),
       isHydrated,
       sendPasswordReset: async (email: string) => {
         try {
@@ -93,6 +132,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         } catch (error) {
           console.error('Failed to sign out from Firebase.', error);
         } finally {
+          setShouldShowWelcomeBack(false);
           setUser(null);
         }
       },
@@ -108,9 +148,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
           return createAuthErrorResult(error);
         }
       },
+      shouldShowWelcomeBack,
       user,
     }),
-    [isHydrated, user]
+    [isHydrated, shouldShowWelcomeBack, user]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

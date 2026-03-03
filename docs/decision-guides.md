@@ -32,7 +32,7 @@ Recommended shape:
 
 - keep Auth users,
 - new season collections/fields,
-- store `legacySummary.totalPoints`, `legacySummary.rankSnapshot`, `legacySummary.importedAt`,
+- store `legacySummary.totalPoints`, `legacySummary.rankSnapshot`, `legacySummary.citizenship`, `legacySummary.properties`, `legacySummary.importedAt`,
 - season rank remains independent from legacy score.
 
 ## Option C: New Firebase project + migration
@@ -99,4 +99,3 @@ Recommendation:
 1. Prefer MPL-2.0 if you want reciprocity with manageable friction.
 2. Prefer MIT/Apache-2.0 if adoption simplicity is top priority.
 3. Keep media/assets under separate rights policy if needed.
-

@@ -29,15 +29,53 @@ service cloud.firestore {
       return data.keys().hasAll(keys);
     }
 
+    function hasValidLegacySummary(data) {
+      return !data.keys().hasAny(['legacySummary'])
+        || (
+          data.legacySummary is map
+          && data.legacySummary.keys().hasOnly([
+            'totalPoints',
+            'rankSnapshot',
+            'importedAt',
+            'citizenship',
+            'properties'
+          ])
+          && data.legacySummary.keys().hasAll(['totalPoints', 'rankSnapshot', 'importedAt'])
+          && data.legacySummary.totalPoints is number
+          && data.legacySummary.rankSnapshot is number
+          && data.legacySummary.rankSnapshot > 0
+          && data.legacySummary.importedAt is string
+          && (
+            !data.legacySummary.keys().hasAny(['citizenship'])
+            || data.legacySummary.citizenship is map
+          )
+          && (
+            !data.legacySummary.keys().hasAny(['properties'])
+            || data.legacySummary.properties is list
+          )
+        );
+    }
+
     function isAllowedUserProfileWrite(uid) {
       return request.resource.data.uid == uid
         && request.resource.data.displayName is string
         && request.resource.data.email is string
+        && hasValidLegacySummary(request.resource.data)
+        && (
+          !request.resource.data.keys().hasAny(['photoURL'])
+          || request.resource.data.photoURL is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(['pointsCurrent'])
+          || request.resource.data.pointsCurrent is number
+        )
         && hasOnlyKeys(request.resource.data, [
           'uid',
           'displayName',
           'email',
           'photoURL',
+          'legacySummary',
+          'pointsCurrent',
           'createdAt',
           'updatedAt'
         ]);
@@ -108,22 +146,36 @@ service cloud.firestore {
         && request.resource.data.createdBy is string;
     }
 
-    match /v2/users/{uid} {
+    match /v2/app/users/{uid} {
       allow read: if isOwner(uid) || isModerator();
-      allow create: if isOwner(uid) && isAllowedUserProfileWrite(uid);
-      allow update: if isAllowedUserProfileWrite(uid)
+      allow create: if isOwner(uid)
+        && isAllowedUserProfileWrite(uid)
+        && !request.resource.data.keys().hasAny(['pointsCurrent']);
+      allow update: if isOwner(uid)
+        && isAllowedUserProfileWrite(uid)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.email == resource.data.email
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          (
+            !resource.data.keys().hasAny(['pointsCurrent'])
+            && !request.resource.data.keys().hasAny(['pointsCurrent'])
+          )
+          || (
+            resource.data.keys().hasAny(['pointsCurrent'])
+            && request.resource.data.keys().hasAny(['pointsCurrent'])
+            && request.resource.data.pointsCurrent == resource.data.pointsCurrent
+          )
+        );
       allow delete: if false;
     }
 
-    match /v2/tasks/{taskId} {
+    match /v2/app/tasks/{taskId} {
       allow read: if isSignedIn();
       allow write: if isModerator();
     }
 
-    match /v2/submissions/{submissionId} {
+    match /v2/app/submissions/{submissionId} {
       allow read: if isModerator() || isSubmissionOwner(resource.data);
       allow create: if isModerator()
         || (isSubmissionOwner(request.resource.data) && isAllowedUserSubmissionPayload(request.resource.data));
@@ -142,13 +194,13 @@ service cloud.firestore {
         || (isSubmissionOwner(resource.data) && resource.data.status in ['draft', 'pending']);
     }
 
-    match /v2/scoreEvents/{eventId} {
+    match /v2/app/scoreEvents/{eventId} {
       allow read: if isModerator() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow create: if isModerator() && isAllowedScoreEvent(eventId);
       allow update, delete: if false;
     }
 
-    match /v2/leaderboard/{uid} {
+    match /v2/app/leaderboard/{uid} {
       allow read: if isSignedIn();
       allow write: if false;
     }

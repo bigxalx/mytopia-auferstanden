@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 
 export default function IndexRoute() {
-  const { isHydrated, user } = useSession();
+  const { isHydrated, shouldShowWelcomeBack, user } = useSession();
 
   if (!isHydrated) {
     return (
@@ -16,6 +16,10 @@ export default function IndexRoute() {
 
   if (!user) {
     return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (shouldShowWelcomeBack) {
+    return <Redirect href="./welcome-back" />;
   }
 
   return <Redirect href="/(tabs)/feed" />;

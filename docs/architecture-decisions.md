@@ -74,6 +74,8 @@ Recommended continuity model:
 3. New app stores:
    - `legacySummary.totalPoints`
    - `legacySummary.rankSnapshot`
+   - `legacySummary.citizenship`
+   - `legacySummary.properties`
    - `legacySummary.importedAt`
 4. Welcome message can reference this summary and optionally grant one-time bonus.
 

@@ -14,39 +14,39 @@ This document defines `MYT-12`: a clean `v2/*` Firestore namespace with explicit
 
 ## Namespace Model
 
-Collections:
+Collections (nested under top-level collection `v2`, app document `app`):
 
-1. `v2/users/{uid}`
-2. `v2/tasks/{taskId}`
-3. `v2/submissions/{submissionId}`
-4. `v2/scoreEvents/{eventId}`
-5. `v2/leaderboard/{uid}`
+1. `v2/app/users/{uid}`
+2. `v2/app/tasks/{taskId}`
+3. `v2/app/submissions/{submissionId}`
+4. `v2/app/scoreEvents/{eventId}`
+5. `v2/app/leaderboard/{uid}`
 
 ## Collection Contracts
 
-`v2/users/{uid}`:
+`v2/app/users/{uid}`:
 
 - Profile + continuity summary.
-- `legacySummary` is display/context only (imported once).
-- Points in active ranking come from `v2/scoreEvents`, not legacy values.
+- `legacySummary` stores imported legacy continuity data (`totalPoints`, `rankSnapshot`, full `citizenship`, full `properties`) and is display/context only.
+- Points in active ranking come from `v2/app/scoreEvents`, not legacy values.
 
-`v2/tasks/{taskId}`:
+`v2/app/tasks/{taskId}`:
 
 - Task catalog (readable by authenticated users, writable by moderators/admins).
 
-`v2/submissions/{submissionId}`:
+`v2/app/submissions/{submissionId}`:
 
 - User-owned text/photo submission.
 - User can create/update while `status` is `draft` or `pending`.
 - Moderation fields (`reviewedBy`, `reviewedAt`, `moderatorNote`, approval/rejection) are moderator/admin controlled.
 
-`v2/scoreEvents/{eventId}`:
+`v2/app/scoreEvents/{eventId}`:
 
 - Immutable scoring ledger (append-only).
 - Every points change is one event (`delta`, `reason`, `sourceType`, `sourceId`).
 - `eventId` is aligned with `idempotencyKey` to prevent duplicate scoring on retries.
 
-`v2/leaderboard/{uid}`:
+`v2/app/leaderboard/{uid}`:
 
 - Denormalized read model for ranking.
 - Client read-only; updated by backend workflows.
@@ -76,11 +76,11 @@ Implemented in:
 Key policy:
 
 1. Authenticated users can only write:
-   - their own `v2/users/{uid}` profile-safe fields,
-   - their own `v2/submissions/*` in `draft/pending`.
+   - their own `v2/app/users/{uid}` profile-safe fields,
+   - their own `v2/app/submissions/*` in `draft/pending`.
 2. Moderation/scoring writes require moderator/admin claims.
-3. `v2/scoreEvents` are immutable after creation.
-4. `v2/leaderboard` is client read-only.
+3. `v2/app/scoreEvents` are immutable after creation.
+4. `v2/app/leaderboard` is client read-only.
 5. Non-`v2` access is denied by default in this rules baseline.
 
 ## Indexes
@@ -106,4 +106,3 @@ Because old and new apps share the same Firebase project today:
    - test these rules in emulator/staging,
    - merge with current legacy paths,
    - deploy combined rules.
-

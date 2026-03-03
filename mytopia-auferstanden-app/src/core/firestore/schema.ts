@@ -1,9 +1,9 @@
 export const V2_COLLECTION = {
-  leaderboard: 'v2/leaderboard',
-  scoreEvents: 'v2/scoreEvents',
-  submissions: 'v2/submissions',
-  tasks: 'v2/tasks',
-  users: 'v2/users',
+  leaderboard: 'v2/app/leaderboard',
+  scoreEvents: 'v2/app/scoreEvents',
+  submissions: 'v2/app/submissions',
+  tasks: 'v2/app/tasks',
+  users: 'v2/app/users',
 } as const;
 
 export type FirestoreTimestampString = string;
@@ -20,7 +20,9 @@ export type ScoreEventReason =
 export type ScoreEventSourceType = 'submission' | 'import' | 'admin';
 
 export type LegacySummary = {
+  citizenship?: Record<string, unknown>;
   importedAt: FirestoreTimestampString;
+  properties?: unknown[];
   rankSnapshot: number;
   totalPoints: number;
 };
@@ -80,4 +82,3 @@ export type V2LeaderboardDoc = {
   uid: string;
   updatedAt: FirestoreTimestampString;
 };
-

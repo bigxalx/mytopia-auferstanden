@@ -10,7 +10,7 @@ import { useSession } from '@/src/core/session/SessionContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { isHydrated, user } = useSession();
+  const { isHydrated, shouldShowWelcomeBack, user } = useSession();
 
   if (!isHydrated) {
     return (
@@ -22,6 +22,10 @@ export default function TabLayout() {
 
   if (!user) {
     return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (shouldShowWelcomeBack) {
+    return <Redirect href="../welcome-back" />;
   }
 
   return (

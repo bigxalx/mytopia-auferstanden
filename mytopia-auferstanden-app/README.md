@@ -79,6 +79,11 @@ bun run start
    - Open the already-installed development build on device/emulator.
 
 If you see `No Firebase App '[DEFAULT]' has been created`, your installed native build is stale and needs reinstall via `bun run android` or `bun run ios`.
+If you see `[firestore/permission-denied]` during session hydration, deploy the latest Firestore rules before retesting:
+
+```bash
+firebase deploy --only firestore:rules --project mytopia-6c440 --config firebase/firebase.json
+```
 
 ## Local Toolchain Notes
 
@@ -119,6 +124,20 @@ Important:
 
 - This rules baseline intentionally isolates `v2`.
 - Because old/new apps currently share a Firebase project, merge legacy rules before production deploy.
+
+## Returning User Import (MYT-11)
+
+- On first verified login, the app reads legacy `users/{uid}` data and imports:
+  - `legacySummary.totalPoints` from `citizenship.mytopia.score`
+  - `legacySummary.rankSnapshot` from legacy Cloud Function `getRanking`
+  - `legacySummary.citizenship` from legacy `users/{uid}.citizenship`
+  - `legacySummary.properties` from legacy `users/{uid}.properties`
+  - `legacySummary.importedAt` as ISO timestamp
+- Session hydration profile sync is race-safe:
+  - create `v2/app/users/{uid}` when missing
+  - merge non-destructive updates for existing profiles
+- Imported summary is continuity-only and does not affect v2 season ranking.
+- Dedicated route `/welcome-back` is shown once immediately after successful import.
 
 ## Debug Logs (Expo-Recommended Workflow)
 
