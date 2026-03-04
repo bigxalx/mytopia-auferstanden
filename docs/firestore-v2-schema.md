@@ -22,6 +22,10 @@ Collections (nested under top-level collection `v2`, app document `app`):
 4. `v2/app/scoreEvents/{eventId}`
 5. `v2/app/leaderboard/{uid}`
 
+System collection:
+
+1. `v2/app/narrativeState/{bundleId}`
+
 ## Collection Contracts
 
 `v2/app/users/{uid}`:
@@ -50,6 +54,21 @@ Collections (nested under top-level collection `v2`, app document `app`):
 
 - Denormalized read model for ranking.
 - Client read-only; updated by backend workflows.
+
+`v2/app/narrativeState/{bundleId}`:
+
+- Backend-managed narrative release + update state (single source for idempotency and app invalidation).
+- Fields:
+  - `bundleId`,
+  - `lastEventType` (`release` or `content_update`),
+  - `releaseAt`,
+  - `releasedAt`,
+  - `pushState`,
+  - `pushSentAt`,
+  - `lastReleaseError`,
+  - `updatedAt`.
+- Clients read the latest updated doc (authenticated) and refetch feed when it changes.
+- Client writes are denied.
 
 ## Why Score Events Are Required
 

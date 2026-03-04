@@ -12,6 +12,7 @@ import {
   signUpWithEmailPassword,
   subscribeAuthState,
 } from '@/src/core/firebase/authClient';
+import { ensureNarrativeTopicSubscription } from '@/src/core/firebase/messagingClient';
 import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
 
 export type SessionUser = {
@@ -63,6 +64,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
             setUser(synced.profile);
             setShouldShowWelcomeBack(synced.importedLegacySummary);
+            void ensureNarrativeTopicSubscription();
           } catch (error) {
             console.error('Failed to hydrate session from Firestore profile.', error);
             if (!isActive || authEventVersion !== version) {
@@ -71,6 +73,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
             setUser(mapSessionUser(firebaseUser));
             setShouldShowWelcomeBack(false);
+            void ensureNarrativeTopicSubscription();
           }
         } else {
           if (!isActive || authEventVersion !== version) {

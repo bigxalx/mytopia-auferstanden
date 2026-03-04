@@ -1,0 +1,26 @@
+{
+  "name": "mytopia-functions",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "deploy": "firebase deploy --config firebase.json --only functions:narrative --project mytopia-6c440",
+    "webhook:probe": "bun --env-file=.env ./scripts/probe-webhook-signature.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/tasks": "^5.4.1",
+    "@sanity/webhook": "^4.0.4",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.2.0",
+    "google-auth-library": "^9.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.2"
+  }
+}

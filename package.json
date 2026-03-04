@@ -1,0 +1,17 @@
+{
+  "name": "mytopia-auferstanden",
+  "private": true,
+  "scripts": {
+    "build": "bun run build:studio && bun run build:functions",
+    "build:functions": "bun run --cwd mytopia-functions build",
+    "build:studio": "bun run --cwd mytopia-content-studio build",
+    "dev:app": "bun run --cwd mytopia-auferstanden-app start",
+    "dev:studio": "bun run --cwd mytopia-content-studio dev",
+    "deploy:functions": "bun run --cwd mytopia-functions deploy"
+  },
+  "workspaces": [
+    "mytopia-auferstanden-app",
+    "mytopia-content-studio",
+    "mytopia-functions"
+  ]
+}

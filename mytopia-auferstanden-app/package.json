@@ -13,17 +13,20 @@
     "android:repro": "sh -c 'mkdir -p .logs && LOG=.logs/android-run-$(date +%Y%m%d-%H%M%S).log && echo Capturing Android build log to $LOG && EXPO_DEBUG=1 expo run:android 2>&1 | tee \"$LOG\"'",
     "log:ios": "npx react-native log-ios",
     "log:android": "npx react-native log-android",
-    "log:metro": "sh -c 'mkdir -p .logs && LOG=.logs/metro-$(date +%Y%m%d-%H%M%S).log && echo Capturing Metro log to $LOG && expo start --clear 2>&1 | tee \"$LOG\"'"
+    "log:metro": "sh -c 'mkdir -p .logs && LOG=.logs/metro-$(date +%Y%m%d-%H%M%S).log && echo Capturing Metro log to $LOG && expo start --clear 2>&1 | tee \"$LOG\"'",
+    "feed:probe": "bun ./scripts/probe-feed-api.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@react-native-firebase/app": "^23.8.6",
     "@react-native-firebase/auth": "^23.8.6",
     "@react-native-firebase/firestore": "^23.8.6",
+    "@react-native-firebase/messaging": "^23.8.6",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "expo": "~54.0.33",
+    "expo-av": "^16.0.8",
     "expo-build-properties": "^55.0.9",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",

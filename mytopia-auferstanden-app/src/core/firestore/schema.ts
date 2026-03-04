@@ -1,5 +1,6 @@
 export const V2_COLLECTION = {
   leaderboard: 'v2/app/leaderboard',
+  narrativeState: 'v2/app/narrativeState',
   scoreEvents: 'v2/app/scoreEvents',
   submissions: 'v2/app/submissions',
   tasks: 'v2/app/tasks',
@@ -81,4 +82,20 @@ export type V2LeaderboardDoc = {
   totalPoints: number;
   uid: string;
   updatedAt: FirestoreTimestampString;
+};
+
+export type NarrativeStateEventType = 'release' | 'content_update';
+
+export type NarrativePushState = 'pending' | 'sent' | 'failed';
+
+export type V2NarrativeStateDoc = {
+  bundleId: string;
+  lastEventType: NarrativeStateEventType;
+  lastReleaseError?: string;
+  pushSentAt?: FirestoreTimestampString;
+  pushState?: NarrativePushState;
+  releaseAt?: FirestoreTimestampString;
+  releasedAt?: FirestoreTimestampString;
+  updatedAt: FirestoreTimestampString;
+  version: number;
 };

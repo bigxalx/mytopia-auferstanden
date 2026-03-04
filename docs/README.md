@@ -17,6 +17,10 @@ Background reference:
 - [`project-context-sqrtmy-de.md`](project-context-sqrtmy-de.md)
 - App local setup + native troubleshooting: [`../mytopia-auferstanden-app/README.md`](../mytopia-auferstanden-app/README.md)
 - Firestore v2 schema/rules baseline: [`firestore-v2-schema.md`](firestore-v2-schema.md)
+- Narrative feed + push runbook: [`narrative-feed-ops.md`](narrative-feed-ops.md)
+- Narrative operations (MYT-13):
+  - Studio: [`../mytopia-content-studio/README.md`](../mytopia-content-studio/README.md)
+  - Functions: [`../mytopia-functions/README.md`](../mytopia-functions/README.md)
 
 ## Immediate Actions
 

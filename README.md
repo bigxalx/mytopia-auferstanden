@@ -15,6 +15,7 @@ Current focus is pre-production planning and implementation setup.
 - [Architecture Decisions](docs/architecture-decisions.md)
 - [Open Questions](docs/open-questions.md)
 - [Decision Guides](docs/decision-guides.md)
+- [Narrative Feed Ops Runbook](docs/narrative-feed-ops.md)
 
 ## Project Scope
 
@@ -46,3 +47,17 @@ Internal execution context is maintained in:
 - Linear (`https://linear.app/mytopia`, Team `MYT`) for active task tracking
 - [docs/README.md](docs/README.md)
 - [docs/tasks.md](docs/tasks.md) as a non-canonical snapshot
+
+## Workspace Packages
+
+This repository is a Bun workspace monorepo:
+
+1. `mytopia-auferstanden-app` (Expo React Native app)
+2. `mytopia-content-studio` (Sanity Studio for narrative content)
+3. `mytopia-functions` (Firebase Functions: Sanity webhook, release handler, feed proxy)
+
+Root scripts:
+
+- `bun run dev:app`
+- `bun run dev:studio`
+- `bun run deploy:functions`

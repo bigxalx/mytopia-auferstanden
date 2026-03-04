@@ -43,12 +43,15 @@ Expo Router app for the Mytopia Phase 1 MVP.
 
 1. Copy `.env.example` to `.env`.
 2. Fill values as they become available.
-3. Place Firebase native config files in `secrets/firebase/` (ignored by git):
+3. Configure feed + push client env vars:
+   - `EXPO_PUBLIC_FEED_API_BASE_URL` (for example: `https://europe-west1-<project-id>.cloudfunctions.net/narrativeApi/`)
+   - `EXPO_PUBLIC_NARRATIVE_TOPIC` (default: `narrative-global-v1`)
+4. Place Firebase native config files in `secrets/firebase/` (ignored by git):
    - `secrets/firebase/google-services.json`
    - `secrets/firebase/GoogleService-Info.plist`
-4. In Firebase Console, enable Authentication -> Sign-in method -> Email/Password.
-5. This app enforces email verification before granting access to authenticated routes.
-6. iOS uses static frameworks via `expo-build-properties` to satisfy Firebase CocoaPods integration.
+5. In Firebase Console, enable Authentication -> Sign-in method -> Email/Password.
+6. This app enforces email verification before granting access to authenticated routes.
+7. iOS uses static frameworks via `expo-build-properties` to satisfy Firebase CocoaPods integration.
 
 ```bash
 cp .env.example .env
@@ -59,6 +62,33 @@ The Expo config reads these paths from:
 - `ANDROID_GOOGLE_SERVICES_FILE`
 - `IOS_GOOGLE_SERVICES_FILE`
 
+## MYT-13 Narrative Feed + Push
+
+Baseline architecture implemented for `MYT-13`:
+
+1. Content source is Sanity (`narrativeBundle`, `narrativeActor`).
+2. App reads feed via authenticated Firebase proxy API (`GET /feed`).
+3. App listens to Firestore narrative state collection `v2/app/narrativeState/*` and refetches on newest update changes.
+4. App also refetches on feed focus and app foreground resume.
+5. After verified session hydration, app subscribes device to FCM topic (`EXPO_PUBLIC_NARRATIVE_TOPIC`).
+
+Operational and release debugging runbook:
+- `../docs/narrative-feed-ops.md`
+
+### Playback behavior
+
+Messages in each released bundle are revealed with client-side timing:
+
+- text delay: `clamp(textLength * 45ms, 1500ms, 12000ms)`
+- attachment-only delay: `3500ms`
+
+### Attachment support
+
+- `imageAttachment` -> inline image
+- `audioAttachment` -> inline play/pause
+- `videoAttachment` -> inline video player
+- `missionAttachment` -> deep-link to `/tasks/[taskId]`
+
 ## Run
 
 ```bash
@@ -67,6 +97,15 @@ bun run start
 ```
 
 `bun run start` uses `expo start --dev-client` (required for React Native Firebase).
+
+If you changed native dependencies (for example added Firebase Messaging), rebuild dev clients:
+
+```bash
+bunx expo prebuild --platform ios --clean --no-install
+bun run ios
+bunx expo prebuild --platform android --clean --no-install
+bun run android
+```
 
 ## Recommended Dev Workflow
 
@@ -164,6 +203,21 @@ bun run log:android
 ```bash
 bun run log:metro
 ```
+
+### Feed API Reachability Probe
+
+```bash
+bun run feed:probe
+```
+
+Expected result for a healthy endpoint is `HTTP 401` (reachable and auth-protected).
+
+### Feed Loading Debug (In-App)
+
+- In development builds, the feed now emits debug logs:
+  - `[feed-debug] ...` from screen loading lifecycle
+  - `[feed-client] ...` from API request lifecycle
+- If loading is stuck, capture Metro logs and include these lines.
 
 When reporting a bug, share:
 
