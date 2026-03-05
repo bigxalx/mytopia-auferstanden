@@ -1,4 +1,5 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   AuthActionResult,
@@ -14,6 +15,9 @@ import {
 } from '@/src/core/firebase/authClient';
 import { ensureNarrativeTopicSubscription } from '@/src/core/firebase/messagingClient';
 import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
+import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
+
+const MODE_STORAGE_KEY_PREFIX = 'mytopia:narrativeMode:v1';
 
 export type SessionUser = {
   displayName: string;
@@ -28,9 +32,12 @@ export type SessionUser = {
 };
 
 type SessionContextValue = {
+  canUseDevMode: boolean;
   dismissWelcomeBack: () => void;
   isHydrated: boolean;
+  selectedMode: AppMode;
   sendPasswordReset: (email: string) => Promise<AuthActionResult>;
+  setSelectedMode: (mode: AppMode) => void;
   shouldShowWelcomeBack: boolean;
   signInWithEmail: (email: string, password: string) => Promise<AuthActionResult>;
   signOut: () => Promise<void>;
@@ -41,7 +48,10 @@ type SessionContextValue = {
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
 export function SessionProvider({ children }: PropsWithChildren) {
+  const [canUseDevMode, setCanUseDevMode] = useState(false);
+  const [selectedMode, setSelectedModeState] = useState<AppMode>('production');
   const [isHydrated, setIsHydrated] = useState(false);
+  const [modeStorageUid, setModeStorageUid] = useState<string | null>(null);
   const [shouldShowWelcomeBack, setShouldShowWelcomeBack] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
 
@@ -56,30 +66,39 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       void (async () => {
         if (firebaseUser && firebaseUser.emailVerified) {
+          const modeState = await resolveModeState(firebaseUser);
+
           try {
             const synced = await syncSessionProfile(firebaseUser);
             if (!isActive || authEventVersion !== version) {
               return;
             }
 
+            setCanUseDevMode(modeState.canUseDevMode);
+            setModeStorageUid(firebaseUser.uid);
+            setSelectedModeState(modeState.selectedMode);
             setUser(synced.profile);
             setShouldShowWelcomeBack(synced.importedLegacySummary);
-            void ensureNarrativeTopicSubscription();
           } catch (error) {
             console.error('Failed to hydrate session from Firestore profile.', error);
             if (!isActive || authEventVersion !== version) {
               return;
             }
 
+            setCanUseDevMode(modeState.canUseDevMode);
+            setModeStorageUid(firebaseUser.uid);
+            setSelectedModeState(modeState.selectedMode);
             setUser(mapSessionUser(firebaseUser));
             setShouldShowWelcomeBack(false);
-            void ensureNarrativeTopicSubscription();
           }
         } else {
           if (!isActive || authEventVersion !== version) {
             return;
           }
 
+          setCanUseDevMode(false);
+          setModeStorageUid(null);
+          setSelectedModeState('production');
           setShouldShowWelcomeBack(false);
           setUser(null);
         }
@@ -97,10 +116,20 @@ export function SessionProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    void ensureNarrativeTopicSubscription(selectedMode);
+  }, [selectedMode, user]);
+
   const value = useMemo<SessionContextValue>(
     () => ({
+      canUseDevMode,
       dismissWelcomeBack: () => setShouldShowWelcomeBack(false),
       isHydrated,
+      selectedMode,
       sendPasswordReset: async (email: string) => {
         try {
           await sendPasswordResetEmail(email);
@@ -108,6 +137,16 @@ export function SessionProvider({ children }: PropsWithChildren) {
         } catch (error) {
           return createAuthErrorResult(error);
         }
+      },
+      setSelectedMode: (mode: AppMode) => {
+        if (!modeStorageUid) {
+          setSelectedModeState('production');
+          return;
+        }
+
+        const nextMode = mode === 'dev' && canUseDevMode ? 'dev' : 'production';
+        setSelectedModeState(nextMode);
+        void persistSelectedMode(modeStorageUid, nextMode);
       },
       signInWithEmail: async (email: string, password: string) => {
         try {
@@ -135,6 +174,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
         } catch (error) {
           console.error('Failed to sign out from Firebase.', error);
         } finally {
+          setCanUseDevMode(false);
+          setModeStorageUid(null);
+          setSelectedModeState('production');
           setShouldShowWelcomeBack(false);
           setUser(null);
         }
@@ -154,7 +196,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       shouldShowWelcomeBack,
       user,
     }),
-    [isHydrated, shouldShowWelcomeBack, user]
+    [canUseDevMode, isHydrated, modeStorageUid, selectedMode, shouldShowWelcomeBack, user]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
@@ -177,4 +219,53 @@ function mapSessionUser(user: { uid: string; email: string | null; displayName: 
     email: user.email ?? '',
     id: user.uid,
   };
+}
+
+async function resolveModeState(user: { getIdTokenResult: (forceRefresh?: boolean) => Promise<{ claims: Record<string, unknown> }>; uid: string; }) {
+  const canUseDevMode = await hasDevClaim(user);
+  const persistedMode = await readPersistedMode(user.uid);
+  const selectedMode = canUseDevMode ? normalizeAppMode(persistedMode) : 'production';
+
+  if (!canUseDevMode && persistedMode === 'dev') {
+    await persistSelectedMode(user.uid, 'production');
+  }
+
+  return {
+    canUseDevMode,
+    selectedMode,
+  };
+}
+
+async function hasDevClaim(user: {
+  getIdTokenResult: (forceRefresh?: boolean) => Promise<{ claims: Record<string, unknown> }>;
+}) {
+  try {
+    const idTokenResult = await user.getIdTokenResult(true);
+    return idTokenResult.claims.dev === true;
+  } catch (error) {
+    console.warn('[session] Unable to read Firebase custom claims; defaulting to production mode.', error);
+    return false;
+  }
+}
+
+function storageKeyForMode(uid: string) {
+  return `${MODE_STORAGE_KEY_PREFIX}:${uid}`;
+}
+
+async function readPersistedMode(uid: string): Promise<AppMode> {
+  try {
+    const raw = await AsyncStorage.getItem(storageKeyForMode(uid));
+    return normalizeAppMode(raw);
+  } catch (error) {
+    console.warn('[session] Failed to read persisted app mode.', error);
+    return 'production';
+  }
+}
+
+async function persistSelectedMode(uid: string, mode: AppMode) {
+  try {
+    await AsyncStorage.setItem(storageKeyForMode(uid), mode);
+  } catch (error) {
+    console.warn('[session] Failed to persist app mode selection.', error);
+  }
 }

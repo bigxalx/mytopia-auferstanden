@@ -170,13 +170,11 @@ export const narrativeMessage = defineType({
 
 export const narrativeBundle = defineType({
   name: 'narrativeBundle',
-  title: 'Narrative Bundle',
+  title: 'Story',
   type: 'document',
   groups: [
-    { name: 'schreiben', title: 'Schreiben', default: true },
-    { name: 'planung', title: 'Planung' },
-    { name: 'push', title: 'Push' },
-    { name: 'advanced', title: 'Erweitert' },
+    { name: 'story', title: 'Seite 1: Story', default: true },
+    { name: 'push', title: 'Seite 2: Push' },
   ],
   fields: [
     defineField({
@@ -184,7 +182,7 @@ export const narrativeBundle = defineType({
       title: 'Nachrichten-Skript',
       type: 'text',
       rows: 18,
-      group: 'schreiben',
+      group: 'story',
       description:
         'Trage hier deine Nachrichten ein. Jede Leerzeile erzeugt eine neue Nachricht im Feed.',
     }),
@@ -193,14 +191,14 @@ export const narrativeBundle = defineType({
       title: 'Standard-Absender',
       type: 'reference',
       to: [{ type: 'narrativeActor' }],
-      group: 'schreiben',
+      group: 'story',
       description: 'Wähle den Absender, der für alle Skript-Nachrichten verwendet wird.',
     }),
     defineField({
       name: 'releaseAt',
       title: 'Release At',
       type: 'datetime',
-      group: 'planung',
+      group: 'story',
       description:
         'Wähle den Veröffentlichungszeitpunkt (Europe/Berlin). Dann werden Release und Push ausgelöst.',
       validation: (rule) => rule.required(),
@@ -222,11 +220,11 @@ export const narrativeBundle = defineType({
     }),
     defineField({
       name: 'messages',
-      title: 'Strukturierte Nachrichten (optional)',
+      title: 'Nachrichten-Override (optional)',
       type: 'array',
-      group: 'advanced',
+      group: 'push',
       description:
-        'Optionaler Expertenmodus. Wenn du hier Einträge hast, werden sie statt des Skripts verwendet.',
+        'Optional: Nutze dieses Feld nur für gezielte Overrides (z. B. Attachments). Wenn Einträge vorhanden sind, ersetzen sie das Skript komplett.',
       of: [defineArrayMember({ type: 'narrativeMessage' })],
     }),
   ],

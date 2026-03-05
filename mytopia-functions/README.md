@@ -12,14 +12,17 @@ Primary deployed endpoint is `narrativeApi` with routes:
 1. `POST /sanity/webhook/bundle-upsert`
    - verifies Sanity webhook signature
    - schedules/replaces Cloud Task for bundle release (`releaseAt`)
+   - optional query `mode=dev` for development dataset handling
    - updates Firestore narrative state for post-release content updates
 2. `POST /internal/release-bundle`
    - Cloud Tasks-only endpoint (OIDC + queue header verification)
+   - optional payload `mode: "dev"`
    - idempotent release gate (`releasedAt`)
    - sends one FCM topic push
-   - updates Firestore narrative state (`v2/app/narrativeState/{bundleId}`)
+   - updates Firestore narrative state (`v2/app/narrativeState/{bundleId}` or `v2/app/narrativeStateDev/{bundleId}`)
 3. `GET /feed`
    - validates Firebase ID token
+   - optional query `mode=dev` (requires Firebase custom claim `dev: true`)
    - returns released bundles from Sanity with cursor pagination
 
 ## Environment
@@ -28,9 +31,11 @@ Copy `.env.example` to `.env` for local development and set:
 
 - `SANITY_PROJECT_ID`
 - `SANITY_DATASET`
+- `SANITY_DATASET_DEV` (required for `mode=dev`)
 - `SANITY_API_TOKEN` (read-only token is sufficient)
 - `SANITY_WEBHOOK_SECRET`
 - `FCM_TOPIC_NARRATIVE`
+- `FCM_TOPIC_NARRATIVE_DEV` (optional; falls back to `<FCM_TOPIC_NARRATIVE>-dev`)
 - `CLOUD_TASKS_QUEUE`
 - `CLOUD_TASKS_LOCATION`
 - `RELEASE_FUNCTION_URL` (full route URL, for example `.../narrativeApi/internal/release-bundle`)
@@ -68,4 +73,5 @@ gcloud tasks queues create narrative-release-v1 --location=europe-west1
 ```
 
 - Sanity webhook should point to `narrativeApi/sanity/webhook/bundle-upsert`.
+- Development webhook can use the same path with query string `?mode=dev`.
 - Authoring timezone policy is Europe/Berlin; Sanity stores UTC datetimes.

@@ -1,7 +1,7 @@
 import { CloudTasksClient } from '@google-cloud/tasks';
 import { OAuth2Client } from 'google-auth-library';
 import { initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
+import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { onRequest, type Request } from 'firebase-functions/v2/https';
@@ -17,6 +17,7 @@ const tasksClient = new CloudTasksClient();
 const oidcClient = new OAuth2Client();
 
 const NARRATIVE_STATE_COLLECTION_PATH = 'v2/app/narrativeState';
+const NARRATIVE_STATE_COLLECTION_PATH_DEV = 'v2/app/narrativeStateDev';
 const SANITY_API_VERSION = 'v2025-02-19';
 const SANITY_BUNDLE_PROJECTION = `
   _id,
@@ -108,6 +109,7 @@ type FeedCursor = {
   releaseAt: string;
 };
 
+type NarrativeMode = 'production' | 'dev';
 type NarrativeStateEventType = 'content_update' | 'release';
 
 type SanityBundleWebhookPayload = {
@@ -123,10 +125,12 @@ type EnvConfig = {
   cloudTasksLocation: string;
   cloudTasksQueue: string;
   fcmTopicNarrative: string;
+  fcmTopicNarrativeDev?: string;
   projectId: string;
   releaseFunctionUrl: string;
   sanityApiToken: string;
   sanityDataset: string;
+  sanityDatasetDev?: string;
   sanityProjectId: string;
   sanityWebhookSecret: string;
   tasksServiceAccountEmail: string;
@@ -154,14 +158,19 @@ function env(): EnvConfig {
     return cachedEnv;
   }
 
+  const fcmTopicNarrativeDev = optionalEnv('FCM_TOPIC_NARRATIVE_DEV');
+  const sanityDatasetDev = optionalEnv('SANITY_DATASET_DEV');
+
   cachedEnv = {
     cloudTasksLocation: requiredEnv('CLOUD_TASKS_LOCATION'),
     cloudTasksQueue: requiredEnv('CLOUD_TASKS_QUEUE'),
     fcmTopicNarrative: requiredEnv('FCM_TOPIC_NARRATIVE'),
+    ...(fcmTopicNarrativeDev ? { fcmTopicNarrativeDev } : {}),
     projectId: requiredEnv('GCLOUD_PROJECT', 'GCP_PROJECT'),
     releaseFunctionUrl: requiredEnv('RELEASE_FUNCTION_URL'),
     sanityApiToken: requiredEnv('SANITY_API_TOKEN'),
     sanityDataset: requiredEnv('SANITY_DATASET'),
+    ...(sanityDatasetDev ? { sanityDatasetDev } : {}),
     sanityProjectId: requiredEnv('SANITY_PROJECT_ID'),
     sanityWebhookSecret: requiredEnv('SANITY_WEBHOOK_SECRET'),
     tasksServiceAccountEmail: requiredEnv('TASKS_SERVICE_ACCOUNT_EMAIL'),
@@ -199,6 +208,7 @@ async function handleSanityBundleUpsert(req: Request, res: FirebaseResponse) {
 
   try {
     await verifySanitySignature(req, env().sanityWebhookSecret);
+    const mode = resolveMode(readQueryParam(req, 'mode'));
 
     const bundleId = extractBundleId(req.body as SanityBundleWebhookPayload);
     if (!bundleId) {
@@ -207,42 +217,46 @@ async function handleSanityBundleUpsert(req: Request, res: FirebaseResponse) {
 
     logger.info('sanityBundleUpsert received', {
       bundleId,
+      mode,
       sanityWebhookId: readHeader(req, 'x-sanity-webhook-id'),
     });
 
-    const bundle = await getBundleById(bundleId);
+    const bundle = await getBundleById(bundleId, mode);
     if (!bundle) {
-      await deleteReleaseTask(bundleId);
-      logger.info('sanityBundleUpsert unpublished_ignored', { bundleId });
-      res.status(200).json({ ok: true, action: 'unpublished_ignored', bundleId });
+      await deleteReleaseTask(bundleId, mode);
+      logger.info('sanityBundleUpsert unpublished_ignored', { bundleId, mode });
+      res.status(200).json({ ok: true, action: 'unpublished_ignored', bundleId, mode });
       return;
     }
 
-    const existingState = await getNarrativeState(bundle._id);
+    const existingState = await getNarrativeState(bundle._id, mode);
     const isAlreadyReleased = Boolean(existingState?.releasedAt);
 
     if (isAlreadyReleased) {
-      await deleteReleaseTask(bundle._id);
+      await deleteReleaseTask(bundle._id, mode);
       await touchNarrativeState({
         bundleId: bundle._id,
         eventType: 'content_update',
+        mode,
         releaseAt: bundle.releaseAt,
       });
       logger.info('sanityBundleUpsert signal_updated', {
         bundleId: bundle._id,
+        mode,
         releaseAt: bundle.releaseAt,
       });
 
-      res.status(200).json({ ok: true, action: 'signal_updated', bundleId: bundle._id });
+      res.status(200).json({ ok: true, action: 'signal_updated', bundleId: bundle._id, mode });
       return;
     }
 
-    await upsertReleaseTask(bundle);
+    await upsertReleaseTask(bundle, mode);
     logger.info('sanityBundleUpsert task_upserted', {
       bundleId: bundle._id,
+      mode,
       releaseAt: bundle.releaseAt,
     });
-    res.status(200).json({ ok: true, action: 'task_upserted', bundleId: bundle._id });
+    res.status(200).json({ ok: true, action: 'task_upserted', bundleId: bundle._id, mode });
   } catch (error) {
     logger.error('sanityBundleUpsert failed', error);
     sendError(res, error);
@@ -257,31 +271,35 @@ async function handleReleaseNarrativeBundle(req: Request, res: FirebaseResponse)
 
   try {
     await verifyCloudTaskInvocation(req);
+    const mode = resolveMode(
+      typeof req.body?.mode === 'string' ? req.body.mode : readQueryParam(req, 'mode')
+    );
 
     const bundleId = typeof req.body?.bundleId === 'string' ? req.body.bundleId : '';
     if (!bundleId) {
       throw new HttpError(400, 'Missing bundleId in task payload.');
     }
 
-    logger.info('releaseNarrativeBundle start', { bundleId });
+    logger.info('releaseNarrativeBundle start', { bundleId, mode });
 
-    const bundle = await getBundleById(bundleId);
+    const bundle = await getBundleById(bundleId, mode);
     if (!bundle) {
-      logger.info('releaseNarrativeBundle bundle_missing', { bundleId });
-      res.status(200).json({ ok: true, action: 'bundle_missing', bundleId });
+      logger.info('releaseNarrativeBundle bundle_missing', { bundleId, mode });
+      res.status(200).json({ ok: true, action: 'bundle_missing', bundleId, mode });
       return;
     }
 
     const nowIso = new Date().toISOString();
     const releaseClaim = await claimBundleRelease({
       bundleId,
+      mode,
       nowIso,
       releaseAt: bundle.releaseAt,
     });
 
     if (releaseClaim.alreadyReleased) {
-      logger.info('releaseNarrativeBundle already_released', { bundleId });
-      res.status(200).json({ ok: true, action: 'already_released', bundleId });
+      logger.info('releaseNarrativeBundle already_released', { bundleId, mode });
+      res.status(200).json({ ok: true, action: 'already_released', bundleId, mode });
       return;
     }
 
@@ -299,19 +317,21 @@ async function handleReleaseNarrativeBundle(req: Request, res: FirebaseResponse)
           body,
           title,
         },
-        topic: env().fcmTopicNarrative,
+        topic: resolveNarrativeTopic(mode),
       });
 
       await touchNarrativeState({
         bundleId,
         eventType: 'release',
         lastReleaseError: null,
+        mode,
         pushSentAt: nowIso,
         pushState: 'sent',
         releaseAt: bundle.releaseAt,
       });
       logger.info('releaseNarrativeBundle push_sent', {
         bundleId,
+        mode,
         pushMessageId,
         releaseAt: bundle.releaseAt,
       });
@@ -320,18 +340,20 @@ async function handleReleaseNarrativeBundle(req: Request, res: FirebaseResponse)
         bundleId,
         eventType: 'release',
         lastReleaseError: formatError(pushError),
+        mode,
         pushState: 'failed',
         releaseAt: bundle.releaseAt,
       });
       logger.error('releaseNarrativeBundle push_failed', {
         bundleId,
+        mode,
         releaseAt: bundle.releaseAt,
         error: formatError(pushError),
       });
       throw pushError;
     }
 
-    res.status(200).json({ ok: true, action: 'released', bundleId });
+    res.status(200).json({ ok: true, action: 'released', bundleId, mode });
   } catch (error) {
     logger.error('releaseNarrativeBundle failed', error);
     sendError(res, error);
@@ -345,7 +367,11 @@ async function handleFeedProxy(req: Request, res: FirebaseResponse) {
   }
 
   try {
-    await verifyFirebaseUser(req);
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev feed requires Firebase custom claim dev=true.');
+    }
 
     const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
     const rawCursor = Array.isArray(req.query.cursor) ? req.query.cursor[0] : req.query.cursor;
@@ -353,17 +379,17 @@ async function handleFeedProxy(req: Request, res: FirebaseResponse) {
     const limit = clampLimit(rawLimit);
     const cursor = parseCursor(rawCursor);
 
-    const bundles = await getReleasedFeedBundles({ cursor, limit });
+    const bundles = await getReleasedFeedBundles({ cursor, limit, mode });
     const nextCursor = bundles.length === limit ? createNextCursor(bundles[bundles.length - 1]) : null;
 
-    res.status(200).json({ bundles, nextCursor });
+    res.status(200).json({ bundles, mode, nextCursor });
   } catch (error) {
     logger.error('feedProxy failed', error);
     sendError(res, error);
   }
 }
 
-async function verifyFirebaseUser(req: Request) {
+async function verifyFirebaseUser(req: Request): Promise<DecodedIdToken> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new HttpError(401, 'Missing bearer token.');
@@ -372,7 +398,7 @@ async function verifyFirebaseUser(req: Request) {
   const idToken = authHeader.slice('Bearer '.length);
 
   try {
-    await auth.verifyIdToken(idToken);
+    return await auth.verifyIdToken(idToken);
   } catch {
     throw new HttpError(401, 'Invalid Firebase ID token.');
   }
@@ -495,7 +521,7 @@ function normalizeBundleId(bundleId: string) {
   return bundleId.startsWith('drafts.') ? bundleId.slice('drafts.'.length) : bundleId;
 }
 
-async function upsertReleaseTask(bundle: BundleDto) {
+async function upsertReleaseTask(bundle: BundleDto, mode: NarrativeMode) {
   const releaseMs = Date.parse(bundle.releaseAt);
   if (Number.isNaN(releaseMs)) {
     throw new HttpError(400, `Bundle ${bundle._id} has invalid releaseAt value.`);
@@ -505,14 +531,15 @@ async function upsertReleaseTask(bundle: BundleDto) {
   const scheduleMs = releaseMs > nowMs ? releaseMs : nowMs + 5000;
   const scheduleSeconds = Math.floor(scheduleMs / 1000);
 
-  const taskName = getTaskName(bundle._id);
+  const taskName = getTaskName(bundle._id, mode);
+  const requestBody = mode === 'dev' ? { bundleId: bundle._id, mode: 'dev' } : { bundleId: bundle._id };
   await deleteTaskIfExists(taskName);
 
   await tasksClient.createTask({
     parent: tasksClient.queuePath(env().projectId, env().cloudTasksLocation, env().cloudTasksQueue),
     task: {
       httpRequest: {
-        body: Buffer.from(JSON.stringify({ bundleId: bundle._id })).toString('base64'),
+        body: Buffer.from(JSON.stringify(requestBody)).toString('base64'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -532,23 +559,25 @@ async function upsertReleaseTask(bundle: BundleDto) {
 
   logger.info('releaseTask upserted', {
     bundleId: bundle._id,
+    mode,
     releaseAt: bundle.releaseAt,
     scheduleSeconds,
   });
 }
 
-async function deleteReleaseTask(bundleId: string) {
-  await deleteTaskIfExists(getTaskName(bundleId));
+async function deleteReleaseTask(bundleId: string, mode: NarrativeMode) {
+  await deleteTaskIfExists(getTaskName(bundleId, mode));
 }
 
-function getTaskName(bundleId: string) {
+function getTaskName(bundleId: string, mode: NarrativeMode) {
   const normalized = bundleId.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const taskId = mode === 'dev' ? `bundle-release-dev-${normalized}` : `bundle-release-${normalized}`;
 
   return tasksClient.taskPath(
     env().projectId,
     env().cloudTasksLocation,
     env().cloudTasksQueue,
-    `bundle-release-${normalized}`
+    taskId
   );
 }
 
@@ -573,14 +602,16 @@ function isNotFoundTaskError(error: unknown) {
 
 async function claimBundleRelease({
   bundleId,
+  mode,
   nowIso,
   releaseAt,
 }: {
   bundleId: string;
+  mode: NarrativeMode;
   nowIso: string;
   releaseAt?: string;
 }) {
-  const stateRef = narrativeStateRef(bundleId);
+  const stateRef = narrativeStateRef(bundleId, mode);
   const releaseTimestamp = toTimestamp(nowIso);
   const releaseAtTimestamp = toTimestamp(releaseAt);
 
@@ -610,8 +641,8 @@ async function claimBundleRelease({
   });
 }
 
-async function getNarrativeState(bundleId: string) {
-  const snapshot = await narrativeStateRef(bundleId).get();
+async function getNarrativeState(bundleId: string, mode: NarrativeMode) {
+  const snapshot = await narrativeStateRef(bundleId, mode).get();
   if (!snapshot.exists) {
     return null;
   }
@@ -623,6 +654,7 @@ async function touchNarrativeState({
   bundleId,
   eventType,
   lastReleaseError,
+  mode,
   pushSentAt,
   pushState,
   releaseAt,
@@ -630,6 +662,7 @@ async function touchNarrativeState({
   bundleId: string;
   eventType: NarrativeStateEventType;
   lastReleaseError?: string | null;
+  mode: NarrativeMode;
   pushSentAt?: string;
   pushState?: 'failed' | 'pending' | 'sent';
   releaseAt?: string;
@@ -662,11 +695,13 @@ async function touchNarrativeState({
     update.lastReleaseError = FieldValue.delete();
   }
 
-  await narrativeStateRef(bundleId).set(update, { merge: true });
+  await narrativeStateRef(bundleId, mode).set(update, { merge: true });
 }
 
-function narrativeStateRef(bundleId: string) {
-  return firestore.collection(NARRATIVE_STATE_COLLECTION_PATH).doc(bundleId);
+function narrativeStateRef(bundleId: string, mode: NarrativeMode) {
+  const collectionPath =
+    mode === 'dev' ? NARRATIVE_STATE_COLLECTION_PATH_DEV : NARRATIVE_STATE_COLLECTION_PATH;
+  return firestore.collection(collectionPath).doc(bundleId);
 }
 
 function toTimestamp(value: string | undefined) {
@@ -682,18 +717,20 @@ function toTimestamp(value: string | undefined) {
   return Timestamp.fromMillis(parsed);
 }
 
-async function getBundleById(bundleId: string): Promise<BundleDto | null> {
+async function getBundleById(bundleId: string, mode: NarrativeMode): Promise<BundleDto | null> {
   const query = `*[_type == "narrativeBundle" && _id == $bundleId && !(_id in path("drafts.**"))][0]{${SANITY_BUNDLE_PROJECTION}}`;
 
-  return sanityQuery<BundleDto | null>(query, { bundleId });
+  return sanityQuery<BundleDto | null>(query, { bundleId }, mode);
 }
 
 async function getReleasedFeedBundles({
   cursor,
   limit,
+  mode,
 }: {
   cursor: FeedCursor | null;
   limit: number;
+  mode: NarrativeMode;
 }): Promise<BundleDto[]> {
   const cursorFilter = cursor
     ? '&& (releaseAt < $cursorReleaseAt || (releaseAt == $cursorReleaseAt && _id < $cursorId))'
@@ -712,7 +749,7 @@ async function getReleasedFeedBundles({
     params.cursorReleaseAt = cursor.releaseAt;
   }
 
-  const result = await sanityQuery<BundleDto[]>(query, params);
+  const result = await sanityQuery<BundleDto[]>(query, params, mode);
 
   return result.map((bundle) => ({
     ...bundle,
@@ -748,9 +785,13 @@ function normalizeBundleMessages(bundle: BundleDto): MessageDto[] {
     }));
 }
 
-async function sanityQuery<T>(query: string, params: Record<string, unknown>): Promise<T> {
+async function sanityQuery<T>(
+  query: string,
+  params: Record<string, unknown>,
+  mode: NarrativeMode
+): Promise<T> {
   const url = new URL(
-    `https://${env().sanityProjectId}.api.sanity.io/${SANITY_API_VERSION}/data/query/${env().sanityDataset}`
+    `https://${env().sanityProjectId}.api.sanity.io/${SANITY_API_VERSION}/data/query/${resolveSanityDataset(mode)}`
   );
 
   url.searchParams.set('query', query);
@@ -814,6 +855,45 @@ function parseCursor(cursorValue: unknown): FeedCursor | null {
   }
 }
 
+function resolveMode(raw: unknown): NarrativeMode {
+  return raw === 'dev' ? 'dev' : 'production';
+}
+
+function resolveSanityDataset(mode: NarrativeMode) {
+  if (mode === 'dev') {
+    const devDataset = env().sanityDatasetDev;
+    if (!devDataset || devDataset.length === 0) {
+      throw new Error('SANITY_DATASET_DEV is required when mode=dev.');
+    }
+
+    return devDataset;
+  }
+
+  return env().sanityDataset;
+}
+
+function resolveNarrativeTopic(mode: NarrativeMode) {
+  if (mode === 'dev') {
+    const devTopic = env().fcmTopicNarrativeDev;
+    if (typeof devTopic === 'string' && devTopic.length > 0) {
+      return devTopic;
+    }
+
+    return `${env().fcmTopicNarrative}-dev`;
+  }
+
+  return env().fcmTopicNarrative;
+}
+
+function readQueryParam(req: Request, key: string): string | null {
+  const value = req.query[key];
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0] : null;
+  }
+
+  return typeof value === 'string' ? value : null;
+}
+
 function normalizeRequestPath(pathValue: string | undefined) {
   const raw = typeof pathValue === 'string' ? pathValue.trim() : '/';
   if (raw.length === 0) {
@@ -846,6 +926,17 @@ function requiredEnv(...keys: string[]) {
   }
 
   throw new Error(`Missing required environment variable. Tried: ${keys.join(', ')}`);
+}
+
+function optionalEnv(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
 }
 
 function isHttpError(error: unknown): error is HttpError {

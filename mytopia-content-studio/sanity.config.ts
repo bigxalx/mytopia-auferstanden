@@ -12,14 +12,18 @@ export default defineConfig({
     structureTool({
       structure: (S) =>
         S.list()
-          .title('Inhalt')
+          .title('Editor')
           .items([
-            S.documentTypeListItem('narrativeBundle').title('Narrative Bundles'),
-            S.documentTypeListItem('narrativeActor').title('Narrative Actors'),
-            ...S.documentTypeListItems().filter((item) => {
-              const id = item.getId();
-              return id !== 'narrativeBundle' && id !== 'narrativeActor';
-            }),
+            S.listItem()
+              .title('Narrative')
+              .child(
+                S.list()
+                  .title('Narrative')
+                  .items([
+                    S.documentTypeListItem('narrativeBundle').title('Stories'),
+                    S.documentTypeListItem('narrativeActor').title('Absender'),
+                  ])
+              ),
           ]),
     }),
   ],

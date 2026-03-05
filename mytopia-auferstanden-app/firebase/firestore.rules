@@ -210,6 +210,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /v2/app/narrativeStateDev/{bundleId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     // Legacy app namespace (currently deployed in production).
     // Keep this until legacy reads/writes are fully retired.
     match /users/{userId}/{documents=**} {

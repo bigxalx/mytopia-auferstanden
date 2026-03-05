@@ -6,7 +6,7 @@ import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 
 export function ProfileScreen() {
-  const { signOut, user } = useSession();
+  const { canUseDevMode, selectedMode, setSelectedMode, signOut, user } = useSession();
 
   if (!user) {
     return (
@@ -19,7 +19,13 @@ export function ProfileScreen() {
   }
 
   return (
-    <Screen title="Profile & Ranking" subtitle="Feature baseline for private profile and season ranking view.">
+    <Screen
+      title="Profile & Ranking"
+      subtitle={
+        selectedMode === 'dev'
+          ? 'DEV MODE ACTIVE'
+          : 'Feature baseline for private profile and season ranking view.'
+      }>
       <SectionCard title="Account">
         <View style={styles.row}>
           <Text style={styles.label}>Display name</Text>
@@ -30,6 +36,30 @@ export function ProfileScreen() {
           <Text style={styles.value}>{user.email}</Text>
         </View>
       </SectionCard>
+      {canUseDevMode ? (
+        <SectionCard title="Mode">
+          <View style={styles.modeRow}>
+            <Pressable
+              onPress={() => setSelectedMode('production')}
+              style={[styles.modeButton, selectedMode === 'production' ? styles.modeButtonActive : null]}>
+              <Text
+                style={[
+                  styles.modeButtonLabel,
+                  selectedMode === 'production' ? styles.modeButtonLabelActive : null,
+                ]}>
+                Production
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSelectedMode('dev')}
+              style={[styles.modeButton, selectedMode === 'dev' ? styles.modeButtonActive : null]}>
+              <Text style={[styles.modeButtonLabel, selectedMode === 'dev' ? styles.modeButtonLabelActive : null]}>
+                Dev
+              </Text>
+            </Pressable>
+          </View>
+        </SectionCard>
+      ) : null}
       <RankingSummaryCard user={user} />
       <Pressable onPress={signOut} style={styles.signOutButton}>
         <Text style={styles.signOutText}>Sign out</Text>
@@ -48,6 +78,31 @@ const styles = StyleSheet.create({
     color: '#5d6979',
     flex: 1,
     fontSize: 13,
+  },
+  modeButton: {
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderColor: '#d8dee8',
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 10,
+  },
+  modeButtonActive: {
+    backgroundColor: '#f97316',
+    borderColor: '#f97316',
+  },
+  modeButtonLabel: {
+    color: '#364152',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modeButtonLabelActive: {
+    color: '#111827',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
   row: {
     flexDirection: 'row',

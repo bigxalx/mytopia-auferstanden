@@ -1,6 +1,7 @@
 import firestore from '@react-native-firebase/firestore';
 
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
+import { type AppMode } from '@/src/core/session/appMode';
 
 export type NarrativeStatePulse = {
   bundleId: string;
@@ -13,10 +14,18 @@ export type NarrativeStatePulse = {
   version: number;
 };
 
-export function subscribeNarrativeSignal(listener: (pulse: NarrativeStatePulse | null) => void) {
+export function subscribeNarrativeSignal({
+  listener,
+  mode,
+}: {
+  listener: (pulse: NarrativeStatePulse | null) => void;
+  mode: AppMode;
+}) {
+  const collectionPath = mode === 'dev' ? V2_COLLECTION.narrativeStateDev : V2_COLLECTION.narrativeState;
+
   try {
     return firestore()
-      .collection(V2_COLLECTION.narrativeState)
+      .collection(collectionPath)
       .orderBy('updatedAt', 'desc')
       .limit(1)
       .onSnapshot(

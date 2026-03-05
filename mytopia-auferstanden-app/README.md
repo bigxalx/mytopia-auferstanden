@@ -46,6 +46,7 @@ Expo Router app for the Mytopia Phase 1 MVP.
 3. Configure feed + push client env vars:
    - `EXPO_PUBLIC_FEED_API_BASE_URL` (for example: `https://europe-west1-<project-id>.cloudfunctions.net/narrativeApi/`)
    - `EXPO_PUBLIC_NARRATIVE_TOPIC` (default: `narrative-global-v1`)
+   - `EXPO_PUBLIC_NARRATIVE_TOPIC_DEV` (default fallback: `<EXPO_PUBLIC_NARRATIVE_TOPIC>-dev`)
 4. Place Firebase native config files in `secrets/firebase/` (ignored by git):
    - `secrets/firebase/google-services.json`
    - `secrets/firebase/GoogleService-Info.plist`
@@ -71,9 +72,12 @@ Baseline architecture implemented for `MYT-13`:
 3. App listens to Firestore narrative state collection `v2/app/narrativeState/*` and refetches on newest update changes.
 4. App also refetches on feed focus and app foreground resume.
 5. After verified session hydration, app subscribes device to FCM topic (`EXPO_PUBLIC_NARRATIVE_TOPIC`).
+6. Dev mode is available only for users with Firebase custom claim `dev: true`.
+7. When dev mode is active, feed requests use `GET /feed?mode=dev` and app listens to `v2/app/narrativeStateDev/*`.
 
 Operational and release debugging runbook:
 - `../docs/narrative-feed-ops.md`
+- `../docs/mobile-distribution-playbook.md`
 
 ### Playback behavior
 

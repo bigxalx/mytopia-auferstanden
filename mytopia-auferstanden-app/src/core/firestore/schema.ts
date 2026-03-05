@@ -1,6 +1,7 @@
 export const V2_COLLECTION = {
   leaderboard: 'v2/app/leaderboard',
   narrativeState: 'v2/app/narrativeState',
+  narrativeStateDev: 'v2/app/narrativeStateDev',
   scoreEvents: 'v2/app/scoreEvents',
   submissions: 'v2/app/submissions',
   tasks: 'v2/app/tasks',

@@ -5,6 +5,7 @@ type AppEnv = {
   feedApiBaseUrl: string;
   firebaseProjectId: string;
   narrativeTopic: string;
+  narrativeTopicDev: string;
   sanityDataset: string;
   sanityProjectId: string;
 };
@@ -14,6 +15,7 @@ const processEnvMap: Record<string, string | undefined> = {
   EXPO_PUBLIC_FEED_API_BASE_URL: process.env.EXPO_PUBLIC_FEED_API_BASE_URL,
   EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
   EXPO_PUBLIC_NARRATIVE_TOPIC: process.env.EXPO_PUBLIC_NARRATIVE_TOPIC,
+  EXPO_PUBLIC_NARRATIVE_TOPIC_DEV: process.env.EXPO_PUBLIC_NARRATIVE_TOPIC_DEV,
   EXPO_PUBLIC_SANITY_DATASET: process.env.EXPO_PUBLIC_SANITY_DATASET,
   EXPO_PUBLIC_SANITY_PROJECT_ID: process.env.EXPO_PUBLIC_SANITY_PROJECT_ID,
 };
@@ -34,6 +36,7 @@ export const env: AppEnv = {
   feedApiBaseUrl: readEnvValue('EXPO_PUBLIC_FEED_API_BASE_URL', ''),
   firebaseProjectId: readEnvValue('EXPO_PUBLIC_FIREBASE_PROJECT_ID', ''),
   narrativeTopic: readEnvValue('EXPO_PUBLIC_NARRATIVE_TOPIC', ''),
+  narrativeTopicDev: readEnvValue('EXPO_PUBLIC_NARRATIVE_TOPIC_DEV', ''),
   sanityDataset: readEnvValue('EXPO_PUBLIC_SANITY_DATASET', 'production'),
   sanityProjectId: readEnvValue('EXPO_PUBLIC_SANITY_PROJECT_ID', ''),
 };

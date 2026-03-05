@@ -1,5 +1,6 @@
 import { env, hasConfiguredFeedApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
+import { type AppMode } from '@/src/core/session/appMode';
 
 const FEED_REQUEST_TIMEOUT_MS = 15000;
 
@@ -54,9 +55,11 @@ export type NarrativeFeedPageDto = {
 export async function fetchNarrativeFeedPage({
   cursor,
   limit = 20,
+  mode = 'production',
 }: {
   cursor?: string | null;
   limit?: number;
+  mode?: AppMode;
 } = {}): Promise<NarrativeFeedPageDto> {
   if (!hasConfiguredFeedApi()) {
     throw new Error('EXPO_PUBLIC_FEED_API_BASE_URL is not configured.');
@@ -72,6 +75,7 @@ export async function fetchNarrativeFeedPage({
     baseUrl: env.feedApiBaseUrl,
     cursor,
     limit,
+    mode,
   });
 
   debugFeedClient('request:start', {
@@ -145,15 +149,20 @@ function createFeedUrl({
   baseUrl,
   cursor,
   limit,
+  mode,
 }: {
   baseUrl: string;
   cursor?: string | null;
   limit: number;
+  mode: AppMode;
 }) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const url = new URL('feed', normalizedBase);
 
   url.searchParams.set('limit', String(clampLimit(limit)));
+  if (mode === 'dev') {
+    url.searchParams.set('mode', 'dev');
+  }
 
   if (cursor && cursor.length > 0) {
     url.searchParams.set('cursor', cursor);

@@ -52,7 +52,7 @@ function debugFeed(message: string, payload?: Record<string, unknown>) {
 }
 
 export function FeedScreen() {
-  const { user } = useSession();
+  const { selectedMode, user } = useSession();
 
   const [bundles, setBundles] = useState<NarrativeBundleDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export function FeedScreen() {
       });
 
       try {
-        const page = await fetchNarrativeFeedPage({ limit: 20 });
+        const page = await fetchNarrativeFeedPage({ limit: 20, mode: selectedMode });
 
         if (requestVersion !== requestVersionRef.current) {
           debugFeed('loadFirstPage:stale-success', {
@@ -156,7 +156,7 @@ export function FeedScreen() {
         });
       }
     },
-    [user]
+    [selectedMode, user]
   );
 
   const loadMore = useCallback(async () => {
@@ -170,6 +170,7 @@ export function FeedScreen() {
       const page = await fetchNarrativeFeedPage({
         cursor: nextCursor,
         limit: 20,
+        mode: selectedMode,
       });
 
       setBundles((current) => [...current, ...page.bundles]);
@@ -181,7 +182,7 @@ export function FeedScreen() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isLoadingMore, nextCursor, user]);
+  }, [isLoadingMore, nextCursor, selectedMode, user]);
 
   useEffect(() => {
     if (!user) {
@@ -198,7 +199,7 @@ export function FeedScreen() {
 
     latestSignalTokenRef.current = null;
     void loadFirstPage('initial');
-  }, [loadFirstPage, user]);
+  }, [loadFirstPage, selectedMode, user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -213,15 +214,18 @@ export function FeedScreen() {
       return;
     }
 
-    return subscribeNarrativeSignal((signal) => {
-      if (!signal || signal.token === latestSignalTokenRef.current) {
-        return;
-      }
+    return subscribeNarrativeSignal({
+      listener: (signal) => {
+        if (!signal || signal.token === latestSignalTokenRef.current) {
+          return;
+        }
 
-      latestSignalTokenRef.current = signal.token;
-      void loadFirstPage('silent');
+        latestSignalTokenRef.current = signal.token;
+        void loadFirstPage('silent');
+      },
+      mode: selectedMode,
     });
-  }, [loadFirstPage, user]);
+  }, [loadFirstPage, selectedMode, user]);
 
   useEffect(() => {
     if (!user) {
@@ -278,6 +282,7 @@ export function FeedScreen() {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Notfallkanal</Text>
+        {selectedMode === 'dev' ? <Text style={styles.modeBadge}>DEV MODE</Text> : null}
       </View>
 
       <ScrollView
@@ -673,6 +678,18 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 17,
     lineHeight: 25,
+  },
+  modeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f97316',
+    borderRadius: 999,
+    color: '#111827',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    textTransform: 'uppercase',
   },
   missionCard: {
     backgroundColor: '#f97316',

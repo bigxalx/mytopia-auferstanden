@@ -16,6 +16,7 @@ Current focus is pre-production planning and implementation setup.
 - [Open Questions](docs/open-questions.md)
 - [Decision Guides](docs/decision-guides.md)
 - [Narrative Feed Ops Runbook](docs/narrative-feed-ops.md)
+- [Mobile Distribution Playbook](docs/mobile-distribution-playbook.md)
 
 ## Project Scope
 
@@ -58,6 +59,7 @@ This repository is a Bun workspace monorepo:
 
 Root scripts:
 
+- `bun run dev` (Turbo: starts app + studio together)
 - `bun run dev:app`
 - `bun run dev:studio`
 - `bun run deploy:functions`
