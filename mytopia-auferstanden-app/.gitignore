@@ -34,9 +34,10 @@ yarn-error.*
 # local env files
 .env*.local
 
-# Firebase local secret files
-secrets/firebase/*
-!secrets/firebase/.gitkeep
+# Local secret files
+secrets/
+credentials.json
+credentials/
 android/app/google-services.json
 ios/**/GoogleService-Info.plist
 GoogleService-Info.plist
