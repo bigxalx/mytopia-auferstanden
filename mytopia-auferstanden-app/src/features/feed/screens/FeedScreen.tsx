@@ -1,6 +1,7 @@
-import { Audio, type AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -391,17 +392,7 @@ function AttachmentView({ attachment }: { attachment: NarrativeAttachmentDto }) 
   }
 
   if (attachment._type === 'videoAttachment') {
-    return (
-      <View style={styles.attachmentBox}>
-        <Video
-          source={{ uri: attachment.url }}
-          style={styles.videoAttachment}
-          useNativeControls
-          resizeMode={ResizeMode.COVER}
-        />
-        {attachment.title ? <Text style={styles.attachmentCaption}>{attachment.title}</Text> : null}
-      </View>
-    );
+    return <VideoAttachmentView attachment={attachment} />;
   }
 
   if (attachment._type === 'audioAttachment') {
@@ -418,73 +409,68 @@ function AttachmentView({ attachment }: { attachment: NarrativeAttachmentDto }) 
   );
 }
 
+function VideoAttachmentView({
+  attachment,
+}: {
+  attachment: Extract<NarrativeAttachmentDto, { _type: 'videoAttachment' }>;
+}) {
+  const player = useVideoPlayer({ uri: attachment.url });
+
+  return (
+    <View style={styles.attachmentBox}>
+      <VideoView player={player} style={styles.videoAttachment} nativeControls contentFit="cover" />
+      {attachment.title ? <Text style={styles.attachmentCaption}>{attachment.title}</Text> : null}
+    </View>
+  );
+}
+
 function AudioAttachmentView({
   attachment,
 }: {
   attachment: Extract<NarrativeAttachmentDto, { _type: 'audioAttachment' }>;
 }) {
-  const [audioSound, setAudioSound] = useState<Audio.Sound | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      setIsPlaying(false);
-      return;
-    }
-
-    setIsPlaying(status.isPlaying);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (audioSound) {
-        void audioSound.unloadAsync();
-      }
-    };
-  }, [audioSound]);
+  const audioPlayer = useAudioPlayer({ uri: attachment.url });
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
+  const [isPreparingPlayback, setIsPreparingPlayback] = useState(false);
 
   const onTogglePlayback = useCallback(async () => {
-    if (isLoading) {
+    if (isPreparingPlayback) {
       return;
     }
 
-    if (audioSound) {
-      if (isPlaying) {
-        await audioSound.pauseAsync();
-      } else {
-        await audioSound.playAsync();
-      }
+    if (audioStatus.playing) {
+      audioPlayer.pause();
       return;
     }
 
     try {
-      setIsLoading(true);
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
+      setIsPreparingPlayback(true);
+      await setAudioModeAsync({
+        playsInSilentMode: true,
       });
-
-      const created = await Audio.Sound.createAsync(
-        { uri: attachment.url },
-        { shouldPlay: true },
-        onPlaybackStatusUpdate
-      );
-
-      setAudioSound(created.sound);
-      setIsPlaying(true);
+      if (audioStatus.didJustFinish) {
+        await audioPlayer.seekTo(0);
+      }
+      audioPlayer.play();
     } catch (error) {
       console.warn('[feed] Failed to play audio attachment.', error);
     } finally {
-      setIsLoading(false);
+      setIsPreparingPlayback(false);
     }
-  }, [attachment.url, audioSound, isLoading, isPlaying, onPlaybackStatusUpdate]);
+  }, [audioPlayer, audioStatus.didJustFinish, audioStatus.playing, isPreparingPlayback]);
+
+  const buttonLabel = isPreparingPlayback || audioStatus.isBuffering
+    ? 'Loading...'
+    : audioStatus.playing
+      ? 'Pause'
+      : 'Play';
 
   return (
     <View style={styles.attachmentBox}>
       <View style={styles.audioHeader}>
         <Text style={styles.audioTitle}>{attachment.title || 'Audio message'}</Text>
         <Pressable style={styles.audioButton} onPress={() => void onTogglePlayback()}>
-          <Text style={styles.audioButtonLabel}>{isLoading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}</Text>
+          <Text style={styles.audioButtonLabel}>{buttonLabel}</Text>
         </Pressable>
       </View>
     </View>

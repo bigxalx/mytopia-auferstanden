@@ -58,10 +58,108 @@ Expo Router app for the Mytopia Phase 1 MVP.
 cp .env.example .env
 ```
 
-The Expo config reads these paths from:
+The Expo config auto-detects the standard ignored Firebase files above.
+Use these env vars only when the files live somewhere else:
 
 - `ANDROID_GOOGLE_SERVICES_FILE`
 - `IOS_GOOGLE_SERVICES_FILE`
+
+## Native Releases (Fastlane)
+
+Fastlane is the supported native release path for this app.
+
+### Local prerequisites
+
+1. Install Homebrew Ruby on the release machine (`brew install ruby`).
+2. Keep local secrets in ignored paths:
+   - `secrets/firebase/google-services.json`
+   - `secrets/firebase/GoogleService-Info.plist`
+   - `secrets/credentials/android/keystore.jks`
+   - `secrets/credentials/android/credentials.json`
+   - `secrets/fastlane/appstore/AuthKey_<KEY_ID>.p8`
+   - `secrets/fastlane/play/play-console-service-account.json`
+3. Export:
+   - `APP_STORE_CONNECT_KEY_ID`
+   - `APP_STORE_CONNECT_ISSUER_ID`
+
+Optional overrides:
+
+- `APP_STORE_CONNECT_KEY_PATH`
+- `PLAY_JSON_KEY_PATH`
+- `ANDROID_KEYSTORE_PATH`
+- `ANDROID_CREDENTIALS_JSON_PATH`
+- `IOS_GOOGLE_SERVICES_FILE`
+- `ANDROID_GOOGLE_SERVICES_FILE`
+
+### Bootstrap
+
+```bash
+bun run release:bootstrap
+bun run release:lanes
+```
+
+### Release commands
+
+From this directory:
+
+```bash
+./scripts/run-bundle.sh exec fastlane ios_beta
+./scripts/run-bundle.sh exec fastlane android_beta
+./scripts/run-bundle.sh exec fastlane beta_all
+```
+
+From the repo root:
+
+```bash
+bun run release:ios-beta
+bun run release:android-beta
+bun run release:beta
+```
+
+What the lanes do:
+
+1. Increment `app.json` build metadata for the target platform only.
+2. Run `expo prebuild --platform <platform> --clean`.
+3. Build the native release artifact locally.
+4. Upload to TestFlight or Play Internal Testing.
+
+Implementation notes:
+
+- `expo.version` stays manual.
+- `expo.ios.appleTeamId` is pinned in `app.json` so iOS signing survives `prebuild --clean`.
+- `scripts/run-bundle.sh` prefers Homebrew Ruby and blocks the macOS system Bundler 1.x toolchain.
+- Android signing uses the local upload keystore plus injected Gradle signing properties; no signing secrets are written into the Android project.
+- The next native build must be installed once so the app contains `expo-updates`.
+
+## JS Updates (Expo)
+
+Expo Updates is configured with:
+
+- `runtimeVersion.policy = appVersion`
+- default channel `production`
+- runtime channel override to `dev` when in-app dev mode is active
+
+Publish JS-only updates from the repo root:
+
+```bash
+bun run update:js:production -- "Fix production feed copy"
+bun run update:js:dev -- "Test new narration timing"
+```
+
+Or from this directory:
+
+```bash
+./scripts/run-eas-update.sh production "Fix production feed copy"
+./scripts/run-eas-update.sh dev "Test new narration timing"
+```
+
+Rules:
+
+1. Native changes: bump `expo.version`, then ship new binaries through Fastlane.
+2. JS-only changes: do not bump `expo.version`; publish an Expo update instead.
+3. Production users consume channel `production`.
+4. Users who switch to in-app dev mode consume channel `dev`.
+5. The profile screen can manually check for and apply a downloaded JS update.
 
 ## MYT-13 Narrative Feed + Push
 

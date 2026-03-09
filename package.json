@@ -9,6 +9,13 @@
     "dev": "turbo run dev --parallel --continue --filter=mytopia-content-studio --filter=mytopia-auferstanden-app",
     "dev:app": "bun run --cwd mytopia-auferstanden-app start",
     "dev:studio": "bun run --cwd mytopia-content-studio dev",
+    "release:bootstrap": "bun run --cwd mytopia-auferstanden-app release:bootstrap",
+    "release:ios-beta": "bun run --cwd mytopia-auferstanden-app release:ios-beta",
+    "release:android-beta": "bun run --cwd mytopia-auferstanden-app release:android-beta",
+    "release:beta": "bun run --cwd mytopia-auferstanden-app release:beta",
+    "release:lanes": "bun run --cwd mytopia-auferstanden-app release:lanes",
+    "update:js:production": "bun run --cwd mytopia-auferstanden-app update:js:production",
+    "update:js:dev": "bun run --cwd mytopia-auferstanden-app update:js:dev",
     "deploy:functions": "bun run --cwd mytopia-functions deploy"
   },
   "devDependencies": {

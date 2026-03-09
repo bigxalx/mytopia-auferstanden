@@ -3,11 +3,17 @@ import fs from 'fs';
 import path from 'path';
 
 const appJson = require('./app.json') as { expo: ExpoConfig };
+const defaultIosGoogleServicesFile = 'secrets/firebase/GoogleService-Info.plist';
+const defaultAndroidGoogleServicesFile = 'secrets/firebase/google-services.json';
 
 export default (): ExpoConfig => {
   const base = appJson.expo;
-  const iosGoogleServicesFile = resolveGoogleServicesPath(process.env.IOS_GOOGLE_SERVICES_FILE);
-  const androidGoogleServicesFile = resolveGoogleServicesPath(process.env.ANDROID_GOOGLE_SERVICES_FILE);
+  const iosGoogleServicesFile = resolveGoogleServicesPath(
+    process.env.IOS_GOOGLE_SERVICES_FILE ?? defaultIosGoogleServicesFile
+  );
+  const androidGoogleServicesFile = resolveGoogleServicesPath(
+    process.env.ANDROID_GOOGLE_SERVICES_FILE ?? defaultAndroidGoogleServicesFile
+  );
 
   return {
     ...base,

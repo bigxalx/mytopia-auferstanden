@@ -6,9 +6,111 @@ This is the shortest practical path to ship current builds to testers while keep
 
 1. Keep one app build line.
 2. Use mode switching + Firebase custom claim `dev` for tester behavior.
-3. Keep production default; testers explicitly switch to `Dev` in-app.
+3. Use local Fastlane lanes for beta uploads.
+4. Keep production default; testers explicitly switch to `Dev` in-app.
 
-## Tester Rollout (Current Setup)
+## Fastlane Setup
+
+### 1) Local files
+
+Keep all release credentials local and ignored by git:
+
+1. Firebase native config:
+   - `mytopia-auferstanden-app/secrets/firebase/google-services.json`
+   - `mytopia-auferstanden-app/secrets/firebase/GoogleService-Info.plist`
+2. Android upload credentials:
+   - `mytopia-auferstanden-app/secrets/credentials/android/keystore.jks`
+   - `mytopia-auferstanden-app/secrets/credentials/android/credentials.json`
+3. App Store Connect API key:
+   - `mytopia-auferstanden-app/secrets/fastlane/appstore/AuthKey_<KEY_ID>.p8`
+4. Google Play service account JSON:
+   - `mytopia-auferstanden-app/secrets/fastlane/play/play-console-service-account.json`
+
+### 2) Shell env
+
+```bash
+export APP_STORE_CONNECT_KEY_ID=<key-id>
+export APP_STORE_CONNECT_ISSUER_ID=<issuer-id>
+```
+
+Fastlane is expected to run with Homebrew Ruby (`/opt/homebrew/opt/ruby/bin`).
+The repo wrapper scripts prefer that automatically and fail fast if only the macOS system Bundler 1.x is available.
+
+Use these only if you keep files outside the standard ignored paths:
+
+- `APP_STORE_CONNECT_KEY_PATH`
+- `PLAY_JSON_KEY_PATH`
+- `ANDROID_KEYSTORE_PATH`
+- `ANDROID_CREDENTIALS_JSON_PATH`
+- `IOS_GOOGLE_SERVICES_FILE`
+- `ANDROID_GOOGLE_SERVICES_FILE`
+
+### 3) Bootstrap
+
+```bash
+bun run release:bootstrap
+bun run release:lanes
+```
+
+## Native Releases (Fastlane)
+
+From the repo root:
+
+```bash
+bun run release:ios-beta
+bun run release:android-beta
+bun run release:beta
+```
+
+From `mytopia-auferstanden-app/`:
+
+```bash
+./scripts/run-bundle.sh exec fastlane ios_beta
+./scripts/run-bundle.sh exec fastlane android_beta
+./scripts/run-bundle.sh exec fastlane beta_all
+```
+
+Lane behavior:
+
+1. Increment the target platform build counter in `app.json`.
+2. Run `expo prebuild --platform <platform> --clean`.
+3. Build the native artifact locally.
+4. Upload to TestFlight or Play Internal Testing.
+
+Important:
+
+1. The next native builds must be shipped once to seed `expo-updates` into the installed app.
+2. After testers install that native build, later JS-only changes can ship over the air.
+
+## JS Updates (Expo)
+
+Channel mapping:
+
+1. `production` app mode -> Expo channel `production`
+2. `dev` app mode -> Expo channel `dev`
+
+Publish JS-only updates from the repo root:
+
+```bash
+bun run update:js:production -- "Fix production feed copy"
+bun run update:js:dev -- "Test new narration timing"
+```
+
+Or from `mytopia-auferstanden-app/`:
+
+```bash
+./scripts/run-eas-update.sh production "Fix production feed copy"
+./scripts/run-eas-update.sh dev "Test new narration timing"
+```
+
+Operational rules:
+
+1. `expo.version` is now the runtime boundary because `runtimeVersion` follows `appVersion`.
+2. Native changes require manually bumping `expo.version`, then shipping a new binary through Fastlane.
+3. JS-only changes do not bump `expo.version`; publish them with Expo Update instead.
+4. The app auto-checks the selected channel on launch/mode change and the profile screen can manually check/apply a downloaded update.
+
+## Tester Rollout
 
 ### 1) Prepare testers
 
@@ -18,68 +120,32 @@ This is the shortest practical path to ship current builds to testers while keep
 
 ### 2) iOS: TestFlight
 
-Use TestFlight for iOS instead of ad-hoc links.
-
-```bash
-cd mytopia-auferstanden-app
-eas build --platform ios --profile production
-eas submit --platform ios --profile production --latest
-```
-
-After submit:
-
-1. Open App Store Connect -> TestFlight.
-2. Add internal testers first.
-3. Add external group when internal smoke test passes.
+1. Run `bun run release:ios-beta`.
+2. Open App Store Connect -> TestFlight.
+3. Add internal testers first.
+4. Add external group when internal smoke test passes.
 
 ### 3) Android: Play Internal Testing
 
-```bash
-cd mytopia-auferstanden-app
-eas build --platform android --profile production
-eas submit --platform android --profile production --latest
-```
-
-After submit:
-
-1. Open Play Console -> Testing -> Internal testing.
-2. Add tester emails or group.
-3. Roll out the release to internal track.
+1. Run `bun run release:android-beta`.
+2. Open Play Console -> Testing -> Internal testing.
+3. Add tester emails or group.
+4. Roll out the release to internal track.
 
 ### 4) Tester validation script
 
 1. Install build from TestFlight/Play internal.
 2. Login with tester account (`dev: true`).
 3. Switch profile mode to `Dev`.
-4. Publish a bundle in Sanity `development` dataset.
-5. Confirm push + feed update.
-6. Switch back to Production and verify production feed remains clean.
+4. Open Profile and confirm the requested JS channel shows `dev`.
+5. Publish a JS update to channel `dev` and apply it from the profile screen.
+6. Publish a bundle in Sanity `development` dataset.
+7. Confirm push + feed update.
+8. Switch back to Production and verify production feed remains clean.
 
-## About EAS `preview` / internal profile
+## Notes
 
-`preview` in `eas.json` is useful for rapid internal builds.
-
-- Android: usually straightforward for direct installs.
-- iOS: ad-hoc distribution requires registered devices and is less scalable than TestFlight.
-
-For editor/tester rollout, TestFlight is usually simpler.
-
-## Fastlane (Optional Next Step)
-
-You can keep using only EAS for now. Add Fastlane when you need repeatable release automation.
-
-Good use-cases:
-
-1. Consistent versioning/changelog flows.
-2. One-command beta uploads.
-3. Store metadata/screenshots automation.
-
-Minimal shape:
-
-1. Add `fastlane/Fastfile` in `mytopia-auferstanden-app`.
-2. Create lanes:
-   - `ios_beta`: trigger EAS iOS build + upload to TestFlight.
-   - `android_beta`: trigger EAS Android build + upload to Play internal.
-3. Keep signing/secrets in EAS + App Store Connect + Play Console, and call them from lanes.
-
-If you want, next pass can add a minimal `fastlane` setup with two lanes only (`ios_beta`, `android_beta`) and no extra complexity.
+1. `expo.version` remains manual and now controls OTA compatibility boundaries.
+2. `ios.buildNumber` and `android.versionCode` are auto-incremented by the Fastlane lanes.
+3. Android Studio is still useful for local inspection, but Fastlane can build the signed AAB directly from the terminal.
+4. If you open Android Studio manually, open it from a terminal session so Gradle inherits your `node` path.

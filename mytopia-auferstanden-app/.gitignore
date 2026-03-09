@@ -6,9 +6,12 @@ node_modules/
 # Expo
 .expo/
 .logs/
+build/
 dist/
 web-build/
 expo-env.d.ts
+.bundle/
+vendor/bundle/
 
 # Native
 .kotlin/
@@ -42,6 +45,9 @@ android/app/google-services.json
 ios/**/GoogleService-Info.plist
 GoogleService-Info.plist
 google-services.json
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output/
 
 # typescript
 *.tsbuildinfo

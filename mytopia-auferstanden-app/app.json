@@ -3,6 +3,15 @@
     "name": "mytopia-auferstanden-app",
     "slug": "mytopia-auferstanden-app",
     "version": "1.0.1",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/bb713621-f181-417e-84f4-c11b855769c9",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mytopiaauferstandenapp",
@@ -11,6 +20,7 @@
     "ios": {
       "supportsTablet": false,
       "buildNumber": "3",
+      "appleTeamId": "2YM33HYFWJ",
       "bundleIdentifier": "de.theateraltenburggera.mytopia",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -35,9 +45,10 @@
     "plugins": [
       "expo-router",
       [
-        "expo-av",
+        "expo-audio",
         {
-          "microphonePermission": false
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [
@@ -53,6 +64,8 @@
           }
         }
       ],
+      "expo-updates",
+      "expo-video",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
       [
