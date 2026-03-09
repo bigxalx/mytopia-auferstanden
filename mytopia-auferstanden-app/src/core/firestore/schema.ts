@@ -15,11 +15,13 @@ export type SubmissionStatus = 'draft' | 'pending' | 'approved' | 'rejected';
 
 export type ScoreEventReason =
   | 'task_approved'
+  | 'quiz_completed'
+  | 'gps_completed'
   | 'moderation_penalty'
   | 'legacy_import'
   | 'manual_adjustment';
 
-export type ScoreEventSourceType = 'submission' | 'import' | 'admin';
+export type ScoreEventSourceType = 'submission' | 'quiz' | 'gps' | 'import' | 'admin';
 
 export type LegacySummary = {
   citizenship?: Record<string, unknown>;

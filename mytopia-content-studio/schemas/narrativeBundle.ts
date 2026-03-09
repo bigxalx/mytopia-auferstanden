@@ -69,17 +69,18 @@ export const missionAttachment = defineType({
   type: 'object',
   fields: [
     defineField({
-      name: 'missionTaskId',
-      title: 'Mission Task ID',
-      type: 'string',
-      description: 'Trage die Task-ID der verknüpften Mission ein (zum Beispiel task_001).',
-      validation: (rule) => rule.required().min(1),
+      name: 'mission',
+      title: 'Mission',
+      type: 'reference',
+      to: [{ type: 'mission' }],
+      description: 'Wähle die verknüpfte Mission aus.',
+      validation: (rule) => rule.required(),
     }),
     defineField({
       name: 'title',
       title: 'Titel',
       type: 'string',
-      description: 'Optional: Trage den Titel der Missionskarte ein.',
+      description: 'Optional: Überschreibe den Titel der Missionskarte.',
     }),
     defineField({
       name: 'excerpt',
@@ -237,9 +238,9 @@ export const narrativeBundle = defineType({
       const firstLine =
         typeof selection.script === 'string'
           ? selection.script
-              .split('\n')
-              .map((line: string) => line.trim())
-              .find((line: string) => line.length > 0)
+            .split('\n')
+            .map((line: string) => line.trim())
+            .find((line: string) => line.length > 0)
           : null;
 
       return {

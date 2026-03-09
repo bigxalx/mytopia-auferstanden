@@ -4,6 +4,7 @@ type AppEnv = {
   appEnv: string;
   feedApiBaseUrl: string;
   firebaseProjectId: string;
+  missionApiBaseUrl: string;
   narrativeTopic: string;
   narrativeTopicDev: string;
   sanityDataset: string;
@@ -14,6 +15,7 @@ const processEnvMap: Record<string, string | undefined> = {
   EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
   EXPO_PUBLIC_FEED_API_BASE_URL: process.env.EXPO_PUBLIC_FEED_API_BASE_URL,
   EXPO_PUBLIC_FIREBASE_PROJECT_ID: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  EXPO_PUBLIC_MISSION_API_BASE_URL: process.env.EXPO_PUBLIC_MISSION_API_BASE_URL,
   EXPO_PUBLIC_NARRATIVE_TOPIC: process.env.EXPO_PUBLIC_NARRATIVE_TOPIC,
   EXPO_PUBLIC_NARRATIVE_TOPIC_DEV: process.env.EXPO_PUBLIC_NARRATIVE_TOPIC_DEV,
   EXPO_PUBLIC_SANITY_DATASET: process.env.EXPO_PUBLIC_SANITY_DATASET,
@@ -35,6 +37,7 @@ export const env: AppEnv = {
   appEnv: readEnvValue('EXPO_PUBLIC_APP_ENV', 'development'),
   feedApiBaseUrl: readEnvValue('EXPO_PUBLIC_FEED_API_BASE_URL', ''),
   firebaseProjectId: readEnvValue('EXPO_PUBLIC_FIREBASE_PROJECT_ID', ''),
+  missionApiBaseUrl: readEnvValue('EXPO_PUBLIC_MISSION_API_BASE_URL', ''),
   narrativeTopic: readEnvValue('EXPO_PUBLIC_NARRATIVE_TOPIC', ''),
   narrativeTopicDev: readEnvValue('EXPO_PUBLIC_NARRATIVE_TOPIC_DEV', ''),
   sanityDataset: readEnvValue('EXPO_PUBLIC_SANITY_DATASET', 'production'),
@@ -51,4 +54,8 @@ export function hasConfiguredSanity() {
 
 export function hasConfiguredFeedApi() {
   return env.feedApiBaseUrl.length > 0;
+}
+
+export function hasConfiguredMissionApi() {
+  return env.missionApiBaseUrl.length > 0;
 }

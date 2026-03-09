@@ -4,8 +4,10 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "sanity dev",
+    "dev:dev": "SANITY_STUDIO_DATASET=development sanity dev",
     "build": "sanity build",
-    "deploy": "sanity deploy"
+    "deploy": "sanity deploy",
+    "deploy:dev": "SANITY_STUDIO_DATASET=development sanity deploy"
   },
   "dependencies": {
     "react": "^19.1.0",

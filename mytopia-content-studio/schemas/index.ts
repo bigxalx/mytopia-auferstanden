@@ -1,3 +1,4 @@
+import { mission, quizOption, quizQuestion } from './mission';
 import { narrativeActor } from './narrativeActor';
 import {
   audioAttachment,
@@ -9,6 +10,9 @@ import {
 } from './narrativeBundle';
 
 export const schemaTypes = [
+  mission,
+  quizOption,
+  quizQuestion,
   narrativeActor,
   imageAttachment,
   audioAttachment,

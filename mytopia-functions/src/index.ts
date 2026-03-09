@@ -53,7 +53,10 @@ const SANITY_BUNDLE_PROJECTION = `
         title
       },
       _type == "missionAttachment" => {
-        missionTaskId,
+        "missionId": mission._ref,
+        "missionTitle": mission->title,
+        "missionKind": mission->kind,
+        "missionPoints": mission->points,
         title,
         excerpt
       }
@@ -63,21 +66,24 @@ const SANITY_BUNDLE_PROJECTION = `
 
 type AttachmentDto =
   | {
-      _type: 'imageAttachment';
-      caption?: string;
-      url: string;
-    }
+    _type: 'imageAttachment';
+    caption?: string;
+    url: string;
+  }
   | {
-      _type: 'audioAttachment' | 'videoAttachment';
-      title?: string;
-      url: string;
-    }
+    _type: 'audioAttachment' | 'videoAttachment';
+    title?: string;
+    url: string;
+  }
   | {
-      _type: 'missionAttachment';
-      excerpt?: string;
-      missionTaskId: string;
-      title?: string;
-    };
+    _type: 'missionAttachment';
+    excerpt?: string;
+    missionId: string;
+    missionKind?: string;
+    missionPoints?: number;
+    missionTitle?: string;
+    title?: string;
+  };
 
 type MessageDto = {
   actor: {
@@ -194,6 +200,11 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
 
   if (path === '/feed') {
     await handleFeedProxy(req, res);
+    return;
+  }
+
+  if (path === '/missions') {
+    await handleMissionsProxy(req, res);
     return;
   }
 
@@ -385,6 +396,329 @@ async function handleFeedProxy(req: Request, res: FirebaseResponse) {
     res.status(200).json({ bundles, mode, nextCursor });
   } catch (error) {
     logger.error('feedProxy failed', error);
+    sendError(res, error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Missions read proxy (added to narrativeApi)
+// ---------------------------------------------------------------------------
+
+const MISSION_LIST_PROJECTION = `
+  _id,
+  title,
+  kind,
+  points,
+  description,
+  active,
+  gpsConfig,
+  "questionCount": count(quizConfig.questions)
+`;
+
+const MISSION_DETAIL_PROJECTION = `
+  _id,
+  title,
+  kind,
+  points,
+  description,
+  active,
+  gpsConfig,
+  "questions": quizConfig.questions[]{
+    questionText,
+    "optionCount": count(options),
+    "options": options[].text
+  }
+`;
+
+const MISSION_SCORING_PROJECTION = `
+  _id,
+  title,
+  kind,
+  points,
+  active,
+  "questions": quizConfig.questions[]{
+    questionText,
+    "options": options[]{text, isCorrect}
+  }
+`;
+
+async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
+    }
+
+    const query = `*[_type == "mission" && active == true] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
+    const missions = await sanityQuery<unknown[]>(query, {}, mode);
+
+    res.status(200).json({ missions });
+  } catch (error) {
+    logger.error('missionsProxy failed', error);
+    sendError(res, error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mission scoring API (separate Cloud Function)
+// ---------------------------------------------------------------------------
+
+type MissionDto = {
+  _id: string;
+  active: boolean;
+  kind: 'gps' | 'quiz';
+  points: number;
+  questions?: Array<{
+    options: Array<{ isCorrect: boolean; text: string }>;
+    questionText: string;
+  }>;
+  title: string;
+};
+
+export const missionApi = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
+  const path = normalizeRequestPath(req.path);
+
+  if (path === '/quiz/complete') {
+    await handleQuizComplete(req, res);
+    return;
+  }
+
+  if (path === '/gps/complete') {
+    await handleGpsComplete(req, res);
+    return;
+  }
+
+  res.status(404).json({ error: 'Route not found.' });
+});
+
+async function handleQuizComplete(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+    const uid = decodedToken.uid;
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
+    }
+
+    const body = req.body as { answers?: number[]; missionId?: string } | undefined;
+    const missionId = body?.missionId;
+    const answers = body?.answers;
+
+    if (typeof missionId !== 'string' || !missionId) {
+      throw new HttpError(400, 'Missing missionId.');
+    }
+
+    if (!Array.isArray(answers)) {
+      throw new HttpError(400, 'Missing answers array.');
+    }
+
+    // Fetch mission with correct answers from Sanity
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**"))][0]{${MISSION_SCORING_PROJECTION}}`;
+    const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
+
+    if (!mission) {
+      throw new HttpError(404, 'Mission not found.');
+    }
+
+    if (!mission.active) {
+      throw new HttpError(400, 'Mission is not active.');
+    }
+
+    if (mission.kind !== 'quiz') {
+      throw new HttpError(400, 'Mission is not a quiz.');
+    }
+
+    const questions = mission.questions ?? [];
+    if (questions.length === 0) {
+      throw new HttpError(400, 'Mission has no questions.');
+    }
+
+    if (answers.length !== questions.length) {
+      throw new HttpError(400, `Expected ${questions.length} answers, got ${answers.length}.`);
+    }
+
+    // Validate answers
+    let correctCount = 0;
+    for (let i = 0; i < questions.length; i++) {
+      const question = questions[i];
+      const selectedIndex = answers[i];
+
+      if (typeof selectedIndex !== 'number' || selectedIndex < 0 || selectedIndex >= question.options.length) {
+        throw new HttpError(400, `Invalid answer index at position ${i}.`);
+      }
+
+      if (question.options[selectedIndex].isCorrect) {
+        correctCount++;
+      }
+    }
+
+    const earned = Math.round((correctCount / questions.length) * mission.points);
+    const idempotencyKey = `quiz:${missionId}:${uid}`;
+
+    // Check idempotency
+    const existingEvent = await firestore
+      .collection('v2/app/scoreEvents')
+      .where('idempotencyKey', '==', idempotencyKey)
+      .limit(1)
+      .get();
+
+    if (!existingEvent.empty) {
+      const existing = existingEvent.docs[0].data();
+      res.status(200).json({
+        action: 'already_completed',
+        correct: correctCount,
+        earned: existing.delta,
+        total: questions.length,
+      });
+      return;
+    }
+
+    // Batch write: scoreEvent + increment user pointsCurrent
+    const batch = firestore.batch();
+    const eventRef = firestore.collection('v2/app/scoreEvents').doc(idempotencyKey);
+    const userRef = firestore.collection('v2/app/users').doc(uid);
+
+    batch.set(eventRef, {
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: 'system',
+      delta: earned,
+      idempotencyKey,
+      metadata: {
+        correct: correctCount,
+        missionTitle: mission.title,
+        total: questions.length,
+      },
+      reason: 'quiz_completed',
+      sourceId: missionId,
+      sourceType: 'quiz',
+      uid,
+    });
+
+    batch.update(userRef, {
+      pointsCurrent: FieldValue.increment(earned),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    logger.info('quizComplete scored', { correct: correctCount, earned, missionId, total: questions.length, uid });
+
+    res.status(200).json({
+      action: 'scored',
+      correct: correctCount,
+      earned,
+      total: questions.length,
+    });
+  } catch (error) {
+    logger.error('quizComplete failed', error);
+    sendError(res, error);
+  }
+}
+
+async function handleGpsComplete(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+    const uid = decodedToken.uid;
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
+    }
+
+    const body = req.body as { missionId?: string } | undefined;
+    const missionId = body?.missionId;
+
+    if (typeof missionId !== 'string' || !missionId) {
+      throw new HttpError(400, 'Missing missionId.');
+    }
+
+    // Fetch mission from Sanity (no answers needed, just verify it exists)
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**"))][0]{ _id, title, kind, points, active }`;
+    const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
+
+    if (!mission) {
+      throw new HttpError(404, 'Mission not found.');
+    }
+
+    if (!mission.active) {
+      throw new HttpError(400, 'Mission is not active.');
+    }
+
+    if (mission.kind !== 'gps') {
+      throw new HttpError(400, 'Mission is not a GPS mission.');
+    }
+
+    const earned = mission.points;
+    const idempotencyKey = `gps:${missionId}:${uid}`;
+
+    // Check idempotency
+    const existingEvent = await firestore
+      .collection('v2/app/scoreEvents')
+      .where('idempotencyKey', '==', idempotencyKey)
+      .limit(1)
+      .get();
+
+    if (!existingEvent.empty) {
+      const existing = existingEvent.docs[0].data();
+      res.status(200).json({
+        action: 'already_completed',
+        earned: existing.delta,
+      });
+      return;
+    }
+
+    // Batch write: scoreEvent + increment user pointsCurrent
+    const batch = firestore.batch();
+    const eventRef = firestore.collection('v2/app/scoreEvents').doc(idempotencyKey);
+    const userRef = firestore.collection('v2/app/users').doc(uid);
+
+    batch.set(eventRef, {
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: 'system',
+      delta: earned,
+      idempotencyKey,
+      metadata: {
+        missionTitle: mission.title,
+      },
+      reason: 'gps_completed',
+      sourceId: missionId,
+      sourceType: 'gps',
+      uid,
+    });
+
+    batch.update(userRef, {
+      pointsCurrent: FieldValue.increment(earned),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    logger.info('gpsComplete scored', { earned, missionId, uid });
+
+    res.status(200).json({
+      action: 'scored',
+      earned,
+    });
+  } catch (error) {
+    logger.error('gpsComplete failed', error);
     sendError(res, error);
   }
 }
@@ -771,8 +1105,8 @@ function normalizeBundleMessages(bundle: BundleDto): MessageDto[] {
   const defaultActor = bundle.scriptActor?.name
     ? bundle.scriptActor
     : {
-        name: 'Notfallkanal',
-      };
+      name: 'Notfallkanal',
+    };
 
   return script
     .split(/\n\s*\n/g)

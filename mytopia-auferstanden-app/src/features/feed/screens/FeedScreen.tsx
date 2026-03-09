@@ -400,9 +400,9 @@ function AttachmentView({ attachment }: { attachment: NarrativeAttachmentDto }) 
   }
 
   return (
-    <Link asChild href={`/tasks/${attachment.missionTaskId}`}>
+    <Link asChild href={`/tasks/${attachment.missionId}`}>
       <Pressable style={styles.missionCard}>
-        <Text style={styles.missionTitle}>{attachment.title || 'Mission available'}</Text>
+        <Text style={styles.missionTitle}>{attachment.title || attachment.missionTitle || 'Mission available'}</Text>
         {attachment.excerpt ? <Text style={styles.missionExcerpt}>{attachment.excerpt}</Text> : null}
       </Pressable>
     </Link>

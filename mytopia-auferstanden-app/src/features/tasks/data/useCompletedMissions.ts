@@ -1,0 +1,44 @@
+import { useEffect, useState } from 'react';
+import firestore from '@react-native-firebase/firestore';
+
+import { V2_COLLECTION } from '@/src/core/firestore/schema';
+
+/**
+ * Real-time listener for a user's completed missions from scoreEvents.
+ * Returns an array of mission IDs.
+ */
+export function useCompletedMissions(uid: string | undefined): string[] {
+    const [completedIds, setCompletedIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (!uid) {
+            setCompletedIds([]);
+            return;
+        }
+
+        const unsubscribe = firestore()
+            .collection(V2_COLLECTION.scoreEvents)
+            .where('uid', '==', uid)
+            .onSnapshot(
+                (snapshot) => {
+                    const ids: string[] = [];
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        // Depending on schema, we check sourceType or reason to identify missions
+                        if ((data.sourceType === 'quiz' || data.sourceType === 'gps') && typeof data.sourceId === 'string') {
+                            ids.push(data.sourceId);
+                        }
+                    });
+                    setCompletedIds(ids);
+                },
+                (error) => {
+                    console.warn('[useCompletedMissions] Firestore listener error:', error);
+                    setCompletedIds([]);
+                }
+            );
+
+        return () => unsubscribe();
+    }, [uid]);
+
+    return completedIds;
+}

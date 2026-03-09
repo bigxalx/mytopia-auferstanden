@@ -6,26 +6,29 @@ const FEED_REQUEST_TIMEOUT_MS = 15000;
 
 export type NarrativeAttachmentDto =
   | {
-      _type: 'imageAttachment';
-      caption?: string;
-      url: string;
-    }
+    _type: 'imageAttachment';
+    caption?: string;
+    url: string;
+  }
   | {
-      _type: 'audioAttachment';
-      title?: string;
-      url: string;
-    }
+    _type: 'audioAttachment';
+    title?: string;
+    url: string;
+  }
   | {
-      _type: 'videoAttachment';
-      title?: string;
-      url: string;
-    }
+    _type: 'videoAttachment';
+    title?: string;
+    url: string;
+  }
   | {
-      _type: 'missionAttachment';
-      excerpt?: string;
-      missionTaskId: string;
-      title?: string;
-    };
+    _type: 'missionAttachment';
+    excerpt?: string;
+    missionId: string;
+    missionKind?: string;
+    missionPoints?: number;
+    missionTitle?: string;
+    title?: string;
+  };
 
 export type NarrativeMessageDto = {
   actor: {
@@ -126,8 +129,8 @@ export async function fetchNarrativeFeedPage({
 
   const bundles = Array.isArray(payload.bundles)
     ? payload.bundles
-        .map((bundle) => normalizeBundle(bundle))
-        .filter((bundle): bundle is NarrativeBundleDto => bundle !== null)
+      .map((bundle) => normalizeBundle(bundle))
+      .filter((bundle): bundle is NarrativeBundleDto => bundle !== null)
     : [];
 
   debugFeedClient('request:parsed', {
@@ -288,8 +291,8 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
   }
 
   if (raw._type === 'missionAttachment') {
-    const missionTaskId = asNonEmptyString(raw.missionTaskId);
-    if (!missionTaskId) {
+    const missionId = asNonEmptyString(raw.missionId);
+    if (!missionId) {
       return undefined;
     }
 
@@ -298,7 +301,10 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       ...(typeof raw.excerpt === 'string' && raw.excerpt.length > 0
         ? { excerpt: raw.excerpt }
         : {}),
-      missionTaskId,
+      missionId,
+      ...(typeof raw.missionKind === 'string' ? { missionKind: raw.missionKind } : {}),
+      ...(typeof raw.missionPoints === 'number' ? { missionPoints: raw.missionPoints } : {}),
+      ...(typeof raw.missionTitle === 'string' ? { missionTitle: raw.missionTitle } : {}),
       ...(typeof raw.title === 'string' && raw.title.length > 0 ? { title: raw.title } : {}),
     };
   }
