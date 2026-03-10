@@ -155,8 +155,8 @@ def increment_android_version_code!
 end
 
 def require_apple_id!
-  apple_id = ENV["APPLE_ID"].to_s.strip
-  UI.user_error!("APPLE_ID is required for ios_beta when not using App Store Connect API keys.") if apple_id.empty?
+  apple_id = (ENV["APPLE_ID"] || ENV["FASTLANE_USER"]).to_s.strip
+  UI.user_error!("APPLE_ID or FASTLANE_USER is required for ios_beta when not using App Store Connect API keys.") if apple_id.empty?
   apple_id
 end
 

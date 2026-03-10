@@ -13,7 +13,7 @@
     "release:bootstrap": "./scripts/run-bundle.sh install",
     "release:ios-beta": "./scripts/run-bundle.sh exec fastlane ios_beta",
     "release:android-beta": "./scripts/run-bundle.sh exec fastlane android_beta",
-    "release:beta": "./scripts/run-bundle.sh exec fastlane beta_all",
+    "release": "./scripts/run-bundle.sh exec fastlane beta_all",
     "release:lanes": "./scripts/run-bundle.sh exec fastlane lanes",
     "update:js:production": "./scripts/run-eas-update.sh production",
     "update:js:dev": "./scripts/run-eas-update.sh dev",
