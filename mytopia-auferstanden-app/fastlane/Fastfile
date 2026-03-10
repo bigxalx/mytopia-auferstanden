@@ -58,6 +58,29 @@ def require_file_path!(label:, env_key:, default_path: nil)
   path
 end
 
+def load_env_local!
+  env_file = absolute_from_project(".env.local")
+  return unless File.exist?(env_file)
+
+  # Check if dotenv is available (Fastlane includes it)
+  begin
+    require "dotenv"
+    Dotenv.load(env_file)
+  rescue LoadError
+    # Fallback if dotenv gem isn't available
+    File.readlines(env_file).each do |line|
+      line = line.strip
+      next if line.empty? || line.start_with?("#")
+      
+      key, value = line.split("=", 2)
+      next unless key && value
+      
+      value = value.strip.gsub(/\A['"]|['"]\Z/, '')
+      ENV[key.strip] ||= value
+    end
+  end
+end
+
 def ensure_bun!
   return if system("which bun >/dev/null 2>&1")
 
@@ -101,7 +124,14 @@ def resolve_google_services!(platform)
 end
 
 def run_prebuild!(platform)
-  sh("cd #{shellescape(project_root)} && bunx expo prebuild --platform #{platform} --clean")
+  # Prebuild without installing pods
+  sh("cd #{shellescape(project_root)} && bunx expo prebuild --platform #{platform} --clean --no-install")
+  
+  if platform == :ios
+    # Clear bundler environment before running pod install to avoid Gemfile conflicts,
+    # as Expo expects `pod install` to run in a fresh ruby context
+    sh("cd #{shellescape(project_root)}/ios && env -u BUNDLE_BIN_PATH -u BUNDLE_GEMFILE -u RUBYOPT pod install --repo-update")
+  end
 end
 
 def increment_ios_build_number!
@@ -124,38 +154,10 @@ def increment_android_version_code!
   next_value
 end
 
-def ios_api_key!
-  key_id = ENV["APP_STORE_CONNECT_KEY_ID"].to_s.strip
-  issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"].to_s.strip
-  UI.user_error!("APP_STORE_CONNECT_KEY_ID is required for ios_beta.") if key_id.empty?
-  UI.user_error!("APP_STORE_CONNECT_ISSUER_ID is required for ios_beta.") if issuer_id.empty?
-
-  key_path =
-    if ENV["APP_STORE_CONNECT_KEY_PATH"].to_s.strip != ""
-      absolute_from_project(ENV["APP_STORE_CONNECT_KEY_PATH"])
-    else
-      exact_match = absolute_from_project(File.join(DEFAULT_APP_STORE_KEY_DIR, "AuthKey_#{key_id}.p8"))
-      if File.exist?(exact_match)
-        exact_match
-      else
-        matches = Dir[absolute_from_project(File.join(DEFAULT_APP_STORE_KEY_DIR, "AuthKey_*.p8"))]
-        UI.user_error!(
-          "App Store Connect API key file is missing. Set APP_STORE_CONNECT_KEY_PATH or add a single AuthKey_*.p8 file under #{DEFAULT_APP_STORE_KEY_DIR}."
-        ) unless matches.length == 1
-
-        matches.first
-      end
-    end
-
-  UI.user_error!("App Store Connect API key file was not found at #{key_path}.") unless File.exist?(key_path)
-
-  app_store_connect_api_key(
-    key_id: key_id,
-    issuer_id: issuer_id,
-    key_filepath: key_path,
-    duration: 1200,
-    in_house: false
-  )
+def require_apple_id!
+  apple_id = ENV["APPLE_ID"].to_s.strip
+  UI.user_error!("APPLE_ID is required for ios_beta when not using App Store Connect API keys.") if apple_id.empty?
+  apple_id
 end
 
 def android_signing!
@@ -196,17 +198,18 @@ def android_signing!
   }
 end
 
-def play_json_key_path!
-  require_file_path!(
-    label: "Google Play service account JSON",
-    env_key: "PLAY_JSON_KEY_PATH",
-    default_path: DEFAULT_PLAY_JSON_KEY_PATH
-  )
+def play_json_key_path
+  path = ENV["PLAY_JSON_KEY_PATH"]
+  path = fetch_default_path(DEFAULT_PLAY_JSON_KEY_PATH) if path.to_s.strip.empty? && DEFAULT_PLAY_JSON_KEY_PATH
+  path = absolute_from_project(path) unless path.to_s.strip.empty?
+  
+  (path && File.exist?(path)) ? path : nil
 end
 
 before_all do
   ENV["LANG"] ||= "en_US.UTF-8"
   ENV["LC_ALL"] ||= "en_US.UTF-8"
+  load_env_local!
 end
 
 desc "Build and upload the iOS beta to TestFlight"
@@ -216,7 +219,7 @@ lane :ios_beta do
 
   resolve_google_services!(:ios)
   team_id = ensure_ios_team_id!
-  api_key = ios_api_key!
+  apple_id = require_apple_id!
   build_number = increment_ios_build_number!
 
   run_prebuild!(:ios)
@@ -224,6 +227,21 @@ lane :ios_beta do
   output_directory = absolute_from_project("build/ios")
   archive_path = absolute_from_project(IOS_ARCHIVE_PATH)
   FileUtils.mkdir_p(output_directory)
+
+  # Check if the user specified a manual provisioning profile
+  prov_profile = ENV["IOS_PROVISIONING_PROFILE_NAME"].to_s.strip
+  
+  export_options = {
+    method: "app-store",
+    teamID: team_id
+  }
+
+  unless prov_profile.empty?
+    export_options[:provisioningProfiles] = {
+      APP_IDENTIFIER => prov_profile
+    }
+    export_options[:signingStyle] = "manual"
+  end
 
   gym(
     workspace: absolute_from_project(IOS_WORKSPACE),
@@ -233,13 +251,12 @@ lane :ios_beta do
     archive_path: archive_path,
     output_directory: output_directory,
     output_name: IOS_IPA_NAME,
-    export_method: "app-store",
-    export_team_id: team_id,
+    export_options: export_options,
     silent: false
   )
 
   upload_to_testflight(
-    api_key: api_key,
+    username: apple_id,
     ipa: File.join(output_directory, IOS_IPA_NAME),
     skip_waiting_for_build_processing: true
   )
@@ -254,7 +271,7 @@ lane :android_beta do
 
   resolve_google_services!(:android)
   signing = android_signing!
-  play_json = play_json_key_path!
+  play_json = play_json_key_path
   version_code = increment_android_version_code!
 
   run_prebuild!(:android)
@@ -273,18 +290,32 @@ lane :android_beta do
     }
   )
 
-  supply(
-    aab: absolute_from_project(ANDROID_AAB_PATH),
-    package_name: APP_IDENTIFIER,
-    track: "internal",
-    json_key: play_json,
-    skip_upload_metadata: true,
-    skip_upload_images: true,
-    skip_upload_screenshots: true,
-    skip_upload_changelogs: true
-  )
+  # Move artifact to top-level build folder
+  output_directory = absolute_from_project("build/android")
+  aab_filename = "app-release.aab"
+  destination_path = File.join(output_directory, aab_filename)
+  
+  FileUtils.mkdir_p(output_directory)
+  FileUtils.cp(absolute_from_project(ANDROID_AAB_PATH), destination_path)
 
-  UI.success("Uploaded Android versionCode #{version_code} to Play Internal Testing.")
+  if play_json
+    supply(
+      aab: destination_path,
+      package_name: APP_IDENTIFIER,
+      track: "internal",
+      json_key: play_json,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true
+    )
+    UI.success("Uploaded Android versionCode #{version_code} to Play Internal Testing.")
+  else
+    UI.important("Google Play service account JSON is missing (PLAY_JSON_KEY_PATH).")
+    UI.success("Successfully built Android versionCode #{version_code}. You can now manually upload the AAB to the Google Play Console.")
+  end
+
+  UI.message("AAB Location: #{destination_path}")
 end
 
 desc "Build and upload iOS TestFlight and Android Internal Testing betas"

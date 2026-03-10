@@ -4,6 +4,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+if [[ -f "${APP_DIR}/.env.local" ]]; then
+  echo "Loading local environment from .env.local..."
+  set -a
+  source "${APP_DIR}/.env.local"
+  set +a
+fi
 for candidate in /opt/homebrew/opt/ruby/bin/bundle /usr/local/opt/ruby/bin/bundle; do
   if [[ -x "${candidate}" ]]; then
     export PATH="$(dirname "${candidate}"):${PATH}"
