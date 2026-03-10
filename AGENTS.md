@@ -12,6 +12,12 @@
 - When asked for "today's task", check Linear first (assigned issues, due dates, and status).
 - Prefer Linear issue identifiers (for example `MYT-9`) in updates and commit/PR context.
 
+## Tooling
+
+- **Always use `bun`** as the package manager (`bun install`, `bun add`, `bun run`, etc.).
+- **Always use `bunx`** instead of `npx` for one-off script execution.
+- Never use `npm`, `npx`, `yarn`, or `pnpm` in this repository.
+
 ## Docs Sync Rule
 
 - `docs/tasks.md` is a local snapshot only and can lag behind Linear.

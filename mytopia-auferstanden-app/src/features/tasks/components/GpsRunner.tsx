@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { GpsMap } from '@/src/features/tasks/components/GpsMap';
 
 type GpsTarget = {
     latitude: number;
@@ -19,6 +20,7 @@ type GpsRunnerProps = {
 export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [distance, setDistance] = useState<number | null>(null);
+    const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [result, setResult] = useState<{ earned: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -44,9 +46,11 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
                     timeInterval: 3000,
                 },
                 (location) => {
+                    const { latitude, longitude } = location.coords;
+                    setUserCoords({ latitude, longitude });
                     const dist = getDistanceMeters(
-                        location.coords.latitude,
-                        location.coords.longitude,
+                        latitude,
+                        longitude,
                         target.latitude,
                         target.longitude
                     );
@@ -102,6 +106,17 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
 
     return (
         <View style={styles.container}>
+            {/* Map showing goal location with radius */}
+            <SectionCard title="Zielgebiet">
+                <GpsMap
+                    radiusMeters={target.radiusMeters}
+                    targetLatitude={target.latitude}
+                    targetLongitude={target.longitude}
+                    userLatitude={userCoords?.latitude}
+                    userLongitude={userCoords?.longitude}
+                />
+            </SectionCard>
+
             <SectionCard title="Navigation zum Ziel">
                 <View style={styles.distanceContainer}>
                     <Text style={styles.distanceValue}>

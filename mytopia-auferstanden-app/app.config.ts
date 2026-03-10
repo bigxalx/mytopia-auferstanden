@@ -15,8 +15,20 @@ export default (): ExpoConfig => {
     process.env.ANDROID_GOOGLE_SERVICES_FILE ?? defaultAndroidGoogleServicesFile
   );
 
+  const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+
+  // Inject react-native-maps config plugin for Android when API key is available
+  const plugins = [...(base.plugins ?? [])];
+  if (googleMapsApiKey) {
+    plugins.push([
+      'react-native-maps',
+      { googleMapsApiKey },
+    ]);
+  }
+
   return {
     ...base,
+    plugins,
     ios: {
       ...base.ios,
       ...(iosGoogleServicesFile ? { googleServicesFile: iosGoogleServicesFile } : {}),
