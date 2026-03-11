@@ -1,5 +1,6 @@
 import { defineConfig } from 'sanity';
 import { structureTool } from 'sanity/structure';
+import { googleMapsInput } from '@sanity/google-maps-input';
 
 import { schemaTypes } from './schemas';
 
@@ -28,6 +29,11 @@ export default defineConfig({
               ),
             S.documentTypeListItem('mission').title('Missions'),
           ]),
+    }),
+    googleMapsInput({
+      apiKey: process.env.SANITY_STUDIO_GOOGLE_MAPS_API_KEY || '',
+      defaultZoom: 14,
+      defaultLocation: { lat: 50.9847, lng: 12.4364 }, // Altenburg, Germany
     }),
   ],
   schema: {

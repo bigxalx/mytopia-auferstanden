@@ -411,7 +411,11 @@ const MISSION_LIST_PROJECTION = `
   points,
   description,
   active,
-  gpsConfig,
+  "gpsConfig": gpsConfig{
+    "latitude": location.lat,
+    "longitude": location.lng,
+    radiusMeters
+  },
   "questionCount": count(quizConfig.questions)
 `;
 
@@ -422,7 +426,11 @@ const MISSION_DETAIL_PROJECTION = `
   points,
   description,
   active,
-  gpsConfig,
+  "gpsConfig": gpsConfig{
+    "latitude": location.lat,
+    "longitude": location.lng,
+    radiusMeters
+  },
   "questions": quizConfig.questions[]{
     questionText,
     "optionCount": count(options),

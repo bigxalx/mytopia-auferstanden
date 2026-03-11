@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
@@ -82,8 +82,14 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
         return (
             <SectionCard title="Standortzugriff benötigt">
                 <Text style={styles.body}>
-                    Diese Mission benötigt Zugriff auf deinen Standort. Bitte aktiviere den Standortzugriff in den Einstellungen.
+                    Diese Mission benötigt Zugriff auf deinen Standort.
                 </Text>
+                <Text style={styles.hintText}>
+                    Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.
+                </Text>
+                <Pressable onPress={() => Linking.openSettings()} style={styles.settingsButton}>
+                    <Text style={styles.settingsButtonText}>Einstellungen öffnen</Text>
+                </Pressable>
             </SectionCard>
         );
     }
@@ -225,6 +231,12 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '500',
     },
+    hintText: {
+        color: '#5d6979',
+        fontSize: 13,
+        lineHeight: 18,
+        marginTop: 4,
+    },
     inRangeBadge: {
         alignItems: 'center',
         backgroundColor: '#dcfce7',
@@ -245,6 +257,18 @@ const styles = StyleSheet.create({
         color: '#5d6979',
         fontSize: 13,
         textAlign: 'center',
+    },
+    settingsButton: {
+        alignItems: 'center',
+        backgroundColor: '#f97316',
+        borderRadius: 10,
+        marginTop: 12,
+        paddingVertical: 12,
+    },
+    settingsButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
     },
     successCircle: {
         alignItems: 'center',

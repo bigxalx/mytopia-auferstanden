@@ -168,27 +168,13 @@ export const mission = defineType({
             hidden: ({ parent }) => parent?.kind !== 'gps',
             fields: [
                 defineField({
-                    name: 'latitude',
-                    title: 'Breitengrad',
-                    type: 'number',
-                    description: 'Breitengrad des Zielorts (z. B. 51.0504).',
+                    name: 'location',
+                    title: 'Zielort',
+                    type: 'geopoint',
+                    description: 'Klicke auf die Karte, um den Zielort auszuwählen.',
                     validation: (rule) => rule.custom((value, context) => {
-                        if (context.document?.kind === 'gps') {
-                            if (value === undefined) return 'Required';
-                            if (typeof value === 'number' && (value < -90 || value > 90)) return 'Muss zwischen -90 und 90 liegen';
-                        }
-                        return true;
-                    }),
-                }),
-                defineField({
-                    name: 'longitude',
-                    title: 'Längengrad',
-                    type: 'number',
-                    description: 'Längengrad des Zielorts (z. B. 13.7373).',
-                    validation: (rule) => rule.custom((value, context) => {
-                        if (context.document?.kind === 'gps') {
-                            if (value === undefined) return 'Required';
-                            if (typeof value === 'number' && (value < -180 || value > 180)) return 'Muss zwischen -180 und 180 liegen';
+                        if (context.document?.kind === 'gps' && !value) {
+                            return 'Zielort ist erforderlich';
                         }
                         return true;
                     }),

@@ -22,7 +22,7 @@ export default (): ExpoConfig => {
   if (googleMapsApiKey) {
     plugins.push([
       'react-native-maps',
-      { googleMapsApiKey },
+      { androidGoogleMapsApiKey: googleMapsApiKey },
     ]);
   }
 

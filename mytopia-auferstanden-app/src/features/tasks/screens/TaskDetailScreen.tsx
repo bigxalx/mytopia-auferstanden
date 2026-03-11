@@ -123,7 +123,10 @@ export function TaskDetailScreen() {
             Quiz-Laufzeit wird mit dediziertem Endpunkt verbunden.
           </Text>
         </SectionCard>
-      ) : mission.kind === 'gps' && mission.gpsConfig ? (
+      ) : mission.kind === 'gps' &&
+        mission.gpsConfig &&
+        typeof mission.gpsConfig.latitude === 'number' &&
+        typeof mission.gpsConfig.longitude === 'number' ? (
         <GpsRunner
           missionId={mission._id}
           onComplete={handleGpsComplete}
