@@ -19,7 +19,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "19",
+      "buildNumber": "20",
       "appleTeamId": "2YM33HYFWJ",
       "bundleIdentifier": "de.theateraltenburggera.mytopia",
       "infoPlist": {
@@ -27,7 +27,7 @@
       }
     },
     "android": {
-      "versionCode": 8,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -57,6 +57,11 @@
       [
         "expo-build-properties",
         {
+          "android": {
+            "extraParams": {
+              "org.gradle.jvmargs": "-Xmx3072m -XX:MaxMetaspaceSize=1024m"
+            }
+          },
           "ios": {
             "useFrameworks": "static",
             "forceStaticLinking": [

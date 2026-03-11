@@ -125,7 +125,7 @@ end
 
 def run_prebuild!(platform)
   # Prebuild without installing pods
-  sh("cd #{shellescape(project_root)} && bunx expo prebuild --platform #{platform} --clean --no-install")
+  sh("cd #{shellescape(project_root)} && bunx expo prebuild --platform #{platform} --no-install")
   
   if platform == :ios
     # Clear bundler environment before running pod install to avoid Gemfile conflicts,
