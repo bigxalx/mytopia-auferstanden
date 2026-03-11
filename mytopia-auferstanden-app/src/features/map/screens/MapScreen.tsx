@@ -132,12 +132,12 @@ export function MapScreen() {
 
 const styles = StyleSheet.create({
     body: {
-        color: '#1f2937',
+        color: '#9ca3af',
         fontSize: 14,
         lineHeight: 20,
     },
     hint: {
-        color: '#5d6979',
+        color: '#9ca3af',
         fontSize: 13,
         lineHeight: 18,
         marginTop: 8,

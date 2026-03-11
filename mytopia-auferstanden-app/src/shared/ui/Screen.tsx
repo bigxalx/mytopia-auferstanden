@@ -20,8 +20,8 @@ export function Screen({ children, scrollable = true, subtitle, title }: ScreenP
   if (!scrollable) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
+        {header}
         <View style={styles.fillContent}>
-          {header}
           {children}
         </View>
       </SafeAreaView>
@@ -30,8 +30,8 @@ export function Screen({ children, scrollable = true, subtitle, title }: ScreenP
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
+      {header}
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {header}
         {children}
       </ScrollView>
     </SafeAreaView>
@@ -50,19 +50,27 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
+    backgroundColor: '#3f454a',
+    borderBottomColor: '#1f2937',
+    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
     gap: 6,
   },
   safeArea: {
-    backgroundColor: '#f6f7fb',
+    backgroundColor: '#252b30',
     flex: 1,
   },
   subtitle: {
-    color: '#4f5b6b',
+    color: '#9ca3af',
     fontSize: 14,
+    textAlign: 'center',
   },
   title: {
-    color: '#121722',
-    fontSize: 28,
-    fontWeight: '700',
+    color: '#eef2ef',
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 34,
+    textAlign: 'center',
   },
 });

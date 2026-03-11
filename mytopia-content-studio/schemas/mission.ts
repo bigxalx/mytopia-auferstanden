@@ -136,6 +136,15 @@ export const mission = defineType({
             description: 'Nur aktive Missionen werden den Spielern angezeigt.',
             initialValue: false,
         }),
+        defineField({
+            name: 'image',
+            title: 'Bild',
+            type: 'image',
+            description: 'Optionales Bild, das in der Missionsvorschau angezeigt wird.',
+            options: {
+                hotspot: true,
+            },
+        }),
 
         // --- Quiz-specific fields ---
         defineField({

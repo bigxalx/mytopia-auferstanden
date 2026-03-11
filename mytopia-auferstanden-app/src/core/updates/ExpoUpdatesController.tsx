@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { useSession } from '@/src/core/session/SessionContext';
-import { checkAndFetchExpoUpdate, setRequestedExpoUpdateChannel } from '@/src/core/updates/expoUpdatesClient';
+import { checkAndFetchExpoUpdate, reloadToApplyExpoUpdate, setRequestedExpoUpdateChannel } from '@/src/core/updates/expoUpdatesClient';
 import { resolveExpoUpdateChannel } from '@/src/core/updates/expoUpdateChannel';
 
 export function ExpoUpdatesController() {
@@ -23,12 +23,17 @@ export function ExpoUpdatesController() {
 
     void (async () => {
       try {
-        await checkAndFetchExpoUpdate(requestedChannel);
+        const didDownload = await checkAndFetchExpoUpdate(requestedChannel);
+
+        // Silently apply downloaded updates on next launch cycle.
+        if (didDownload) {
+          await reloadToApplyExpoUpdate();
+        }
       } catch (error) {
         console.warn(`[updates] Automatic check failed for channel "${requestedChannel}".`, error);
       }
     })();
-  }, [isHydrated, requestedChannel]);
+  }, [isHydrated, requestedChannel, canUseDevMode]);
 
   return null;
 }

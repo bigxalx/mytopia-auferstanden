@@ -68,8 +68,13 @@ export function setRequestedExpoUpdateChannel(channel: ExpoUpdateChannel) {
     return false;
   }
 
-  expoUpdatesModule.setUpdateRequestHeadersOverride(createExpoUpdateHeaders(channel));
-  return true;
+  try {
+    expoUpdatesModule.setUpdateRequestHeadersOverride(createExpoUpdateHeaders(channel));
+    return true;
+  } catch (error) {
+    console.warn('[updates] Cannot set update request headers override in this build.', error);
+    return false;
+  }
 }
 
 export async function checkAndFetchExpoUpdate(channel: ExpoUpdateChannel) {

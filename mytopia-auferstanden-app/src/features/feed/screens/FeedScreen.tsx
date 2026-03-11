@@ -348,7 +348,7 @@ function MessageBubble({
       <ActorAvatar actor={message.actor} />
 
       <View style={styles.messageBubble}>
-        <Text style={styles.actorName}>{message.actor.name}</Text>
+        <Text style={styles.headline}>{message.actor.name}</Text>
 
         {message.attachment ? <AttachmentView attachment={message.attachment} /> : null}
 
@@ -399,14 +399,26 @@ function AttachmentView({ attachment }: { attachment: NarrativeAttachmentDto }) 
     return <AudioAttachmentView attachment={attachment} />;
   }
 
-  return (
-    <Link asChild href={`/tasks/${attachment.missionId}`}>
-      <Pressable style={styles.missionCard}>
-        <Text style={styles.missionTitle}>{attachment.title || attachment.missionTitle || 'Mission available'}</Text>
-        {attachment.excerpt ? <Text style={styles.missionExcerpt}>{attachment.excerpt}</Text> : null}
-      </Pressable>
-    </Link>
-  );
+  if (attachment._type === 'missionAttachment') {
+    const description = attachment.excerpt || [
+      attachment.missionKind ? (attachment.missionKind === 'quiz' ? '🧠 Quiz' : '📍 GPS') : null,
+      attachment.missionPoints ? `${attachment.missionPoints} Punkte` : null
+    ].filter(Boolean).join(' · ');
+
+    return (
+      <Link asChild href={`/tasks/${attachment.missionId}`}>
+        <Pressable style={styles.orange}>
+          {attachment.imageUrl ? <Image source={{ uri: attachment.imageUrl }} style={styles.missionCardImage} contentFit="cover" /> : null}
+          <View style={styles.missionCardContent}>
+            <Text style={styles.missionTitle}>{attachment.title || attachment.missionTitle || 'Mission'}</Text>
+            {description ? <Text style={styles.missionExcerpt}>{description}</Text> : null}
+          </View>
+        </Pressable>
+      </Link>
+    );
+  }
+
+  return null;
 }
 
 function VideoAttachmentView({
@@ -469,7 +481,7 @@ function AudioAttachmentView({
     <View style={styles.attachmentBox}>
       <View style={styles.audioHeader}>
         <Text style={styles.audioTitle}>{attachment.title || 'Audio message'}</Text>
-        <Pressable style={styles.audioButton} onPress={() => void onTogglePlayback()}>
+        <Pressable style={styles.orange} onPress={() => void onTogglePlayback()}>
           <Text style={styles.audioButtonLabel}>{buttonLabel}</Text>
         </Pressable>
       </View>
@@ -539,10 +551,10 @@ function getBundleReleaseMs(bundle: NarrativeBundleDto) {
 }
 
 const styles = StyleSheet.create({
-  actorName: {
-    color: '#4b5563',
-    fontSize: 18,
-    fontWeight: '700',
+  headline: {
+    color: '#596161',
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13,
     marginBottom: 8,
   },
   attachmentBox: {
@@ -556,12 +568,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
-  },
-  audioButton: {
-    backgroundColor: '#f97316',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
   },
   audioButtonLabel: {
     color: '#111827',
@@ -626,8 +632,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: '#eef2ef',
-    fontSize: 42,
-    fontWeight: '700',
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 34,
+    textAlign: 'center',
   },
   imageAttachment: {
     height: 220,
@@ -650,10 +657,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   messageBubble: {
-    backgroundColor: '#efeee7',
-    borderRadius: 20,
+    backgroundColor: '#EDECE0',
+    borderRadius: 10,
     flex: 1,
-    padding: 16,
+    padding: 10,
   },
   messageRow: {
     alignItems: 'flex-start',
@@ -661,9 +668,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   messageText: {
-    color: '#111827',
-    fontSize: 17,
-    lineHeight: 25,
+    color: '#000000',
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
   },
   modeBadge: {
     alignSelf: 'flex-start',
@@ -677,22 +685,32 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     textTransform: 'uppercase',
   },
-  missionCard: {
-    backgroundColor: '#f97316',
-    borderRadius: 14,
+  orange: {
+    backgroundColor: '#F67641',
+    borderRadius: 10,
     marginBottom: 8,
-    padding: 14,
+    padding: 5,
+  },
+  missionCardImage: {
+    borderRadius: 6,
+    height: 140,
+    width: '100%',
+    marginBottom: 6,
+  },
+  missionCardContent: {
+    paddingHorizontal: 4,
+    paddingBottom: 2,
   },
   missionExcerpt: {
-    color: '#7c2d12',
-    fontSize: 14,
-    marginTop: 6,
+    color: '#000000',
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 12,
+    marginTop: 2,
   },
   missionTitle: {
-    color: '#111827',
-    fontSize: 17,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    color: '#000000',
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15,
   },
   safeArea: {
     backgroundColor: '#252b30',

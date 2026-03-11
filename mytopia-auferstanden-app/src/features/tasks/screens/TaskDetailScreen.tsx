@@ -17,7 +17,7 @@ import { SectionCard } from '@/src/shared/ui/SectionCard';
 
 export function TaskDetailScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { user, selectedMode } = useSession();
+  const { canUseDevMode, user, selectedMode } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const [mission, setMission] = useState<MissionListItem | null>(null);
   const [quizQuestions, setQuizQuestions] = useState<Array<{ questionText: string; options: string[] }> | null>(null);
@@ -104,8 +104,8 @@ export function TaskDetailScreen() {
       ) : null}
 
       {completedMissions.includes(mission._id) ? (
-        <SectionCard title="Bereits abgeschlossen">
-          <Text style={styles.body}>Du hast diese Mission bereits erfolgreich beendet.</Text>
+        <SectionCard title="Abgeschlossen">
+          <Text style={styles.body}>Mission beendet.</Text>
         </SectionCard>
       ) : mission.kind === 'quiz' && quizQuestions ? (
         <QuizRunner
@@ -138,20 +138,22 @@ export function TaskDetailScreen() {
         </SectionCard>
       ) : null}
 
-      <SectionCard title="Details">
-        <View style={styles.row}>
-          <Text style={styles.label}>Mission-ID</Text>
-          <Text style={styles.value}>{mission._id}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Art</Text>
-          <Text style={styles.value}>{mission.kind}</Text>
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Punkte</Text>
-          <Text style={styles.value}>{mission.points}</Text>
-        </View>
-      </SectionCard>
+      {canUseDevMode ? (
+        <SectionCard title="Details">
+          <View style={styles.row}>
+            <Text style={styles.label}>Mission-ID</Text>
+            <Text style={styles.value}>{mission._id}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Art</Text>
+            <Text style={styles.value}>{mission.kind}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Punkte</Text>
+            <Text style={styles.value}>{mission.points}</Text>
+          </View>
+        </SectionCard>
+      ) : null}
     </Screen>
   );
 }

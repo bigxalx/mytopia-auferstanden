@@ -28,6 +28,7 @@ export type NarrativeAttachmentDto =
     missionPoints?: number;
     missionTitle?: string;
     title?: string;
+    imageUrl?: string;
   };
 
 export type NarrativeMessageDto = {
@@ -306,6 +307,7 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       ...(typeof raw.missionPoints === 'number' ? { missionPoints: raw.missionPoints } : {}),
       ...(typeof raw.missionTitle === 'string' ? { missionTitle: raw.missionTitle } : {}),
       ...(typeof raw.title === 'string' && raw.title.length > 0 ? { title: raw.title } : {}),
+      ...(typeof raw.imageUrl === 'string' && raw.imageUrl.length > 0 ? { imageUrl: raw.imageUrl } : {}),
     };
   }
 

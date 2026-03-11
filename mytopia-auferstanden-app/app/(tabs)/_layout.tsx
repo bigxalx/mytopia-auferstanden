@@ -1,9 +1,9 @@
 import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { ChatLineBold, MapBold, UserBold } from '@/components/ui/SolarTabIcons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/src/core/session/SessionContext';
@@ -31,38 +31,42 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: '#eef2ef',
+        tabBarInactiveTintColor: '#5d6979',
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: '#3f454a',
+          borderTopColor: '#1f2937',
+        },
+        tabBarLabelStyle: {
+          fontFamily: 'NunitoSans_700Bold',
+        },
       }}>
       <Tabs.Screen
         name="feed"
         options={{
-          title: 'Feed',
-          tabBarIcon: ({ color, size }) => <Ionicons name="newspaper-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="tasks"
-        options={{
-          title: 'Tasks',
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="map"
-        options={{
-          title: 'Map',
-          tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" size={size} color={color} />,
+          title: 'Notfallkanal',
+          tabBarIcon: ({ color }) => <ChatLineBold size={28} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" size={size} color={color} />,
+          title: 'Profil',
+          tabBarIcon: ({ color }) => <UserBold size={28} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: 'Karte',
+          tabBarIcon: ({ color }) => <MapBold size={28} color={color} />,
+        }}
+      />
+      {/* Hidden routes that must exist as files but aren't shown as tabs */}
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="tasks" options={{ href: null }} />
     </Tabs>
   );
 }
