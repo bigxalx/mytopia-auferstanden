@@ -92,11 +92,12 @@ export function MapScreen() {
     }
 
     return (
-        <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" scrollable={false}>
+        <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" scrollable={false} noPadding>
             <View style={styles.mapContainer}>
                 <MapView
                     initialRegion={region}
                     showsUserLocation={permissionStatus === 'granted'}
+                    showsMyLocationButton={true}
                     style={styles.map}
                 >
                     {missions.map((mission) =>
@@ -146,9 +147,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     mapContainer: {
-        borderRadius: 12,
         flex: 1,
-        overflow: 'hidden',
     },
     settingsButton: {
         alignItems: 'center',

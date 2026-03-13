@@ -13,11 +13,17 @@ export type NarrativeAttachmentDto =
   }
   | {
     _type: 'audioAttachment';
+    extension?: string;
+    mimeType?: string;
+    originalFilename?: string;
     title?: string;
     url: string;
   }
   | {
     _type: 'videoAttachment';
+    extension?: string;
+    mimeType?: string;
+    originalFilename?: string;
     title?: string;
     url: string;
   }
@@ -287,6 +293,15 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
 
     return {
       _type: raw._type,
+      ...(typeof raw.extension === 'string' && raw.extension.length > 0
+        ? { extension: raw.extension }
+        : {}),
+      ...(typeof raw.mimeType === 'string' && raw.mimeType.length > 0
+        ? { mimeType: raw.mimeType }
+        : {}),
+      ...(typeof raw.originalFilename === 'string' && raw.originalFilename.length > 0
+        ? { originalFilename: raw.originalFilename }
+        : {}),
       ...(typeof raw.title === 'string' && raw.title.length > 0 ? { title: raw.title } : {}),
       url,
     };

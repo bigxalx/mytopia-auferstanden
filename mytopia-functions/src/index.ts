@@ -46,10 +46,16 @@ const SANITY_BUNDLE_PROJECTION = `
       },
       _type == "audioAttachment" => {
         "url": asset.asset->url,
+        "originalFilename": asset.asset->originalFilename,
+        "mimeType": asset.asset->mimeType,
+        "extension": asset.asset->extension,
         title
       },
       _type == "videoAttachment" => {
         "url": asset.asset->url,
+        "originalFilename": asset.asset->originalFilename,
+        "mimeType": asset.asset->mimeType,
+        "extension": asset.asset->extension,
         title
       },
       _type == "missionAttachment" => {
@@ -72,6 +78,9 @@ type AttachmentDto =
   }
   | {
     _type: 'audioAttachment' | 'videoAttachment';
+    extension?: string;
+    mimeType?: string;
+    originalFilename?: string;
     title?: string;
     url: string;
   }

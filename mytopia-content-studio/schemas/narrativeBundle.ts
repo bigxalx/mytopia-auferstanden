@@ -30,8 +30,31 @@ export const audioAttachment = defineType({
       name: 'asset',
       title: 'Audiodatei',
       type: 'file',
-      description: 'Lade die Audiodatei hoch, die in der Nachricht abgespielt wird.',
-      validation: (rule) => rule.required(),
+      description:
+        'Lade eine MP3-, AAC- oder WAV-Datei hoch. iPhone-Sprachmemos als M4A/ALAC laufen auf iOS, aber nicht zuverlässig auf Android.',
+      options: {
+        accept: '.mp3,.aac,.wav',
+      },
+      validation: (rule) =>
+        rule.required().custom((value) => {
+          if (!value || typeof value !== 'object') {
+            return true;
+          }
+
+          const assetRef = (value as { asset?: { _ref?: unknown } }).asset?._ref;
+          if (typeof assetRef !== 'string') {
+            return true;
+          }
+
+          const extension = assetRef.split('-').pop()?.toLowerCase();
+          if (!extension) {
+            return true;
+          }
+
+          return ['mp3', 'aac', 'wav'].includes(extension)
+            ? true
+            : 'Bitte MP3, AAC oder WAV hochladen. M4A aus iPhone-Sprachmemos ist oft ALAC und spielt auf Android nicht.';
+        }),
     }),
     defineField({
       name: 'title',

@@ -82,13 +82,7 @@ export function ProfileScreen() {
   }
 
   return (
-    <Screen
-      title="Profil"
-      subtitle={
-        selectedMode === 'dev'
-          ? 'DEV MODE ACTIVE'
-          : undefined
-      }>
+    <Screen title="Profil">
       {/* Missions section — first */}
       <MissionsCard userId={user.id} mode={selectedMode} />
 

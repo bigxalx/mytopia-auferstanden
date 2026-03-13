@@ -35,14 +35,14 @@ function loadExpoUpdatesModule(): ExpoUpdatesModule | null {
 }
 
 export function useExpoUpdatesState(): ExpoUpdatesState {
-  if (!expoUpdatesModule) {
-    return fallbackUpdatesState;
-  }
+  const state = expoUpdatesModule?.useUpdates?.();
 
-  const state = expoUpdatesModule.useUpdates();
+  return useMemo(() => {
+    if (!state) {
+      return fallbackUpdatesState;
+    }
 
-  return useMemo(
-    () => ({
+    return {
       currentlyRunning: {
         isEmbeddedLaunch: state.currentlyRunning.isEmbeddedLaunch,
       },
@@ -50,9 +50,8 @@ export function useExpoUpdatesState(): ExpoUpdatesState {
       isDownloading: state.isDownloading,
       isRestarting: state.isRestarting,
       isUpdatePending: state.isUpdatePending,
-    }),
-    [state]
-  );
+    };
+  }, [state]);
 }
 
 export function isExpoUpdatesEnabled() {
