@@ -1,4 +1,4 @@
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, query, orderBy, limit, onSnapshot } from '@react-native-firebase/firestore';
 
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
 import { type AppMode } from '@/src/core/session/appMode';
@@ -24,47 +24,48 @@ export function subscribeNarrativeSignal({
   const collectionPath = mode === 'dev' ? V2_COLLECTION.narrativeStateDev : V2_COLLECTION.narrativeState;
 
   try {
-    return firestore()
-      .collection(collectionPath)
-      .orderBy('updatedAt', 'desc')
-      .limit(1)
-      .onSnapshot(
-        (querySnapshot) => {
-          if (querySnapshot.empty) {
-            listener(null);
-            return;
-          }
+    const db = getFirestore();
+    const col = collection(db, collectionPath);
+    const q = query(col, orderBy('updatedAt', 'desc'), limit(1));
 
-          const doc = querySnapshot.docs[0];
-          const data = (doc.data() as Record<string, unknown> | undefined) ?? {};
-
-          const version = normalizeVersion(data.version);
-          const updatedAt = toIsoString(data.updatedAt);
-          const releasedAt = toIsoString(data.releasedAt);
-          const releaseAt = toIsoString(data.releaseAt);
-
-          const pulse: NarrativeStatePulse = {
-            bundleId: doc.id,
-            ...(data.lastEventType === 'release' || data.lastEventType === 'content_update'
-              ? { eventType: data.lastEventType }
-              : {}),
-            ...(data.pushState === 'pending' || data.pushState === 'sent' || data.pushState === 'failed'
-              ? { pushState: data.pushState }
-              : {}),
-            ...(releaseAt ? { releaseAt } : {}),
-            ...(releasedAt ? { releasedAt } : {}),
-            token: `${doc.id}:${version}:${updatedAt ?? 'none'}`,
-            ...(updatedAt ? { updatedAt } : {}),
-            version,
-          };
-
-          listener(pulse);
-        },
-        (error) => {
-          console.warn('[feed] Failed to subscribe to narrative state.', error);
+    return onSnapshot(
+      q,
+      (querySnapshot) => {
+        if (querySnapshot.empty) {
           listener(null);
+          return;
         }
-      );
+
+        const doc = querySnapshot.docs[0];
+        const data = (doc.data() as Record<string, unknown> | undefined) ?? {};
+
+        const version = normalizeVersion(data.version);
+        const updatedAt = toIsoString(data.updatedAt);
+        const releasedAt = toIsoString(data.releasedAt);
+        const releaseAt = toIsoString(data.releaseAt);
+
+        const pulse: NarrativeStatePulse = {
+          bundleId: doc.id,
+          ...(data.lastEventType === 'release' || data.lastEventType === 'content_update'
+            ? { eventType: data.lastEventType }
+            : {}),
+          ...(data.pushState === 'pending' || data.pushState === 'sent' || data.pushState === 'failed'
+            ? { pushState: data.pushState }
+            : {}),
+          ...(releaseAt ? { releaseAt } : {}),
+          ...(releasedAt ? { releasedAt } : {}),
+          token: `${doc.id}:${version}:${updatedAt ?? 'none'}`,
+          ...(updatedAt ? { updatedAt } : {}),
+          version,
+        };
+
+        listener(pulse);
+      },
+      (error) => {
+        console.warn('[feed] Failed to subscribe to narrative state.', error);
+        listener(null);
+      }
+    );
   } catch (error) {
     console.warn('[feed] Firestore narrative state listener could not start.', error);
     listener(null);
@@ -115,3 +116,4 @@ function toIsoString(value: unknown) {
 
   return null;
 }
+

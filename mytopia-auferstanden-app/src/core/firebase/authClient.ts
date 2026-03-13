@@ -1,4 +1,13 @@
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
+  createUserWithEmailAndPassword as firebaseCreateUserWithEmailAndPassword,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
+  sendEmailVerification as firebaseSendEmailVerification,
+  signOut as firebaseSignOut,
+  type FirebaseAuthTypes,
+} from '@react-native-firebase/auth';
 
 export type AuthFlowErrorCode =
   | 'email-not-verified'
@@ -60,7 +69,7 @@ const UNKNOWN_ERROR: AuthErrorDescriptor = {
 
 export function subscribeAuthState(listener: (user: FirebaseAuthTypes.User | null) => void) {
   try {
-    return getAuthInstance().onAuthStateChanged(listener);
+    return onAuthStateChanged(getAuth(), listener);
   } catch (error) {
     console.error('[firebase] Failed to subscribe to auth state.', error);
     listener(null);
@@ -69,27 +78,27 @@ export function subscribeAuthState(listener: (user: FirebaseAuthTypes.User | nul
 }
 
 export function getCurrentFirebaseUser() {
-  return getAuthInstance().currentUser;
+  return getAuth().currentUser;
 }
 
 export async function signInWithEmailPassword(email: string, password: string) {
-  return getAuthInstance().signInWithEmailAndPassword(email, password);
+  return firebaseSignInWithEmailAndPassword(getAuth(), email, password);
 }
 
 export async function signUpWithEmailPassword(email: string, password: string) {
-  return getAuthInstance().createUserWithEmailAndPassword(email, password);
+  return firebaseCreateUserWithEmailAndPassword(getAuth(), email, password);
 }
 
 export async function sendPasswordResetEmail(email: string) {
-  return getAuthInstance().sendPasswordResetEmail(email);
+  return firebaseSendPasswordResetEmail(getAuth(), email);
 }
 
 export async function sendEmailVerification(user: FirebaseAuthTypes.User) {
-  return user.sendEmailVerification();
+  return firebaseSendEmailVerification(user);
 }
 
 export async function signOutFromFirebase() {
-  return getAuthInstance().signOut();
+  return firebaseSignOut(getAuth());
 }
 
 export function createSuccessResult(message?: string): AuthActionResult {
@@ -136,29 +145,12 @@ function describeAuthError(error: unknown): AuthErrorDescriptor {
   return ERROR_MAP[maybeCode] ?? UNKNOWN_ERROR;
 }
 
-function getAuthInstance() {
-  try {
-    return auth();
-  } catch (error) {
-    throw normalizeNoDefaultFirebaseAppError(error);
-  }
-}
-
-function normalizeNoDefaultFirebaseAppError(error: unknown) {
-  if (!isNoDefaultFirebaseAppError(error)) {
-    return error;
-  }
-
-  return Object.assign(new Error("Firebase app '[DEFAULT]' is not initialized in this native build."), {
-    code: 'auth/no-default-app',
-  });
-}
-
 function isNoDefaultFirebaseAppError(error: unknown) {
   if (typeof error !== 'object' || error === null) {
     return false;
   }
 
   const message = (error as { message?: unknown }).message;
-  return typeof message === 'string' && message.includes("No Firebase App '[DEFAULT]'");
+  return typeof message === 'string' && message.includes("No Firebase App '[DEFAULT]'") || (error as { code?: string }).code === 'auth/no-default-app';
 }
+

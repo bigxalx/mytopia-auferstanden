@@ -72,6 +72,9 @@ export function setRequestedExpoUpdateChannel(channel: ExpoUpdateChannel) {
     expoUpdatesModule.setUpdateRequestHeadersOverride(createExpoUpdateHeaders(channel));
     return true;
   } catch (error) {
+    if (isDevBuildError(error)) {
+      return false;
+    }
     console.warn('[updates] Cannot set update request headers override in this build.', error);
     return false;
   }
@@ -84,13 +87,21 @@ export async function checkAndFetchExpoUpdate(channel: ExpoUpdateChannel) {
 
   setRequestedExpoUpdateChannel(channel);
 
-  const result = await expoUpdatesModule.checkForUpdateAsync();
-  if (!result.isAvailable) {
+  try {
+    const result = await expoUpdatesModule.checkForUpdateAsync();
+    if (!result.isAvailable) {
+      return false;
+    }
+
+    await expoUpdatesModule.fetchUpdateAsync();
+    return true;
+  } catch (error) {
+    if (isDevBuildError(error)) {
+      return false;
+    }
+    console.warn('[updates] Unexpected error during update check.', error);
     return false;
   }
-
-  await expoUpdatesModule.fetchUpdateAsync();
-  return true;
 }
 
 export async function reloadToApplyExpoUpdate() {
@@ -100,4 +111,12 @@ export async function reloadToApplyExpoUpdate() {
 
   await expoUpdatesModule.reloadAsync();
   return true;
+}
+
+function isDevBuildError(error: unknown) {
+  const message = String(error);
+  return (
+    message.includes('not supported in development builds') ||
+    message.includes('NotAvailableInDevClientException')
+  );
 }

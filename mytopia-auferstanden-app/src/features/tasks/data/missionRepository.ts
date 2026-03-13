@@ -1,3 +1,4 @@
+import { getIdToken } from '@react-native-firebase/auth';
 import { env, hasConfiguredFeedApi, hasConfiguredMissionApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
 
@@ -57,7 +58,7 @@ export async function fetchMissions({
         throw new Error('EXPO_PUBLIC_FEED_API_BASE_URL is not configured.');
     }
 
-    const idToken = await getIdToken();
+    const idToken = await ensureIdToken();
     const baseUrl = normalizeBaseUrl(env.feedApiBaseUrl);
 
     const urlObj = new URL('missions', baseUrl);
@@ -94,7 +95,7 @@ export async function submitQuizCompletion(
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
     }
 
-    const idToken = await getIdToken();
+    const idToken = await ensureIdToken();
     const baseUrl = normalizeBaseUrl(env.missionApiBaseUrl);
     const url = `${baseUrl}quiz/complete?mode=${mode}`;
 
@@ -127,7 +128,7 @@ export async function submitGpsCompletion(
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
     }
 
-    const idToken = await getIdToken();
+    const idToken = await ensureIdToken();
     const baseUrl = normalizeBaseUrl(env.missionApiBaseUrl);
     const url = `${baseUrl}gps/complete?mode=${mode}`;
 
@@ -152,13 +153,13 @@ export async function submitGpsCompletion(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function getIdToken() {
+async function ensureIdToken() {
     const firebaseUser = getCurrentFirebaseUser();
     if (!firebaseUser) {
         throw new Error('No authenticated Firebase user.');
     }
 
-    return firebaseUser.getIdToken();
+    return getIdToken(firebaseUser);
 }
 
 function normalizeBaseUrl(url: string) {

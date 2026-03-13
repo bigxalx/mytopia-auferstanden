@@ -13,6 +13,7 @@ import {
   signUpWithEmailPassword,
   subscribeAuthState,
 } from '@/src/core/firebase/authClient';
+import { getIdTokenResult, FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { ensureNarrativeTopicSubscription } from '@/src/core/firebase/messagingClient';
 import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
 import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
@@ -221,7 +222,7 @@ function mapSessionUser(user: { uid: string; email: string | null; displayName: 
   };
 }
 
-async function resolveModeState(user: { getIdTokenResult: (forceRefresh?: boolean) => Promise<{ claims: Record<string, unknown> }>; uid: string; }) {
+async function resolveModeState(user: FirebaseAuthTypes.User) {
   const canUseDevMode = await hasDevClaim(user);
   const persistedMode = await readPersistedMode(user.uid);
   const selectedMode = canUseDevMode ? normalizeAppMode(persistedMode) : 'production';
@@ -236,11 +237,9 @@ async function resolveModeState(user: { getIdTokenResult: (forceRefresh?: boolea
   };
 }
 
-async function hasDevClaim(user: {
-  getIdTokenResult: (forceRefresh?: boolean) => Promise<{ claims: Record<string, unknown> }>;
-}) {
+async function hasDevClaim(user: FirebaseAuthTypes.User) {
   try {
-    const idTokenResult = await user.getIdTokenResult(true);
+    const idTokenResult = await getIdTokenResult(user, true);
     return idTokenResult.claims.dev === true;
   } catch (error) {
     console.warn('[session] Unable to read Firebase custom claims; defaulting to production mode.', error);

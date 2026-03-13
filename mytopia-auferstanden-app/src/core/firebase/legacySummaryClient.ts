@@ -1,4 +1,11 @@
-import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { 
+  getFirestore, 
+  collection as firestoreCollection, 
+  doc, 
+  getDoc, 
+  setDoc,
+  type FirebaseFirestoreTypes
+} from '@react-native-firebase/firestore';
 
 import { env } from '@/src/config/env';
 import { LegacySummary, V2_COLLECTION, V2UserDoc } from '@/src/core/firestore/schema';
@@ -31,7 +38,8 @@ const LEGACY_USERS_COLLECTION = 'users';
 const V2_USERS_COLLECTION = V2_COLLECTION.users;
 
 export async function syncSessionProfile(firebaseUser: FirebaseIdentity): Promise<SyncSessionProfileResult> {
-  const userRef = firestore().collection(V2_USERS_COLLECTION).doc(firebaseUser.uid);
+  const db = getFirestore();
+  const userRef = doc(db, V2_USERS_COLLECTION, firebaseUser.uid);
   const profileDoc = await upsertProfileDoc(userRef, firebaseUser);
   const importedLegacySummary = await importLegacySummaryIfMissing(
     userRef,
@@ -53,7 +61,7 @@ export async function syncSessionProfile(firebaseUser: FirebaseIdentity): Promis
 }
 
 async function upsertProfileDoc(
-  userRef: FirebaseFirestoreTypes.DocumentReference<FirebaseFirestoreTypes.DocumentData>,
+  userRef: FirebaseFirestoreTypes.DocumentReference,
   firebaseUser: FirebaseIdentity
 ): Promise<V2UserDoc> {
   const now = new Date().toISOString();
@@ -65,30 +73,29 @@ async function upsertProfileDoc(
     updatedAt: now,
   };
 
-  const initialSnapshot = await userRef.get();
-  const initialExists = documentSnapshotExists(initialSnapshot);
+  const initialSnapshot = await getDoc(userRef);
+  const initialExists = initialSnapshot.exists();
   let existingBeforeWrite = initialExists ? ((initialSnapshot.data() as Partial<V2UserDoc> | undefined) ?? undefined) : undefined;
+  
   if (!initialExists) {
     try {
-      await userRef.set(createPayload);
+      await setDoc(userRef, createPayload);
       return createPayload;
     } catch (error) {
-      // Concurrent first-login writes can race: one creates the doc, another receives permission-denied on update.
       if (!isPermissionDeniedError(error)) {
         throw error;
       }
 
-      const racedSnapshot = await userRef.get();
-      const racedExists = documentSnapshotExists(racedSnapshot);
-      if (!racedExists) {
+      const racedSnapshot = await getDoc(userRef);
+      if (!racedSnapshot.exists()) {
         throw error;
       }
       existingBeforeWrite = (racedSnapshot.data() as Partial<V2UserDoc> | undefined) ?? undefined;
     }
   }
 
-  // Merge updates so server-controlled fields (for example pointsCurrent) are never removed by client writes.
-  await userRef.set(
+  await setDoc(
+    userRef,
     {
       displayName: resolveDisplayName(existingBeforeWrite?.displayName, firebaseUser),
       updatedAt: now,
@@ -96,7 +103,7 @@ async function upsertProfileDoc(
     { merge: true }
   );
 
-  const snapshot = await userRef.get();
+  const snapshot = await getDoc(userRef);
   const existing = snapshot.data() as Partial<V2UserDoc> | undefined;
   const normalizedLegacySummary = normalizeLegacySummary(existing?.legacySummary);
 
@@ -115,7 +122,7 @@ async function upsertProfileDoc(
 }
 
 async function importLegacySummaryIfMissing(
-  userRef: FirebaseFirestoreTypes.DocumentReference<FirebaseFirestoreTypes.DocumentData>,
+  userRef: FirebaseFirestoreTypes.DocumentReference,
   uid: string,
   existingLegacySummary: LegacySummary | undefined
 ) {
@@ -128,9 +135,8 @@ async function importLegacySummaryIfMissing(
     return { importedNow: false, summary: null };
   }
 
-  const snapshot = await userRef.get();
-  const profileExists = documentSnapshotExists(snapshot);
-  if (!profileExists) {
+  const snapshot = await getDoc(userRef);
+  if (!snapshot.exists()) {
     return { importedNow: false, summary: null };
   }
 
@@ -140,7 +146,8 @@ async function importLegacySummaryIfMissing(
     return { importedNow: false, summary: normalizedExistingLegacy };
   }
 
-  await userRef.set(
+  await setDoc(
+    userRef,
     {
       legacySummary: imported,
       updatedAt: new Date().toISOString(),
@@ -197,9 +204,10 @@ function resolveEmail(currentEmail: unknown, firebaseUser: FirebaseIdentity) {
 }
 
 async function fetchLegacySummary(uid: string): Promise<LegacySummary | null> {
+  const db = getFirestore();
   try {
-    const legacyUserDoc = await firestore().collection(LEGACY_USERS_COLLECTION).doc(uid).get();
-    if (!documentSnapshotExists(legacyUserDoc)) {
+    const legacyUserDoc = await getDoc(doc(db, LEGACY_USERS_COLLECTION, uid));
+    if (!legacyUserDoc.exists()) {
       return null;
     }
 
@@ -312,12 +320,3 @@ function isPermissionDeniedError(error: unknown) {
   return code === 'permission-denied' || code === 'firestore/permission-denied';
 }
 
-function documentSnapshotExists(snapshot: FirebaseFirestoreTypes.DocumentSnapshot<FirebaseFirestoreTypes.DocumentData>) {
-  const maybeExists = (snapshot as { exists?: unknown }).exists;
-
-  if (typeof maybeExists === 'function') {
-    return Boolean((maybeExists as () => unknown)());
-  }
-
-  return Boolean(maybeExists);
-}

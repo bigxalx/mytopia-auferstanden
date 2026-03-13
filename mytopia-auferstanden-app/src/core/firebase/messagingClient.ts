@@ -1,4 +1,11 @@
-import messaging from '@react-native-firebase/messaging';
+import { 
+  getMessaging, 
+  getToken, 
+  subscribeToTopic as firebaseSubscribeToTopic, 
+  unsubscribeFromTopic as firebaseUnsubscribeFromTopic,
+  requestPermission as firebaseRequestPermission,
+  AuthorizationStatus
+} from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 
 import { env } from '@/src/config/env';
@@ -21,6 +28,17 @@ export function resolveNarrativeTopic(mode: AppMode = 'production') {
   }
 
   return productionTopic;
+}
+
+export async function getFCMToken(): Promise<string | null> {
+  try {
+    return await getToken(getMessaging());
+  } catch (error) {
+    if (isNoDefaultFirebaseAppError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function ensureNarrativeTopicSubscription(mode: AppMode = 'production') {
@@ -70,16 +88,15 @@ async function switchTopic(topic: string) {
 }
 
 async function subscribeToTopic(topic: string) {
-  const instance = messaging();
+  const instance = getMessaging();
 
-  await registerForRemoteMessages(instance);
   await requestPermissionsIfNeeded(instance);
-  await instance.subscribeToTopic(topic);
+  await firebaseSubscribeToTopic(instance, topic);
 }
 
 async function unsubscribeFromTopic(topic: string) {
   try {
-    await messaging().unsubscribeFromTopic(topic);
+    await firebaseUnsubscribeFromTopic(getMessaging(), topic);
   } catch (error) {
     if (isNoDefaultFirebaseAppError(error)) {
       return;
@@ -89,17 +106,8 @@ async function unsubscribeFromTopic(topic: string) {
   }
 }
 
-async function registerForRemoteMessages(instance: ReturnType<typeof messaging>) {
-  try {
-    await instance.registerDeviceForRemoteMessages();
-  } catch (error) {
-    if (!isAlreadyRegisteredError(error)) {
-      throw error;
-    }
-  }
-}
 
-async function requestPermissionsIfNeeded(instance: ReturnType<typeof messaging>) {
+async function requestPermissionsIfNeeded(instance: ReturnType<typeof getMessaging>) {
   if (Platform.OS === 'android') {
     if (Platform.Version < 33) {
       return;
@@ -117,29 +125,17 @@ async function requestPermissionsIfNeeded(instance: ReturnType<typeof messaging>
     return;
   }
 
-  const status = await instance.requestPermission();
+  const status = await firebaseRequestPermission(instance);
 
   const isAuthorized =
-    status === messaging.AuthorizationStatus.AUTHORIZED ||
-    status === messaging.AuthorizationStatus.PROVISIONAL;
+    status === AuthorizationStatus.AUTHORIZED ||
+    status === AuthorizationStatus.PROVISIONAL;
 
   if (!isAuthorized) {
     throw new Error('Push notification permission was not granted.');
   }
 }
 
-function isAlreadyRegisteredError(error: unknown) {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const message = (error as { message?: unknown }).message;
-  return (
-    typeof message === 'string' &&
-    message.toLowerCase().includes('already') &&
-    message.toLowerCase().includes('register')
-  );
-}
 
 function isNoDefaultFirebaseAppError(error: unknown) {
   if (typeof error !== 'object' || error === null) {
@@ -149,3 +145,4 @@ function isNoDefaultFirebaseAppError(error: unknown) {
   const message = (error as { message?: unknown }).message;
   return typeof message === 'string' && message.includes("No Firebase App '[DEFAULT]'");
 }
+

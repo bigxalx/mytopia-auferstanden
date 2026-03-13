@@ -40,16 +40,7 @@ const TEXT_DELAY_MAX_MS = 12000;
 const ATTACHMENT_ONLY_DELAY_MS = 3500;
 
 function debugFeed(message: string, payload?: Record<string, unknown>) {
-  if (!__DEV__) {
-    return;
-  }
-
-  if (payload) {
-    console.log(`[feed-debug] ${message}`, payload);
-    return;
-  }
-
-  console.log(`[feed-debug] ${message}`);
+  // Debug logging disabled
 }
 
 export function FeedScreen() {
@@ -248,6 +239,14 @@ export function FeedScreen() {
     };
   }, [loadFirstPage, user]);
 
+  useEffect(() => {
+    // Configure global audio mode once when the feed screen is active
+    void setAudioModeAsync({
+      playsInSilentMode: true,
+      interruptionMode: 'doNotMix',
+    });
+  }, []);
+
   const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);
 
   const visibleMessages = useMemo(
@@ -426,7 +425,9 @@ function VideoAttachmentView({
 }: {
   attachment: Extract<NarrativeAttachmentDto, { _type: 'videoAttachment' }>;
 }) {
-  const player = useVideoPlayer({ uri: attachment.url });
+  const player = useVideoPlayer(attachment.url, (player) => {
+    player.loop = false;
+  });
 
   return (
     <View style={styles.attachmentBox}>
@@ -441,7 +442,9 @@ function AudioAttachmentView({
 }: {
   attachment: Extract<NarrativeAttachmentDto, { _type: 'audioAttachment' }>;
 }) {
-  const audioPlayer = useAudioPlayer({ uri: attachment.url });
+  const audioPlayer = useAudioPlayer(attachment.url, {
+    downloadFirst: true,
+  });
   const audioStatus = useAudioPlayerStatus(audioPlayer);
   const [isPreparingPlayback, setIsPreparingPlayback] = useState(false);
 
@@ -457,9 +460,7 @@ function AudioAttachmentView({
 
     try {
       setIsPreparingPlayback(true);
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-      });
+
       if (audioStatus.didJustFinish) {
         await audioPlayer.seekTo(0);
       }
@@ -471,11 +472,12 @@ function AudioAttachmentView({
     }
   }, [audioPlayer, audioStatus.didJustFinish, audioStatus.playing, isPreparingPlayback]);
 
-  const buttonLabel = isPreparingPlayback || audioStatus.isBuffering
-    ? 'Loading...'
-    : audioStatus.playing
-      ? 'Pause'
-      : 'Play';
+  const buttonLabel =
+    isPreparingPlayback || audioStatus.isBuffering || (!audioStatus.isLoaded && !audioStatus.playing)
+      ? 'Loading...'
+      : audioStatus.playing
+        ? 'Pause'
+        : 'Play';
 
   return (
     <View style={styles.attachmentBox}>

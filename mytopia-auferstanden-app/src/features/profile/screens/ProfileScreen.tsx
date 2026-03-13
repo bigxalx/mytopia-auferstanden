@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 import { useSession } from '@/src/core/session/SessionContext';
+import { getFCMToken } from '@/src/core/firebase/messagingClient';
 import {
   checkAndFetchExpoUpdate,
   getExpoRuntimeVersion,
@@ -22,6 +24,14 @@ export function ProfileScreen() {
   const runtimeVersion = getExpoRuntimeVersion();
   const requestedChannel = resolveExpoUpdateChannel(selectedMode, canUseDevMode);
   const [updatesError, setUpdatesError] = useState<string | null>(null);
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [hasCopied, setHasCopied] = useState(false);
+
+  useEffect(() => {
+    if (selectedMode === 'dev') {
+      void getFCMToken().then(setFcmToken);
+    }
+  }, [selectedMode]);
 
   if (!user) {
     return (
@@ -60,6 +70,14 @@ export function ProfileScreen() {
       await reloadToApplyExpoUpdate();
     } catch (error) {
       setUpdatesError(formatUpdatesError(error));
+    }
+  }
+
+  async function handleCopyToken() {
+    if (fcmToken) {
+      await Clipboard.setStringAsync(fcmToken);
+      setHasCopied(true);
+      setTimeout(() => setHasCopied(false), 2000);
     }
   }
 
@@ -111,6 +129,24 @@ export function ProfileScreen() {
           </View>
         </SectionCard>
       ) : null}
+
+      {selectedMode === 'dev' && (
+        <SectionCard title="Push registration">
+          <View style={styles.row}>
+            <Text style={styles.label}>FCM Token</Text>
+            <Text style={styles.value} numberOfLines={1} ellipsizeMode="middle">
+              {fcmToken ?? 'Fetching…'}
+            </Text>
+          </View>
+          {fcmToken && (
+            <Pressable onPress={handleCopyToken} style={[styles.modeButton, styles.copyButton]}>
+              <Text style={styles.modeButtonLabel}>
+                {hasCopied ? 'Copied!' : 'Copy token'}
+              </Text>
+            </Pressable>
+          )}
+        </SectionCard>
+      )}
 
       {canUseDevMode ? (
         <SectionCard title="App update">
@@ -201,6 +237,10 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    marginBottom: 8,
+  },
+  copyButton: {
+    marginTop: 8,
   },
   signOutButton: {
     alignItems: 'center',
@@ -217,7 +257,7 @@ const styles = StyleSheet.create({
   },
   value: {
     color: '#f9fafb',
-    flex: 1,
+    flex: 2,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'right',

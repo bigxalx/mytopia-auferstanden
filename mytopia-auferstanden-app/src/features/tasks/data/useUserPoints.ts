@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, doc, onSnapshot } from '@react-native-firebase/firestore';
 
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
 
@@ -16,28 +16,29 @@ export function useUserPoints(uid: string | undefined): number | null {
             return;
         }
 
-        const unsubscribe = firestore()
-            .collection(V2_COLLECTION.users)
-            .doc(uid)
-            .onSnapshot(
-                (snapshot) => {
-                    if (!snapshot.exists) {
-                        setPoints(null);
-                        return;
-                    }
+        const db = getFirestore();
+        const userRef = doc(db, V2_COLLECTION.users, uid);
 
-                    const data = snapshot.data();
-                    if (data) {
-                        setPoints(typeof data.pointsCurrent === 'number' ? data.pointsCurrent : 0);
-                    } else {
-                        setPoints(null);
-                    }
-                },
-                (error) => {
-                    console.warn('[useUserPoints] Firestore listener error:', error);
+        const unsubscribe = onSnapshot(
+            userRef,
+            (snapshot) => {
+                if (!snapshot.exists) {
+                    setPoints(null);
+                    return;
+                }
+
+                const data = snapshot.data();
+                if (data) {
+                    setPoints(typeof data.pointsCurrent === 'number' ? data.pointsCurrent : 0);
+                } else {
                     setPoints(null);
                 }
-            );
+            },
+            (error) => {
+                console.warn('[useUserPoints] Firestore listener error:', error);
+                setPoints(null);
+            }
+        );
 
         return () => unsubscribe();
     }, [uid]);

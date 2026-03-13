@@ -1,3 +1,4 @@
+import { getIdToken } from '@react-native-firebase/auth';
 import { env, hasConfiguredFeedApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
 import { type AppMode } from '@/src/core/session/appMode';
@@ -74,7 +75,7 @@ export async function fetchNarrativeFeedPage({
     throw new Error('No authenticated Firebase user available for feed request.');
   }
 
-  const idToken = await firebaseUser.getIdToken();
+  const idToken = await getIdToken(firebaseUser);
   const requestUrl = createFeedUrl({
     baseUrl: env.feedApiBaseUrl,
     cursor,
@@ -328,9 +329,5 @@ function isAbortError(error: unknown) {
 }
 
 function debugFeedClient(message: string, payload: Record<string, unknown>) {
-  if (!__DEV__) {
-    return;
-  }
-
-  console.log(`[feed-client] ${message}`, payload);
+  // Debug logging disabled
 }

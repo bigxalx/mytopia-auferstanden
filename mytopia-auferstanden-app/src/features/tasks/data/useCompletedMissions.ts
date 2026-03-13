@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import firestore from '@react-native-firebase/firestore';
+import { getFirestore, collection, query, where, onSnapshot, FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
 
@@ -16,26 +16,28 @@ export function useCompletedMissions(uid: string | undefined): string[] {
             return;
         }
 
-        const unsubscribe = firestore()
-            .collection(V2_COLLECTION.scoreEvents)
-            .where('uid', '==', uid)
-            .onSnapshot(
-                (snapshot) => {
-                    const ids: string[] = [];
-                    snapshot.forEach((doc) => {
-                        const data = doc.data();
-                        // Depending on schema, we check sourceType or reason to identify missions
-                        if ((data.sourceType === 'quiz' || data.sourceType === 'gps') && typeof data.sourceId === 'string') {
-                            ids.push(data.sourceId);
-                        }
-                    });
-                    setCompletedIds(ids);
-                },
-                (error) => {
-                    console.warn('[useCompletedMissions] Firestore listener error:', error);
-                    setCompletedIds([]);
-                }
-            );
+        const db = getFirestore();
+        const col = collection(db, V2_COLLECTION.scoreEvents);
+        const q = query(col, where('uid', '==', uid));
+
+        const unsubscribe = onSnapshot(
+            q,
+            (snapshot) => {
+                const ids: string[] = [];
+                snapshot.forEach((doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => {
+                    const data = doc.data();
+                    // Depending on schema, we check sourceType or reason to identify missions
+                    if ((data.sourceType === 'quiz' || data.sourceType === 'gps') && typeof data.sourceId === 'string') {
+                        ids.push(data.sourceId);
+                    }
+                });
+                setCompletedIds(ids);
+            },
+            (error) => {
+                console.warn('[useCompletedMissions] Firestore listener error:', error);
+                setCompletedIds([]);
+            }
+        );
 
         return () => unsubscribe();
     }, [uid]);
