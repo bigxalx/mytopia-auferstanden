@@ -1,17 +1,35 @@
 import { BottomTabHeaderProps } from '@react-navigation/bottom-tabs';
 import { getHeaderTitle } from '@react-navigation/elements';
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function MainHeader({ options, route }: BottomTabHeaderProps) {
   const insets = useSafeAreaInsets();
   const title = getHeaderTitle(options, route.name);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    fadeAnim.setValue(0.3); // Start slightly visible to prevent a "dead" 1-frame flash
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [title, fadeAnim]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.content}>
-        <Text style={styles.title}>{title}</Text>
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <Text 
+            style={styles.title} 
+            numberOfLines={1} 
+            ellipsizeMode="tail"
+          >
+            {title}
+          </Text>
+        </Animated.View>
       </View>
     </View>
   );
@@ -25,15 +43,15 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    height: 56, // Total content height is locked
     paddingHorizontal: 20,
-    paddingVertical: 18,
   },
   title: {
     color: '#eef2ef',
     fontFamily: 'NunitoSans_700Bold',
-    fontSize: 34,
-    lineHeight: 46,
+    fontSize: 22,
+    lineHeight: 28,
     textAlign: 'center',
   },
 });
