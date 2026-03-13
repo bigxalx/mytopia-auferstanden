@@ -16,7 +16,6 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ImageView from 'react-native-image-viewing';
 import { FlashList } from '@shopify/flash-list';
@@ -283,11 +282,7 @@ export function FeedScreen() {
   }, [nextCursor, isLoadingMore, loadMore]);
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notfallkanal</Text>
-      </View>
-
+    <View style={styles.safeArea}>
       <FlashList
         data={visibleMessages}
         renderItem={renderItem}
@@ -306,7 +301,7 @@ export function FeedScreen() {
         visible={viewerVisible}
         onRequestClose={() => setViewerVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -539,8 +534,8 @@ function getBundleReleaseMs(bundle: NarrativeBundleDto) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#3f454a' },
-  header: { backgroundColor: '#3f454a', borderBottomColor: '#1f2937', borderBottomWidth: 1, paddingHorizontal: 20, paddingVertical: 18 },
-  headerTitle: { color: '#eef2ef', fontFamily: 'NunitoSans_700Bold', fontSize: 34, textAlign: 'center' },
+  header: { backgroundColor: '#3f454a', borderBottomColor: '#1f2937', borderBottomWidth: 1, paddingHorizontal: 20, paddingVertical: 18, alignItems: 'center', gap: 6 },
+  headerTitle: { color: '#eef2ef', fontFamily: 'NunitoSans_700Bold', fontSize: 34, lineHeight: 46, textAlign: 'center' },
   scrollView: { backgroundColor: '#252b30' },
   scrollContent: { padding: 20, paddingBottom: 34 },
   devModeContainer: { alignItems: 'center', marginBottom: 4, marginTop: -4 },

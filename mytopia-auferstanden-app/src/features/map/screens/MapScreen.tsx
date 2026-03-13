@@ -75,7 +75,7 @@ export function MapScreen() {
 
     if (permissionStatus === 'denied') {
         return (
-            <Screen title="Karte" subtitle="GPS-Missionen auf der Karte">
+            <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" headerShown={false}>
                 <SectionCard title="Standortzugriff benötigt">
                     <Text style={styles.body}>
                         Um die Karte und GPS-Missionen nutzen zu können, benötigen wir Zugriff auf deinen Standort.
@@ -92,7 +92,7 @@ export function MapScreen() {
     }
 
     return (
-        <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" scrollable={false} noPadding>
+        <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" scrollable={false} noPadding headerShown={false}>
             <View style={styles.mapContainer}>
                 <MapView
                     initialRegion={region}

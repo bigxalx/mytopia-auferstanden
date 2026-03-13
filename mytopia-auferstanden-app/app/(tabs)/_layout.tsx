@@ -1,21 +1,35 @@
 import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { ChatLineBold, MapBold, UserBold } from '@/components/ui/SolarTabIcons';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/src/core/session/SessionContext';
+import { MainHeader } from '@/src/shared/ui/MainHeader';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
 
   if (!isHydrated) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, backgroundColor: '#3f454a', paddingTop: insets.top }}>
+        <View style={{
+          backgroundColor: '#3f454a',
+          borderBottomColor: '#1f2937',
+          borderBottomWidth: 1,
+          paddingHorizontal: 20,
+          paddingVertical: 18,
+          alignItems: 'center',
+          gap: 6,
+        }}>
+          <Text style={{ fontFamily: 'NunitoSans_700Bold', fontSize: 34, lineHeight: 46, color: 'transparent' }}>Loading</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#f97316" />
+        </View>
       </View>
     );
   }
@@ -33,7 +47,8 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: '#eef2ef',
         tabBarInactiveTintColor: '#5d6979',
-        headerShown: false,
+        headerShown: true,
+        header: (props) => <MainHeader {...props} />,
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: '#3f454a',
@@ -61,12 +76,19 @@ export default function TabLayout() {
         name="map"
         options={{
           title: 'Karte',
+          headerShown: true,
           tabBarIcon: ({ color }) => <MapBold size={28} color={color} />,
         }}
       />
       {/* Hidden routes that must exist as files but aren't shown as tabs */}
-      <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="tasks" options={{ href: null }} />
+      <Tabs.Screen name="index" options={{ href: null, headerShown: false }} />
+      <Tabs.Screen 
+        name="tasks" 
+        options={{ 
+          href: null,
+          title: 'Missionen'
+        }} 
+      />
     </Tabs>
   );
 }

@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -18,22 +19,22 @@ export default function RootLayout() {
     NunitoSans_700Bold,
   });
 
-  if (!loaded) {
-    return null;
-  }
-
   return (
-    <ThemeProvider value={DarkTheme}>
-      <AppProviders>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" options={{ title: 'Zurück', headerBackTitle: 'Zurück' }} />
-          <Stack.Screen name="welcome-back" />
-          <Stack.Screen name="tasks/[taskId]" options={{ headerShown: true, title: 'Mission', headerBackTitle: 'Zurück' }} />
-        </Stack>
-      </AppProviders>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      {loaded && (
+        <ThemeProvider value={DarkTheme}>
+          <AppProviders>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" options={{ title: 'Zurück', headerBackTitle: 'Zurück' }} />
+              <Stack.Screen name="welcome-back" />
+              <Stack.Screen name="tasks/[taskId]" options={{ headerShown: true, title: 'Mission', headerBackTitle: 'Zurück' }} />
+            </Stack>
+          </AppProviders>
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      )}
+    </SafeAreaProvider>
   );
 }

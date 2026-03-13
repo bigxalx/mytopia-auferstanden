@@ -35,7 +35,7 @@ export function ProfileScreen() {
 
   if (!user) {
     return (
-      <Screen title="Profil" subtitle="Nicht angemeldet">
+      <Screen title="Profil" subtitle="Nicht angemeldet" headerShown={false}>
         <SectionCard title="Keine aktive Sitzung">
           <Text style={styles.body}>Melde dich an, um auf das Profil und die Rangliste zuzugreifen.</Text>
         </SectionCard>
@@ -82,7 +82,7 @@ export function ProfileScreen() {
   }
 
   return (
-    <Screen title="Profil">
+    <Screen title="Profil" headerShown={false}>
       {/* Missions section — first */}
       <MissionsCard userId={user.id} mode={selectedMode} />
 
