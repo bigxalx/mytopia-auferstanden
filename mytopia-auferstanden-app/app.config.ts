@@ -8,6 +8,9 @@ const defaultAndroidGoogleServicesFile = 'secrets/firebase/google-services.json'
 
 export default (): ExpoConfig => {
   const base = appJson.expo;
+  const appEnv = process.env.EXPO_PUBLIC_APP_ENV ?? 'development';
+  const isProduction = appEnv === 'production';
+
   const iosGoogleServicesFile = resolveGoogleServicesPath(
     process.env.IOS_GOOGLE_SERVICES_FILE ?? defaultIosGoogleServicesFile
   );
@@ -31,11 +34,19 @@ export default (): ExpoConfig => {
     plugins,
     ios: {
       ...base.ios,
+      entitlements: {
+        ...(base.ios?.entitlements as object),
+        'aps-environment': isProduction ? 'production' : 'development',
+      },
       ...(iosGoogleServicesFile ? { googleServicesFile: iosGoogleServicesFile } : {}),
     },
     android: {
       ...base.android,
       ...(androidGoogleServicesFile ? { googleServicesFile: androidGoogleServicesFile } : {}),
+    },
+    extra: {
+      ...base.extra,
+      EXPO_PUBLIC_APP_ENV: appEnv,
     },
   };
 };

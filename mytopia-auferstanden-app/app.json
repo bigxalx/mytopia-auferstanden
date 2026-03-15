@@ -19,7 +19,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "21",
+      "buildNumber": "23",
       "appleTeamId": "2YM33HYFWJ",
       "bundleIdentifier": "de.theateraltenburggera.mytopia",
       "infoPlist": {
@@ -27,9 +27,6 @@
         "UIBackgroundModes": [
           "remote-notification"
         ]
-      },
-      "entitlements": {
-        "aps-environment": "development"
       }
     },
     "android": {

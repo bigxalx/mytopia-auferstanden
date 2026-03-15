@@ -214,6 +214,7 @@ end
 
 desc "Build and upload the iOS beta to TestFlight"
 lane :ios_beta do
+  ENV["EXPO_PUBLIC_APP_ENV"] = "production"
   ensure_bun!
   ensure_node_binary!
 
@@ -266,6 +267,7 @@ end
 
 desc "Build and upload the Android beta to Play Internal Testing"
 lane :android_beta do
+  ENV["EXPO_PUBLIC_APP_ENV"] = "production"
   ensure_bun!
   ensure_node_binary!
 
