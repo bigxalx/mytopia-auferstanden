@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
+import { deleteCurrentUserAccount } from '@/src/core/firebase/accountDeletionClient';
 import { useSession } from '@/src/core/session/SessionContext';
 import { getFCMToken } from '@/src/core/firebase/messagingClient';
 import {
@@ -19,6 +20,8 @@ import { SectionCard } from '@/src/shared/ui/SectionCard';
 
 export function ProfileScreen() {
   const { canUseDevMode, selectedMode, setSelectedMode, signOut, user } = useSession();
+  const [accountFeedback, setAccountFeedback] = useState<{ message: string; tone: 'error' | 'success' } | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const updatesState = useExpoUpdatesState();
   const updatesEnabled = isExpoUpdatesEnabled();
   const runtimeVersion = getExpoRuntimeVersion();
@@ -81,6 +84,43 @@ export function ProfileScreen() {
     }
   }
 
+  function handleDeleteAccount() {
+    Alert.alert(
+      'Konto löschen',
+      'Dein Konto und alle zugeordneten Daten werden dauerhaft gelöscht. Dieser Schritt kann nicht rückgängig gemacht werden.',
+      [
+        {
+          style: 'cancel',
+          text: 'Abbrechen',
+        },
+        {
+          style: 'destructive',
+          text: 'Löschen',
+          onPress: () => {
+            void confirmDeleteAccount();
+          },
+        },
+      ]
+    );
+  }
+
+  async function confirmDeleteAccount() {
+    setAccountFeedback(null);
+    setIsDeletingAccount(true);
+
+    try {
+      await deleteCurrentUserAccount();
+      await signOut();
+    } catch (error) {
+      setAccountFeedback({
+        message: error instanceof Error ? error.message : 'Konto konnte nicht gelöscht werden.',
+        tone: 'error',
+      });
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
   return (
     <Screen title="Profil" headerShown={false}>
       {/* Missions section — first */}
@@ -95,6 +135,19 @@ export function ProfileScreen() {
           <Text style={styles.label}>E‑Mail</Text>
           <Text style={styles.value}>{user.email}</Text>
         </View>
+        {accountFeedback ? (
+          <Text style={accountFeedback.tone === 'error' ? styles.errorText : styles.successText}>
+            {accountFeedback.message}
+          </Text>
+        ) : null}
+        <Pressable
+          disabled={isDeletingAccount}
+          onPress={handleDeleteAccount}
+          style={[styles.deleteAccountButton, isDeletingAccount ? styles.modeButtonDisabled : null]}>
+          <Text style={styles.deleteAccountText}>
+            {isDeletingAccount ? 'Konto wird gelöscht...' : 'Konto löschen'}
+          </Text>
+        </Pressable>
       </SectionCard>
 
       <RankingSummaryCard user={user} />
@@ -196,10 +249,30 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 10,
   },
+  successText: {
+    color: '#86efac',
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 10,
+  },
   label: {
     color: '#9ca3af',
     flex: 1,
     fontSize: 13,
+  },
+  deleteAccountButton: {
+    alignItems: 'center',
+    backgroundColor: '#3f1d1d',
+    borderColor: '#7f1d1d',
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    paddingVertical: 10,
+  },
+  deleteAccountText: {
+    color: '#fca5a5',
+    fontSize: 13,
+    fontWeight: '700',
   },
   modeButton: {
     alignItems: 'center',

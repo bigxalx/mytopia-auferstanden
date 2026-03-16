@@ -24,6 +24,11 @@ Primary deployed endpoint is `narrativeApi` with routes:
    - validates Firebase ID token
    - optional query `mode=dev` (requires Firebase custom claim `dev: true`)
    - returns released bundles from Sanity with cursor pagination
+4. `POST /account/delete`
+   - validates Firebase ID token
+   - deletes current app data for the authenticated user
+   - deletes legacy `users/{uid}` profile data
+   - deletes the Firebase Auth user
 
 ## Environment
 

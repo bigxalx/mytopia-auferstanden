@@ -9,6 +9,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { MainHeader } from '@/src/shared/ui/MainHeader';
 
+const renderHeader = (props: any) => <MainHeader {...props} />;
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
@@ -48,7 +50,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: '#eef2ef',
         tabBarInactiveTintColor: '#5d6979',
         headerShown: true,
-        header: MainHeader,
+        header: renderHeader,
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: '#3f454a',

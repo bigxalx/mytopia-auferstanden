@@ -2,7 +2,7 @@ import { CloudTasksClient } from '@google-cloud/tasks';
 import { OAuth2Client } from 'google-auth-library';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
-import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, Timestamp, type DocumentData, type Query } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { onRequest, type Request } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
@@ -16,8 +16,13 @@ const messaging = getMessaging();
 const tasksClient = new CloudTasksClient();
 const oidcClient = new OAuth2Client();
 
+const LEGACY_USERS_COLLECTION_PATH = 'users';
 const NARRATIVE_STATE_COLLECTION_PATH = 'v2/app/narrativeState';
 const NARRATIVE_STATE_COLLECTION_PATH_DEV = 'v2/app/narrativeStateDev';
+const V2_LEADERBOARD_COLLECTION_PATH = 'v2/app/leaderboard';
+const V2_SCORE_EVENTS_COLLECTION_PATH = 'v2/app/scoreEvents';
+const V2_SUBMISSIONS_COLLECTION_PATH = 'v2/app/submissions';
+const V2_USERS_COLLECTION_PATH = 'v2/app/users';
 const SANITY_API_VERSION = 'v2025-02-19';
 const SANITY_BUNDLE_PROJECTION = `
   _id,
@@ -197,6 +202,11 @@ function env(): EnvConfig {
 export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
   const path = normalizeRequestPath(req.path);
 
+  if (path === '/account/delete') {
+    await handleDeleteAccount(req, res);
+    return;
+  }
+
   if (path === '/sanity/webhook/bundle-upsert') {
     await handleSanityBundleUpsert(req, res);
     return;
@@ -219,6 +229,25 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
 
   res.status(404).json({ error: 'Route not found.' });
 });
+
+async function handleDeleteAccount(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const decodedToken = await verifyFirebaseUser(req);
+    await deleteAccountData(decodedToken.uid);
+    await auth.deleteUser(decodedToken.uid);
+
+    logger.info('deleteAccount succeeded', { uid: decodedToken.uid });
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    logger.error('deleteAccount failed', error);
+    sendError(res, error);
+  }
+}
 
 async function handleSanityBundleUpsert(req: Request, res: FirebaseResponse) {
   if (req.method !== 'POST') {
@@ -752,6 +781,32 @@ async function verifyFirebaseUser(req: Request): Promise<DecodedIdToken> {
     return await auth.verifyIdToken(idToken);
   } catch {
     throw new HttpError(401, 'Invalid Firebase ID token.');
+  }
+}
+
+async function deleteAccountData(uid: string) {
+  const userDocumentPaths = [`${V2_USERS_COLLECTION_PATH}/${uid}`, `${LEGACY_USERS_COLLECTION_PATH}/${uid}`];
+
+  await Promise.all([
+    ...userDocumentPaths.map((path) => firestore.doc(path).delete().catch(() => undefined)),
+    deleteDocumentsByQuery(firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).where('ownerUid', '==', uid)),
+    deleteDocumentsByQuery(firestore.collection(V2_SCORE_EVENTS_COLLECTION_PATH).where('uid', '==', uid)),
+    deleteDocumentsByQuery(firestore.collection(V2_LEADERBOARD_COLLECTION_PATH).where('uid', '==', uid)),
+  ]);
+}
+
+async function deleteDocumentsByQuery(query: Query<DocumentData>) {
+  while (true) {
+    const snapshot = await query.limit(100).get();
+    if (snapshot.empty) {
+      return;
+    }
+
+    const batch = firestore.batch();
+    for (const doc of snapshot.docs) {
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
   }
 }
 
