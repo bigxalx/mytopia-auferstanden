@@ -1,7 +1,7 @@
 import { BottomTabHeaderProps } from '@react-navigation/bottom-tabs';
 import { getHeaderTitle } from '@react-navigation/elements';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from './theme';
 
@@ -12,10 +12,8 @@ export function MainHeader({ options, route }: BottomTabHeaderProps) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.content}>
-        <Text 
-          style={styles.title} 
-          numberOfLines={1} 
-          ellipsizeMode="tail"
+        <Text
+          style={styles.title}
         >
           {title}
         </Text>
@@ -26,15 +24,20 @@ export function MainHeader({ options, route }: BottomTabHeaderProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#3f454a',
-    borderBottomColor: '#1f2937',
+    backgroundColor: theme.colors.headerBackground,
+    borderBottomColor: theme.colors.headerBorder,
     borderBottomWidth: 1,
-  },
+  } as ViewStyle,
   content: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 18,
-  },
-  title: theme.typography.title,
+    width: '100%',
+  } as ViewStyle,
+  title: {
+    ...(theme.typography.title as object),
+    width: '100%',
+  } as TextStyle,
 });
+

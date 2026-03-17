@@ -1,3 +1,5 @@
+import { TextStyle } from 'react-native';
+
 export const theme = {
   colors: {
     background: '#252b30',
@@ -20,8 +22,9 @@ export const theme = {
       fontFamily: 'NunitoSans_700Bold',
       fontSize: 22,
       lineHeight: 28,
-      textAlign: 'center' as const,
-    },
+      textAlign: 'center',
+      textTransform: 'uppercase',
+    } as TextStyle,
     /**
      * Unified H1 style for card headers
      */
@@ -29,10 +32,10 @@ export const theme = {
       color: '#454A4A',
       fontFamily: 'Nunito_700Bold',
       fontSize: 20,
-      textAlign: 'center' as const,
-      textTransform: 'uppercase' as const,
+      textAlign: 'center',
+      textTransform: 'uppercase',
       marginBottom: 8,
-    },
+    } as TextStyle,
     /**
      * Unified button text style
      */
@@ -40,8 +43,8 @@ export const theme = {
       color: '#000000',
       fontFamily: 'Nunito_700Bold',
       fontSize: 15,
-      textAlign: 'center' as const,
-      textTransform: 'uppercase' as const,
-    }
+      textAlign: 'center',
+      textTransform: 'uppercase',
+    } as TextStyle
   }
 };

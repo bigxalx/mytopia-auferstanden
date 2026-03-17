@@ -3,6 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Circle, Marker } from 'react-native-maps';
 
+import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
 import { Screen } from '@/src/shared/ui/Screen';
@@ -133,12 +134,12 @@ export function MapScreen() {
 
 const styles = StyleSheet.create({
     body: {
-        color: '#9ca3af',
+        color: theme.colors.textSecondary,
         fontSize: 14,
         lineHeight: 20,
     },
     hint: {
-        color: '#9ca3af',
+        color: theme.colors.textSecondary,
         fontSize: 13,
         lineHeight: 18,
         marginTop: 8,
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
     },
     settingsButton: {
         alignItems: 'center',
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
         borderRadius: 10,
         marginTop: 16,
         paddingVertical: 12,

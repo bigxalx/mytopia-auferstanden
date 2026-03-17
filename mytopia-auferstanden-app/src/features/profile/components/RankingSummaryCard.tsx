@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { theme } from '@/src/shared/ui/theme';
 
 import { SessionUser } from '@/src/core/session/SessionContext';
 import { useUserPoints } from '@/src/features/tasks/data/useUserPoints';
@@ -42,17 +43,17 @@ export function RankingSummaryCard({ user }: RankingSummaryCardProps) {
 
 const styles = StyleSheet.create({
   divider: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.headerBorder,
     height: 1,
     marginVertical: 6,
   },
   label: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     flex: 1,
     fontSize: 13,
   },
   labelSmall: {
-    color: '#6b7280',
+    color: theme.colors.charcoal,
     flex: 1,
     fontSize: 12,
   },
@@ -60,18 +61,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   value: {
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     flex: 1,
     fontSize: 15,
     fontWeight: '700',
     textAlign: 'right',
   },
   valueSmall: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     flex: 1,
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'right',
   },
 });
+
 

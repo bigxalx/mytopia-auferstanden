@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { theme } from '@/src/shared/ui/theme';
 
 import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
@@ -92,7 +93,7 @@ export function MissionsCard({ userId, mode }: MissionsCardProps) {
 
 const styles = StyleSheet.create({
   body: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -111,18 +112,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   loadingText: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 14,
   },
   row: {
-    borderColor: '#4b5563',
+    borderColor: theme.colors.headerBorder,
     borderRadius: 10,
     borderWidth: 1,
     gap: 4,
     padding: 12,
   },
   rowCompleted: {
-    backgroundColor: '#374151',
+    backgroundColor: theme.colors.headerBackground,
     opacity: 0.6,
   },
   rowHeader: {
@@ -131,14 +132,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rowMeta: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 12,
     marginLeft: 26,
   },
   rowTitle: {
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
   },
 });
+

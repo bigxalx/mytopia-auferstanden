@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from './theme';
 
@@ -78,39 +78,40 @@ export function Screen({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#3f454a',
+    backgroundColor: theme.colors.headerBackground,
     flex: 1,
-  },
+  } as ViewStyle,
   content: {
     gap: 16,
     padding: 20,
-  },
+  } as ViewStyle,
   fillContent: {
-    backgroundColor: '#252b30',
+    backgroundColor: theme.colors.background,
     flex: 1,
     gap: 16,
     padding: 20,
-  },
+  } as ViewStyle,
   noPadding: {
     padding: 0,
     gap: 0,
-  },
+  } as ViewStyle,
   scrollView: {
-    backgroundColor: '#252b30',
-  },
+    backgroundColor: theme.colors.background,
+  } as ViewStyle,
   header: {
-    backgroundColor: '#3f454a',
-    borderBottomColor: '#1f2937',
+    backgroundColor: theme.colors.headerBackground,
+    borderBottomColor: theme.colors.headerBorder,
     borderBottomWidth: 1,
     paddingHorizontal: 20,
     paddingVertical: 18,
     alignItems: 'center',
     gap: 6,
-  },
+  } as ViewStyle,
   subtitle: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
-  },
+  } as TextStyle,
   title: theme.typography.title,
 });
+

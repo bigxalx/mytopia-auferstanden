@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { theme } from '@/src/shared/ui/theme';
 
 import { deleteCurrentUserAccount } from '@/src/core/firebase/accountDeletionClient';
 import { useSession } from '@/src/core/session/SessionContext';
@@ -239,7 +240,7 @@ export function ProfileScreen() {
 
 const styles = StyleSheet.create({
   body: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   label: {
-    color: '#9ca3af',
+    color: theme.colors.textSecondary,
     flex: 1,
     fontSize: 13,
   },
@@ -276,22 +277,22 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     alignItems: 'center',
-    backgroundColor: '#374151',
-    borderColor: '#4b5563',
+    backgroundColor: theme.colors.headerBackground,
+    borderColor: theme.colors.headerBorder,
     borderRadius: 8,
     borderWidth: 1,
     flex: 1,
     paddingVertical: 10,
   },
   modeButtonActive: {
-    backgroundColor: '#f97316',
-    borderColor: '#f97316',
+    backgroundColor: theme.colors.orange,
+    borderColor: theme.colors.orange,
   },
   modeButtonDisabled: {
     opacity: 0.5,
   },
   modeButtonLabel: {
-    color: '#d1d5db',
+    color: theme.colors.textSecondary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -311,8 +312,8 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     alignItems: 'center',
-    backgroundColor: '#1f2937',
-    borderColor: '#374151',
+    backgroundColor: theme.colors.headerBackground,
+    borderColor: theme.colors.headerBorder,
     borderRadius: 10,
     borderWidth: 1,
     paddingVertical: 12,
@@ -323,13 +324,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   value: {
-    color: '#f9fafb',
+    color: theme.colors.textPrimary,
     flex: 2,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'right',
   },
 });
+
 
 function formatUpdatesError(error: unknown) {
   if (error instanceof Error && error.message.trim()) {

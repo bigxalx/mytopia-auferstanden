@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 import { theme } from './theme';
 
 type SectionCardProps = PropsWithChildren<{
@@ -21,17 +21,18 @@ export function SectionCard({ children, description, title, backgroundColor }: S
 const styles = StyleSheet.create({
   body: {
     gap: 10,
-  },
+  } as ViewStyle,
   card: {
-    backgroundColor: '#EDECE0',
+    backgroundColor: theme.colors.beige,
     borderRadius: 20,
     gap: 10,
     padding: 24,
-  },
+  } as ViewStyle,
   description: {
-    color: '#596161',
+    color: theme.colors.charcoal,
     fontSize: 13,
     lineHeight: 18,
-  },
+  } as TextStyle,
   title: theme.typography.h1,
 });
+

@@ -9,6 +9,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { MainHeader } from '@/src/shared/ui/MainHeader';
 
+import { theme } from '@/src/shared/ui/theme';
+
 const renderHeader = (props: any) => <MainHeader {...props} />;
 
 export default function TabLayout() {
@@ -17,20 +19,23 @@ export default function TabLayout() {
 
   if (!isHydrated) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#3f454a', paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.headerBackground, paddingTop: insets.top }}>
         <View style={{
-          backgroundColor: '#3f454a',
-          borderBottomColor: '#1f2937',
+          backgroundColor: theme.colors.headerBackground,
+          borderBottomColor: theme.colors.headerBorder,
           borderBottomWidth: 1,
           paddingHorizontal: 20,
           paddingVertical: 18,
           alignItems: 'center',
           gap: 6,
         }}>
-          <Text style={{ fontFamily: 'NunitoSans_700Bold', fontSize: 34, lineHeight: 46, color: 'transparent' }}>Loading</Text>
+          <Text style={{ 
+            ...theme.typography.title,
+            color: 'transparent' 
+          }}>Loading</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#f97316" />
+          <ActivityIndicator size="large" color={theme.colors.orange} />
         </View>
       </View>
     );
@@ -47,19 +52,21 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#eef2ef',
-        tabBarInactiveTintColor: '#5d6979',
+        tabBarActiveTintColor: theme.colors.textPrimary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         headerShown: true,
         header: renderHeader,
         tabBarButton: HapticTab,
         tabBarStyle: {
-          backgroundColor: '#3f454a',
-          borderTopColor: '#1f2937',
+          backgroundColor: theme.colors.headerBackground,
+          borderTopColor: theme.colors.headerBorder,
         },
         tabBarLabelStyle: {
-          fontFamily: 'NunitoSans_700Bold',
+          fontFamily: theme.typography.title.fontFamily,
+          fontWeight: '700',
         },
       }}>
+
       <Tabs.Screen
         name="feed"
         options={{
