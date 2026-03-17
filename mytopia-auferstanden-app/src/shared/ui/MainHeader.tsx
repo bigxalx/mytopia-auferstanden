@@ -3,6 +3,7 @@ import { getHeaderTitle } from '@react-navigation/elements';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from './theme';
 
 export function MainHeader({ options, route }: BottomTabHeaderProps) {
   const insets = useSafeAreaInsets();
@@ -32,14 +33,8 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
     paddingHorizontal: 20,
+    paddingVertical: 18,
   },
-  title: {
-    color: '#eef2ef',
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 22,
-    lineHeight: 28,
-    textAlign: 'center',
-  },
+  title: theme.typography.title,
 });

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { theme } from '@/src/shared/ui/theme';
 
 export function WelcomeBackScreen() {
   const { dismissWelcomeBack, user } = useSession();
@@ -20,30 +21,27 @@ export function WelcomeBackScreen() {
   }
 
   return (
-    <Screen
-      title="Welcome back to Mytopia"
-      subtitle="We found your legacy progress and imported a continuity snapshot."
-    >
+    <Screen title="Willkommen zurück bei Mytopia">
       <SectionCard
-        title="Legacy summary"
-        description="This snapshot is for continuity and does not affect the new season ranking."
+        title="Frühere Zusammenfassung"
+        description="Diese Übersicht dient der Kontinuität und hat keinen Einfluss auf die Rangliste der neuen Saison."
       >
         <View style={styles.row}>
-          <Text style={styles.label}>Legacy total points</Text>
+          <Text style={styles.label}>Frühere Gesamtpunktzahl</Text>
           <Text style={styles.value}>{user.legacySummary.totalPoints}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.label}>Legacy rank snapshot</Text>
+          <Text style={styles.label}>Früherer Rang</Text>
           <Text style={styles.value}>{rankText}</Text>
         </View>
       </SectionCard>
 
-      <SectionCard title="What happens next">
+      <SectionCard title="Wie es weitergeht">
         <Text style={styles.body}>
-          Your old score is stored as context only. All competition in this app starts from the new v2 season data.
+          Deine alte Punktzahl wird nur als Referenz gespeichert. Alle Wettbewerbe in dieser App basieren auf den neuen v2-Saisondaten.
         </Text>
         <Pressable accessibilityRole="button" onPress={continueToFeed} style={styles.button}>
-          <Text style={styles.buttonText}>Continue to feed</Text>
+          <Text style={styles.buttonText}>Weiter zum Feed</Text>
         </Pressable>
       </SectionCard>
     </Screen>
@@ -58,16 +56,12 @@ const styles = StyleSheet.create({
   },
   button: {
     alignItems: 'center',
-    backgroundColor: '#101828',
+    backgroundColor: '#f97316',
     borderRadius: 10,
     marginTop: 6,
     paddingVertical: 12,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonText: theme.typography.button,
   label: {
     color: '#5d6979',
     flex: 1,

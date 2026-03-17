@@ -1,11 +1,11 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
-import { env, hasConfiguredFirebase } from '@/src/config/env';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { theme } from '@/src/shared/ui/theme';
 
 export function SignInScreen() {
   const { sendPasswordReset, signInWithEmail } = useSession();
@@ -18,12 +18,12 @@ export function SignInScreen() {
   async function handleSignIn() {
     const normalizedEmail = email.trim();
     if (!hasValidEmail(normalizedEmail)) {
-      setFeedback({ text: 'Please enter a valid email address.', tone: 'error' });
+      setFeedback({ text: 'Bitte gib eine gültige E-Mail-Adresse ein.', tone: 'error' });
       return;
     }
 
     if (password.length === 0) {
-      setFeedback({ text: 'Please enter your password.', tone: 'error' });
+      setFeedback({ text: 'Bitte gib dein Passwort ein.', tone: 'error' });
       return;
     }
 
@@ -47,7 +47,7 @@ export function SignInScreen() {
   async function handleResetPassword() {
     const normalizedEmail = email.trim();
     if (!hasValidEmail(normalizedEmail)) {
-      setFeedback({ text: 'Enter a valid email to send a reset link.', tone: 'error' });
+      setFeedback({ text: 'Gib eine gültige E-Mail-Adresse ein, um einen Reset-Link zu erhalten.', tone: 'error' });
       return;
     }
 
@@ -61,7 +61,7 @@ export function SignInScreen() {
       }
 
       setFeedback({
-        text: result.message ?? 'Password reset email sent. Check your inbox.',
+        text: result.message ?? 'E-Mail zum Zurücksetzen des Passworts gesendet. Bitte prüfe dein Postfach.',
         tone: 'success',
       });
     } finally {
@@ -71,89 +71,88 @@ export function SignInScreen() {
 
   return (
     <Screen
-      title="Welcome Back"
-      subtitle="Sign in with your existing account. Verified email is required."
+      title="Mytopia"
+      backgroundColor="transparent"
+      headerShown={false}
+      noPadding
     >
-      <SectionCard title="Sign In">
-        {feedback ? (
-          <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
-            <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
-              {feedback.text}
-            </Text>
-          </View>
-        ) : null}
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          placeholder="Email"
-          style={styles.input}
-          value={email}
-        />
-        <TextInput
-          onChangeText={setPassword}
-          placeholder="Password"
-          secureTextEntry
-          style={styles.input}
-          value={password}
-        />
-        <Pressable
-          accessibilityRole="button"
-          disabled={isSubmitting || isResetting || email.trim().length === 0}
-          onPress={handleSignIn}
-          style={[styles.button, (isSubmitting || isResetting || email.trim().length === 0) && styles.buttonDisabled]}
-        >
-          <Text style={styles.buttonText}>{isSubmitting ? 'Signing in...' : 'Sign In'}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          disabled={isSubmitting || isResetting}
-          onPress={handleResetPassword}
-          style={styles.inlineAction}
-        >
-          <Text style={styles.inlineActionText}>{isResetting ? 'Sending reset link...' : 'Forgot password?'}</Text>
-        </Pressable>
-      </SectionCard>
-
-      <SectionCard title="New to Mytopia?">
-        <Link asChild href="./sign-up">
-          <Pressable accessibilityRole="button" style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Create account</Text>
+      <View style={styles.formContainer}>
+        <SectionCard title="Anmelden">
+          {feedback ? (
+            <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
+              <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
+                {feedback.text}
+              </Text>
+            </View>
+          ) : null}
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            onChangeText={setEmail}
+            placeholder="E-Mail"
+            placeholderTextColor="#9ca3af"
+            style={styles.input}
+            value={email}
+          />
+          <TextInput
+            onChangeText={setPassword}
+            placeholder="Passwort"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            style={styles.input}
+            value={password}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSubmitting || isResetting || email.trim().length === 0}
+            onPress={handleSignIn}
+            style={[styles.button, (isSubmitting || isResetting || email.trim().length === 0) && styles.buttonDisabled]}
+          >
+            <Text style={styles.buttonText}>{isSubmitting ? 'Anmeldung...' : 'Anmelden'}</Text>
           </Pressable>
-        </Link>
-      </SectionCard>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSubmitting || isResetting}
+            onPress={handleResetPassword}
+            style={styles.inlineAction}
+          >
+            <Text style={styles.inlineActionText}>{isResetting ? 'Link wird gesendet...' : 'Passwort vergessen?'}</Text>
+          </Pressable>
+        </SectionCard>
 
-      <SectionCard title="Environment status">
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>EXPO_PUBLIC_APP_ENV</Text>
-          <Text style={styles.statusValue}>{env.appEnv}</Text>
-        </View>
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>EXPO_PUBLIC_FIREBASE_PROJECT_ID</Text>
-          <Text style={styles.statusValue}>{hasConfiguredFirebase() ? env.firebaseProjectId : 'not set'}</Text>
-        </View>
-      </SectionCard>
+        <SectionCard
+          title="Neu bei Mytopia?"
+          backgroundColor={theme.colors.accent}
+        >
+          <Link asChild href="./sign-up">
+            <Pressable accessibilityRole="button" style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>Account erstellen</Text>
+            </Pressable>
+          </Link>
+        </SectionCard>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  formContainer: {
+    padding: 20,
+    gap: 16,
+  },
   button: {
     alignItems: 'center',
-    backgroundColor: '#101828',
+    backgroundColor: '#f97316',
     borderRadius: 10,
     marginTop: 6,
     paddingVertical: 12,
   },
   buttonDisabled: {
-    backgroundColor: '#98a2b3',
+    backgroundColor: '#4b5563',
+    opacity: 0.6,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonText: theme.typography.button,
   feedback: {
     borderRadius: 10,
     borderWidth: 1,
@@ -177,53 +176,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   input: {
-    backgroundColor: '#f8f9fc',
-    borderColor: '#d8dde6',
+    backgroundColor: 'transparent',
+    borderColor: '#596161',
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    color: '#000',
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
   inlineAction: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
+    marginTop: 8,
     paddingVertical: 6,
   },
   inlineActionText: {
-    color: '#1d4ed8',
+    color: '#596161',
     fontSize: 13,
     fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   secondaryButton: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#1d4ed8',
+    backgroundColor: theme.colors.textPrimary,
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     paddingVertical: 12,
   },
-  secondaryButtonText: {
-    color: '#1d4ed8',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  statusLabel: {
-    color: '#5d6979',
-    flex: 1,
-    fontSize: 13,
-  },
-  statusRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  statusValue: {
-    color: '#0f1728',
-    flex: 1.4,
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
+  secondaryButtonText: theme.typography.button,
 });
 
 function hasValidEmail(value: string) {

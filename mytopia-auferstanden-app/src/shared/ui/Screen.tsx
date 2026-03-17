@@ -1,6 +1,7 @@
 import { PropsWithChildren } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from './theme';
 
 type ScreenProps = PropsWithChildren<{
   noPadding?: boolean;
@@ -10,6 +11,10 @@ type ScreenProps = PropsWithChildren<{
   title: string;
   /** Whether to show the internal header. Defaults to true. Set to false if using navigator headers. */
   headerShown?: boolean;
+  /** Whether to center content vertically. */
+  centerContent?: boolean;
+  /** Optional background color override. */
+  backgroundColor?: string;
 }>;
 
 export function Screen({ 
@@ -18,7 +23,9 @@ export function Screen({
   scrollable = true, 
   subtitle, 
   title,
-  headerShown = true
+  headerShown = true,
+  centerContent = false,
+  backgroundColor
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   
@@ -29,13 +36,21 @@ export function Screen({
     </View>
   ) : null;
 
-  const containerStyle = styles.container;
+  const containerStyle = [styles.container, backgroundColor ? { backgroundColor } : null];
+  const bgStyle = backgroundColor ? { backgroundColor } : null;
 
   if (!scrollable) {
     return (
       <View style={containerStyle}>
         {header}
-        <View style={[styles.fillContent, noPadding && styles.noPadding]}>
+        <View style={[
+          styles.fillContent, 
+          { paddingBottom: Math.max(insets.bottom, 20) }, // Use safe area for bottom padding
+          noPadding && styles.noPadding, 
+          centerContent && { justifyContent: 'center' },
+          bgStyle
+
+        ]}>
           {children}
         </View>
       </View>
@@ -46,8 +61,13 @@ export function Screen({
     <View style={containerStyle}>
       {header}
       <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={[styles.content, noPadding && styles.noPadding]} 
+        style={[styles.scrollView, bgStyle]}
+        contentContainerStyle={[
+          styles.content, 
+          { paddingBottom: Math.max(insets.bottom, 20) }, // Use safe area for bottom padding
+          noPadding && styles.noPadding,
+          centerContent && { flexGrow: 1, justifyContent: 'center' }
+        ]} 
         showsVerticalScrollIndicator={false}
       >
         {children}
@@ -64,7 +84,6 @@ const styles = StyleSheet.create({
   content: {
     gap: 16,
     padding: 20,
-    paddingBottom: 36,
   },
   fillContent: {
     backgroundColor: '#252b30',
@@ -93,11 +112,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  title: {
-    color: '#eef2ef',
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 34,
-    lineHeight: 46,
-    textAlign: 'center',
-  },
+  title: theme.typography.title,
 });

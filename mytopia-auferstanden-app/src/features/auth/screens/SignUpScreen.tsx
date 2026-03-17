@@ -1,12 +1,14 @@
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { theme } from '@/src/shared/ui/theme';
 
 export function SignUpScreen() {
+  const router = useRouter();
   const { signUpWithEmail } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,17 +19,17 @@ export function SignUpScreen() {
   async function handleSignUp() {
     const normalizedEmail = email.trim();
     if (!hasValidEmail(normalizedEmail)) {
-      setFeedback({ text: 'Please enter a valid email address.', tone: 'error' });
+      setFeedback({ text: 'Bitte gib eine gültige E-Mail-Adresse ein.', tone: 'error' });
       return;
     }
 
     if (password.length < 6) {
-      setFeedback({ text: 'Password must be at least 6 characters.', tone: 'error' });
+      setFeedback({ text: 'Das Passwort muss mindestens 6 Zeichen lang sein.', tone: 'error' });
       return;
     }
 
     if (password !== confirmPassword) {
-      setFeedback({ text: 'Passwords do not match.', tone: 'error' });
+      setFeedback({ text: 'Die Passwörter stimmen nicht überein.', tone: 'error' });
       return;
     }
 
@@ -41,7 +43,7 @@ export function SignUpScreen() {
       }
 
       setFeedback({
-        text: result.message ?? 'Account created. Verify your email before signing in.',
+        text: result.message ?? 'Konto erstellt. Bitte bestätige deine E-Mail vor der Anmeldung.',
         tone: 'success',
       });
       setPassword('');
@@ -52,75 +54,116 @@ export function SignUpScreen() {
   }
 
   return (
-    <Screen title="Create Account" subtitle="Register with email/password. Email verification is required.">
-      <SectionCard title="Sign Up">
-        {feedback ? (
-          <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
-            <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
-              {feedback.text}
+    <Screen
+      title="Registrieren"
+      backgroundColor="transparent"
+      headerShown={false}
+      noPadding
+    >
+      <View style={styles.formContainer}>
+        <SectionCard title="Registrieren">
+          {feedback ? (
+            <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
+              <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
+                {feedback.text}
+              </Text>
+            </View>
+          ) : null}
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            onChangeText={setEmail}
+            placeholder="E-Mail"
+            placeholderTextColor="#9ca3af"
+            style={styles.input}
+            value={email}
+          />
+          <TextInput
+            onChangeText={setPassword}
+            placeholder="Passwort (mind. 6 Zeichen)"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            style={styles.input}
+            value={password}
+          />
+          <TextInput
+            onChangeText={setConfirmPassword}
+            placeholder="Passwort bestätigen"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            style={styles.input}
+            value={confirmPassword}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSubmitting || email.trim().length === 0}
+            onPress={handleSignUp}
+            style={[styles.button, (isSubmitting || email.trim().length === 0) && styles.buttonDisabled]}
+          >
+            <Text style={styles.buttonText}>{isSubmitting ? 'Konto wird erstellt...' : 'Konto erstellen'}</Text>
+          </Pressable>
+          <View style={styles.privacyCardContainer}>
+            <Text style={styles.privacyText}>
+              Durch das Anmelden akzeptierst du unsere{' '}
+              <Text
+                style={styles.privacyLink}
+                onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')}
+              >
+                Datenschutzbestimmungen
+              </Text>
+              .
             </Text>
           </View>
-        ) : null}
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          placeholder="Email"
-          style={styles.input}
-          value={email}
-        />
-        <TextInput
-          onChangeText={setPassword}
-          placeholder="Password (min 6 characters)"
-          secureTextEntry
-          style={styles.input}
-          value={password}
-        />
-        <TextInput
-          onChangeText={setConfirmPassword}
-          placeholder="Confirm password"
-          secureTextEntry
-          style={styles.input}
-          value={confirmPassword}
-        />
-        <Pressable
-          accessibilityRole="button"
-          disabled={isSubmitting || email.trim().length === 0}
-          onPress={handleSignUp}
-          style={[styles.button, (isSubmitting || email.trim().length === 0) && styles.buttonDisabled]}
-        >
-          <Text style={styles.buttonText}>{isSubmitting ? 'Creating account...' : 'Create account'}</Text>
-        </Pressable>
-      </SectionCard>
 
-      <SectionCard title="Already have an account?">
-        <Link asChild href="./sign-in">
-          <Pressable accessibilityRole="button" style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Back to sign in</Text>
+        </SectionCard>
+
+        <SectionCard title="Bereits ein Konto?" backgroundColor={theme.colors.accent}>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.secondaryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.secondaryButtonText}>Zurück zur Anmeldung</Text>
           </Pressable>
-        </Link>
-      </SectionCard>
+        </SectionCard>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  privacyCardContainer: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+  },
+  privacyText: {
+    color: '#596161',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  privacyLink: {
+    color: '#f97316',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  formContainer: {
+    padding: 20,
+    gap: 16,
+  },
   button: {
     alignItems: 'center',
-    backgroundColor: '#101828',
+    backgroundColor: '#f97316',
     borderRadius: 10,
     marginTop: 6,
     paddingVertical: 12,
   },
   buttonDisabled: {
-    backgroundColor: '#98a2b3',
+    backgroundColor: '#4b5563',
+    opacity: 0.6,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonText: theme.typography.button,
   feedback: {
     borderRadius: 10,
     borderWidth: 1,
@@ -144,27 +187,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   input: {
-    backgroundColor: '#f8f9fc',
-    borderColor: '#d8dde6',
+    backgroundColor: 'transparent',
+    borderColor: '#596161',
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    color: '#000',
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
   secondaryButton: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#1d4ed8',
+    backgroundColor: theme.colors.textPrimary,
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     paddingVertical: 12,
   },
-  secondaryButtonText: {
-    color: '#1d4ed8',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  secondaryButtonText: theme.typography.button,
 });
 
 function hasValidEmail(value: string) {
