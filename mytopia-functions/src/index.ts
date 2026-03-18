@@ -653,10 +653,11 @@ async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       uid,
     });
 
-    batch.update(userRef, {
+    batch.set(userRef, {
+      uid,
       pointsCurrent: FieldValue.increment(earned),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
 
     await batch.commit();
 
@@ -750,10 +751,11 @@ async function handleGpsComplete(req: Request, res: FirebaseResponse) {
       uid,
     });
 
-    batch.update(userRef, {
+    batch.set(userRef, {
+      uid,
       pointsCurrent: FieldValue.increment(earned),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
 
     await batch.commit();
 

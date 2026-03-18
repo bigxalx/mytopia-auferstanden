@@ -29,16 +29,48 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
     const isInRange = distance !== null && distance <= target.radiusMeters;
 
     useEffect(() => {
+        let isActive = true;
         let subscription: Location.LocationSubscription | null = null;
+
+        const applyLocation = (coords: { latitude: number; longitude: number }) => {
+            if (!isActive) {
+                return;
+            }
+
+            setUserCoords(coords);
+            const dist = getDistanceMeters(
+                coords.latitude,
+                coords.longitude,
+                target.latitude,
+                target.longitude
+            );
+            setDistance(Math.round(dist));
+        };
 
         async function startWatching() {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                setPermissionStatus('denied');
+                if (isActive) {
+                    setPermissionStatus('denied');
+                }
                 return;
             }
 
-            setPermissionStatus('granted');
+            if (isActive) {
+                setPermissionStatus('granted');
+            }
+
+            try {
+                const currentLocation = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+                applyLocation({
+                    latitude: currentLocation.coords.latitude,
+                    longitude: currentLocation.coords.longitude,
+                });
+            } catch {
+                // Keep the live watcher below as the fallback source of location updates.
+            }
 
             subscription = await Location.watchPositionAsync(
                 {
@@ -47,15 +79,10 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
                     timeInterval: 3000,
                 },
                 (location) => {
-                    const { latitude, longitude } = location.coords;
-                    setUserCoords({ latitude, longitude });
-                    const dist = getDistanceMeters(
-                        latitude,
-                        longitude,
-                        target.latitude,
-                        target.longitude
-                    );
-                    setDistance(Math.round(dist));
+                    applyLocation({
+                        latitude: location.coords.latitude,
+                        longitude: location.coords.longitude,
+                    });
                 }
             );
         }
@@ -63,6 +90,7 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
         startWatching();
 
         return () => {
+            isActive = false;
             subscription?.remove();
         };
     }, [target.latitude, target.longitude]);
