@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { theme } from '@/src/shared/ui/theme';
 import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { Screen } from '@/src/shared/ui/Screen';
@@ -37,7 +38,7 @@ export function TasksScreen() {
     <Screen title="Missionen" subtitle="Schließe Missionen ab, um Punkte zu sammeln.">
       {isLoading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#f97316" />
+          <ActivityIndicator size="large" color={theme.colors.orange} />
           <Text style={styles.loadingText}>Missionen werden geladen…</Text>
         </View>
       ) : error ? (
@@ -79,7 +80,7 @@ export function TasksScreen() {
 
 const styles = StyleSheet.create({
   body: {
-    color: '#1f2937',
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
   },
   errorText: {
-    color: '#a12b2b',
+    color: theme.colors.errorText,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -97,19 +98,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   loadingText: {
-    color: '#5d6979',
+    color: theme.colors.textSecondary,
     fontSize: 14,
   },
   row: {
-    borderColor: '#d8dee8',
+    borderColor: theme.colors.cardBorder,
     borderRadius: 10,
     borderWidth: 1,
     gap: 4,
     padding: 12,
   },
   rowCompleted: {
-    backgroundColor: '#f9fafb',
-    opacity: 0.6,
+    backgroundColor: theme.colors.cardSubtleBackground,
   },
   rowHeader: {
     alignItems: 'center',
@@ -117,12 +117,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rowMeta: {
-    color: '#5d6979',
+    color: theme.colors.cardTextSecondary,
     fontSize: 12,
     marginLeft: 26,
   },
   rowTitle: {
-    color: '#101828',
+    color: theme.colors.cardTextPrimary,
     flex: 1,
     fontSize: 15,
     fontWeight: '600',

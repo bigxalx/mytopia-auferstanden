@@ -240,45 +240,45 @@ export function ProfileScreen() {
 
 const styles = StyleSheet.create({
   body: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   errorText: {
-    color: '#f87171',
+    color: theme.colors.errorText,
     fontSize: 13,
     fontWeight: '500',
     marginTop: 10,
   },
   successText: {
-    color: '#86efac',
+    color: theme.colors.successText,
     fontSize: 13,
     fontWeight: '500',
     marginTop: 10,
   },
   label: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     flex: 1,
     fontSize: 13,
   },
   deleteAccountButton: {
     alignItems: 'center',
-    backgroundColor: '#3f1d1d',
-    borderColor: '#7f1d1d',
+    backgroundColor: theme.colors.destructiveSurface,
+    borderColor: theme.colors.destructiveBorder,
     borderRadius: 8,
     borderWidth: 1,
     marginTop: 12,
     paddingVertical: 10,
   },
   deleteAccountText: {
-    color: '#fca5a5',
+    color: theme.colors.destructiveText,
     fontSize: 13,
     fontWeight: '700',
   },
   modeButton: {
     alignItems: 'center',
-    backgroundColor: theme.colors.headerBackground,
-    borderColor: theme.colors.headerBorder,
+    backgroundColor: theme.colors.cardSubtleBackground,
+    borderColor: theme.colors.cardBorder,
     borderRadius: 8,
     borderWidth: 1,
     flex: 1,
@@ -292,12 +292,12 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   modeButtonLabel: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     fontSize: 13,
     fontWeight: '700',
   },
   modeButtonLabelActive: {
-    color: '#111827',
+    color: theme.colors.cardTextPrimary,
   },
   modeRow: {
     flexDirection: 'row',
@@ -319,12 +319,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   signOutText: {
-    color: '#ef4444',
+    color: theme.colors.destructiveBorder,
     fontSize: 15,
     fontWeight: '600',
   },
   value: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.cardTextPrimary,
     flex: 2,
     fontSize: 13,
     fontWeight: '600',

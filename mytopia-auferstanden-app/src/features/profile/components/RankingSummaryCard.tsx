@@ -43,17 +43,17 @@ export function RankingSummaryCard({ user }: RankingSummaryCardProps) {
 
 const styles = StyleSheet.create({
   divider: {
-    backgroundColor: theme.colors.headerBorder,
+    backgroundColor: theme.colors.cardBorder,
     height: 1,
     marginVertical: 6,
   },
   label: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     flex: 1,
     fontSize: 13,
   },
   labelSmall: {
-    color: theme.colors.charcoal,
+    color: theme.colors.cardTextSecondary,
     flex: 1,
     fontSize: 12,
   },
@@ -61,19 +61,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   value: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.cardTextPrimary,
     flex: 1,
     fontSize: 15,
     fontWeight: '700',
     textAlign: 'right',
   },
   valueSmall: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextPrimary,
     flex: 1,
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'right',
   },
 });
-
 

@@ -1,6 +1,8 @@
 import { StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker } from 'react-native-maps';
 
+import { theme } from '@/src/shared/ui/theme';
+
 type GpsMapProps = {
     /** User's current latitude (null while loading). */
     userLatitude?: number | null;
@@ -51,16 +53,16 @@ export function GpsMap({
                 {/* Target marker */}
                 <Marker
                     coordinate={targetCoord}
-                    pinColor="#f97316"
+                    pinColor={theme.colors.orange}
                     title="Ziel"
                 />
 
                 {/* Radius circle */}
                 <Circle
                     center={targetCoord}
-                    fillColor="rgba(249, 115, 22, 0.12)"
+                    fillColor={theme.colors.orangeSoft}
                     radius={radiusMeters}
-                    strokeColor="rgba(249, 115, 22, 0.4)"
+                    strokeColor={theme.colors.orangeStroke}
                     strokeWidth={1.5}
                 />
             </MapView>

@@ -50,20 +50,20 @@ export function WelcomeBackScreen() {
 
 const styles = StyleSheet.create({
   body: {
-    color: '#1f2937',
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   button: {
     alignItems: 'center',
-    backgroundColor: '#f97316',
+    backgroundColor: theme.colors.orange,
     borderRadius: 10,
     marginTop: 6,
     paddingVertical: 12,
   },
   buttonText: theme.typography.button,
   label: {
-    color: '#5d6979',
+    color: theme.colors.cardTextSecondary,
     flex: 1,
     fontSize: 13,
   },
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   value: {
-    color: '#101828',
+    color: theme.colors.cardTextPrimary,
     flex: 1,
     fontSize: 13,
     fontWeight: '600',

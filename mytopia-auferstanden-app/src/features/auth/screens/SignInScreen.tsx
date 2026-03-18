@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import { Screen } from '@/src/shared/ui/Screen';
@@ -91,14 +91,14 @@ export function SignInScreen() {
             keyboardType="email-address"
             onChangeText={setEmail}
             placeholder="E-Mail"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={theme.colors.cardTextMuted}
             style={styles.input}
             value={email}
           />
           <TextInput
             onChangeText={setPassword}
             placeholder="Passwort"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={theme.colors.cardTextMuted}
             secureTextEntry
             style={styles.input}
             value={password}
@@ -143,13 +143,13 @@ const styles = StyleSheet.create({
   },
   button: {
     alignItems: 'center',
-    backgroundColor: '#f97316',
+    backgroundColor: theme.colors.orange,
     borderRadius: 10,
     marginTop: 6,
     paddingVertical: 12,
   },
   buttonDisabled: {
-    backgroundColor: '#4b5563',
+    backgroundColor: theme.colors.disabledSurface,
     opacity: 0.6,
   },
   buttonText: theme.typography.button,
@@ -160,27 +160,27 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   feedbackError: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
+    backgroundColor: theme.colors.errorSurface,
+    borderColor: theme.colors.errorBorder,
   },
   feedbackErrorText: {
-    color: '#991b1b',
+    color: theme.colors.errorText,
     fontSize: 13,
   },
   feedbackSuccess: {
-    backgroundColor: '#ecfdf3',
-    borderColor: '#a7f3d0',
+    backgroundColor: theme.colors.successSurface,
+    borderColor: theme.colors.successBorder,
   },
   feedbackSuccessText: {
-    color: '#166534',
+    color: theme.colors.successText,
     fontSize: 13,
   },
   input: {
     backgroundColor: 'transparent',
-    borderColor: '#596161',
+    borderColor: theme.colors.inputBorder,
     borderRadius: 10,
     borderWidth: 1.5,
-    color: '#000',
+    color: theme.colors.cardTextPrimary,
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 11,
@@ -191,14 +191,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   inlineActionText: {
-    color: '#596161',
+    color: theme.colors.cardTextSecondary,
     fontSize: 13,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
   secondaryButton: {
     alignItems: 'center',
-    backgroundColor: theme.colors.textPrimary,
+    backgroundColor: theme.colors.cardSubtleBackground,
+    borderColor: theme.colors.cardBorder,
     borderRadius: 10,
     borderWidth: 1.5,
     paddingVertical: 12,

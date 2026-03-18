@@ -118,14 +118,14 @@ bun run release:beta
 
 What the lanes do:
 
-1. Increment `app.json` build metadata for the target platform only.
+1. Increment `app.json` release metadata (`expo.version` plus the target platform build number/version code).
 2. Run `expo prebuild --platform <platform> --clean`.
 3. Build the native release artifact locally.
 4. Upload to TestFlight or Play Internal Testing.
 
 Implementation notes:
 
-- `expo.version` stays manual.
+- `expo.version` is auto-bumped by the Fastlane release lanes and remains the OTA runtime boundary because `runtimeVersion.policy = appVersion`.
 - `expo.ios.appleTeamId` is pinned in `app.json` so iOS signing survives `prebuild --clean`.
 - `scripts/run-bundle.sh` prefers Homebrew Ruby and blocks the macOS system Bundler 1.x toolchain.
 - Android signing uses the local upload keystore plus injected Gradle signing properties; no signing secrets are written into the Android project.
@@ -155,11 +155,12 @@ Or from this directory:
 
 Rules:
 
-1. Native changes: bump `expo.version`, then ship new binaries through Fastlane.
+1. Native changes: ship new binaries through Fastlane and let the release lane bump `expo.version` automatically.
 2. JS-only changes: do not bump `expo.version`; publish an Expo update instead.
 3. Production users consume channel `production`.
 4. Users who switch to in-app dev mode consume channel `dev`.
 5. The profile screen can manually check for and apply a downloaded JS update.
+6. Set `RELEASE_APP_VERSION=x.y.z` when separate release runs need to share one explicit runtime version.
 
 ## MYT-13 Narrative Feed + Push
 

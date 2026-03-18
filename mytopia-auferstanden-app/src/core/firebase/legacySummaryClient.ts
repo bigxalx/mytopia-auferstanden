@@ -249,8 +249,11 @@ async function fetchLegacyRankSnapshot(uid: string): Promise<number | null> {
 
   const url = `https://${LEGACY_RANKING_REGION}-${env.firebaseProjectId}.cloudfunctions.net/getRanking?uid=${encodeURIComponent(uid)}`;
 
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 10_000);
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: abortController.signal });
     if (!response.ok) {
       return null;
     }
@@ -260,6 +263,8 @@ async function fetchLegacyRankSnapshot(uid: string): Promise<number | null> {
   } catch (error) {
     console.warn('[legacy-summary] Failed to fetch legacy ranking snapshot.', error);
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

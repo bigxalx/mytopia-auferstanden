@@ -106,7 +106,7 @@ Or from `mytopia-auferstanden-app/`:
 Operational rules:
 
 1. `expo.version` is now the runtime boundary because `runtimeVersion` follows `appVersion`.
-2. Native changes require manually bumping `expo.version`, then shipping a new binary through Fastlane.
+2. Native release lanes auto-bump `expo.version` once per Fastlane invocation unless `RELEASE_APP_VERSION` is set explicitly.
 3. JS-only changes do not bump `expo.version`; publish them with Expo Update instead.
 4. The app auto-checks the selected channel on launch/mode change and the profile screen can manually check/apply a downloaded update.
 
@@ -145,7 +145,8 @@ Operational rules:
 
 ## Notes
 
-1. `expo.version` remains manual and now controls OTA compatibility boundaries.
+1. `expo.version` now auto-increments in Fastlane release lanes and still controls OTA compatibility boundaries because `runtimeVersion` follows `appVersion`.
 2. `ios.buildNumber` and `android.versionCode` are auto-incremented by the Fastlane lanes.
-3. Android Studio is still useful for local inspection, but Fastlane can build the signed AAB directly from the terminal.
-4. If you open Android Studio manually, open it from a terminal session so Gradle inherits your `node` path.
+3. Use `RELEASE_APP_VERSION=x.y.z` when you need to pin a specific shared app/runtime version across separate lane runs.
+4. Android Studio is still useful for local inspection, but Fastlane can build the signed AAB directly from the terminal.
+5. If you open Android Studio manually, open it from a terminal session so Gradle inherits your `node` path.

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { theme } from '@/src/shared/ui/theme';
 import { QuizResultCard } from './QuizResultCard';
 
 type QuizQuestion = {
@@ -117,23 +118,23 @@ export function QuizRunner({ missionId, missionTitle, onComplete, questions }: Q
 const styles = StyleSheet.create({
     actionButton: {
         alignItems: 'center',
-        backgroundColor: '#364152',
+        backgroundColor: theme.colors.cardSubtleBackground,
+        borderColor: theme.colors.cardBorder,
         borderRadius: 10,
+        borderWidth: 1,
         paddingVertical: 14,
     },
     actionButtonDisabled: {
         opacity: 0.4,
     },
     actionButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '700',
+        ...theme.typography.button,
     },
     container: {
         gap: 16,
     },
     errorText: {
-        color: '#a12b2b',
+        color: theme.colors.errorText,
         fontSize: 13,
         fontWeight: '500',
     },
@@ -142,51 +143,52 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     optionButton: {
-        backgroundColor: '#f8fafc',
-        borderColor: '#d8dee8',
+        backgroundColor: theme.colors.cardSubtleBackground,
+        borderColor: theme.colors.cardBorder,
         borderRadius: 10,
         borderWidth: 1,
         paddingHorizontal: 16,
         paddingVertical: 14,
     },
     optionButtonSelected: {
-        backgroundColor: '#f97316',
-        borderColor: '#f97316',
+        backgroundColor: theme.colors.orange,
+        borderColor: theme.colors.orange,
     },
     optionText: {
-        color: '#1f2937',
+        color: theme.colors.cardTextPrimary,
         fontSize: 15,
     },
     optionTextSelected: {
-        color: '#fff',
+        color: theme.colors.cardTextPrimary,
         fontWeight: '600',
     },
     optionsContainer: {
         gap: 10,
     },
     progressBar: {
-        backgroundColor: '#e5e7eb',
+        backgroundColor: theme.colors.cardBorder,
         borderRadius: 4,
         height: 6,
         overflow: 'hidden',
     },
     progressFill: {
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
         borderRadius: 4,
         height: '100%',
     },
     progressLabel: {
-        color: '#5d6979',
+        color: theme.colors.cardTextSecondary,
         fontSize: 12,
         textAlign: 'center',
     },
     questionText: {
-        color: '#101828',
+        color: theme.colors.cardTextPrimary,
         fontSize: 17,
         fontWeight: '600',
         lineHeight: 24,
     },
     submitButton: {
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
+        borderColor: theme.colors.orange,
     },
 });

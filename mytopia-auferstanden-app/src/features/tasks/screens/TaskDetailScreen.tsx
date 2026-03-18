@@ -3,6 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
+import { theme } from '@/src/shared/ui/theme';
 import {
   fetchMissions,
   submitGpsCompletion,
@@ -160,23 +161,23 @@ export function TaskDetailScreen() {
 
 const styles = StyleSheet.create({
   body: {
-    color: '#1f2937',
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   errorText: {
-    color: '#a12b2b',
+    color: theme.colors.errorText,
     fontSize: 14,
     lineHeight: 20,
   },
   infoText: {
-    color: '#5d6979',
+    color: theme.colors.cardTextMuted,
     fontSize: 13,
     fontStyle: 'italic',
     marginTop: 4,
   },
   label: {
-    color: '#5d6979',
+    color: theme.colors.cardTextSecondary,
     flex: 1,
     fontSize: 13,
   },
@@ -184,7 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   value: {
-    color: '#101828',
+    color: theme.colors.cardTextPrimary,
     flex: 1,
     fontSize: 13,
     fontWeight: '600',

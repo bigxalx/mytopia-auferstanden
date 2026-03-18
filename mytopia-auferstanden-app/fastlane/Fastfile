@@ -154,6 +154,60 @@ def increment_android_version_code!
   next_value
 end
 
+def normalize_release_version!(version)
+  normalized = version.to_s.strip
+  UI.user_error!("expo.version must be set in app.json for release lanes.") if normalized.empty?
+
+  segments = normalized.split(".")
+  unless segments.length.between?(2, 3) && segments.all? { |segment| segment.match?(/\A\d+\z/) }
+    UI.user_error!(
+      "expo.version '#{normalized}' must use 'major.minor' or 'major.minor.patch'. " \
+      "Set RELEASE_APP_VERSION to an explicit value when you need to override the automatic bump."
+    )
+  end
+
+  normalized
+end
+
+def set_release_version!(version)
+  normalized = normalize_release_version!(version)
+  app_json = load_app_json
+  app_json.fetch("expo")["version"] = normalized
+  write_app_json(app_json)
+  UI.message("Updated app.json expo.version to #{normalized}")
+  normalized
+end
+
+def next_release_version(current_version)
+  segments = normalize_release_version!(current_version).split(".")
+  segments << "0" if segments.length == 2
+  segments[-1] = (segments[-1].to_i + 1).to_s
+  segments.join(".")
+end
+
+def prepare_release_version!
+  prepared_version = ENV["FASTLANE_RELEASE_VERSION_VALUE"].to_s.strip
+  return prepared_version unless prepared_version.empty?
+
+  current_version = normalize_release_version!(load_app_json.fetch("expo", {}).fetch("version", ""))
+  requested_version = ENV["RELEASE_APP_VERSION"].to_s.strip
+  release_version =
+    if requested_version.empty?
+      next_release_version(current_version)
+    else
+      normalize_release_version!(requested_version)
+    end
+
+  if release_version == current_version
+    UI.message("Keeping app.json expo.version at #{release_version}")
+  else
+    set_release_version!(release_version)
+  end
+
+  ENV["FASTLANE_RELEASE_VERSION_VALUE"] = release_version
+  release_version
+end
+
 def require_apple_id!
   apple_id = (ENV["APPLE_ID"] || ENV["FASTLANE_USER"]).to_s.strip
   UI.user_error!("APPLE_ID or FASTLANE_USER is required for ios_beta when not using App Store Connect API keys.") if apple_id.empty?
@@ -218,6 +272,7 @@ lane :ios_beta do
   ensure_bun!
   ensure_node_binary!
 
+  release_version = prepare_release_version!
   resolve_google_services!(:ios)
   team_id = ensure_ios_team_id!
   apple_id = require_apple_id!
@@ -262,7 +317,7 @@ lane :ios_beta do
     skip_waiting_for_build_processing: true
   )
 
-  UI.success("Uploaded iOS build #{build_number} to TestFlight.")
+  UI.success("Uploaded iOS build #{build_number} (app version #{release_version}) to TestFlight.")
 end
 
 desc "Build and upload the Android beta to Play Internal Testing"
@@ -271,6 +326,7 @@ lane :android_beta do
   ensure_bun!
   ensure_node_binary!
 
+  release_version = prepare_release_version!
   resolve_google_services!(:android)
   signing = android_signing!
   play_json = play_json_key_path
@@ -311,10 +367,10 @@ lane :android_beta do
       skip_upload_screenshots: true,
       skip_upload_changelogs: true
     )
-    UI.success("Uploaded Android versionCode #{version_code} to Play Internal Testing.")
+    UI.success("Uploaded Android versionCode #{version_code} (app version #{release_version}) to Play Internal Testing.")
   else
     UI.important("Google Play service account JSON is missing (PLAY_JSON_KEY_PATH).")
-    UI.success("Successfully built Android versionCode #{version_code}. You can now manually upload the AAB to the Google Play Console.")
+    UI.success("Successfully built Android versionCode #{version_code} (app version #{release_version}). You can now manually upload the AAB to the Google Play Console.")
   end
 
   UI.message("AAB Location: #{destination_path}")
@@ -322,6 +378,7 @@ end
 
 desc "Build and upload iOS TestFlight and Android Internal Testing betas"
 lane :beta_all do
+  prepare_release_version!
   ios_beta
   android_beta
 end

@@ -109,7 +109,7 @@ export function MapScreen() {
                                         latitude: mission.gpsConfig.latitude,
                                         longitude: mission.gpsConfig.longitude,
                                     }}
-                                    pinColor="#f97316"
+                                    pinColor={theme.colors.orange}
                                     title={mission.title}
                                     description={`${mission.points} Punkte · Radius: ${mission.gpsConfig.radiusMeters}m`}
                                 />
@@ -118,9 +118,9 @@ export function MapScreen() {
                                         latitude: mission.gpsConfig.latitude,
                                         longitude: mission.gpsConfig.longitude,
                                     }}
-                                    fillColor="rgba(249, 115, 22, 0.12)"
+                                    fillColor={theme.colors.orangeSoft}
                                     radius={mission.gpsConfig.radiusMeters}
-                                    strokeColor="rgba(249, 115, 22, 0.4)"
+                                    strokeColor={theme.colors.orangeStroke}
                                     strokeWidth={1.5}
                                 />
                             </React.Fragment>
@@ -134,12 +134,12 @@ export function MapScreen() {
 
 const styles = StyleSheet.create({
     body: {
-        color: theme.colors.textSecondary,
+        color: theme.colors.cardTextSecondary,
         fontSize: 14,
         lineHeight: 20,
     },
     hint: {
-        color: theme.colors.textSecondary,
+        color: theme.colors.cardTextSecondary,
         fontSize: 13,
         lineHeight: 18,
         marginTop: 8,
@@ -157,9 +157,5 @@ const styles = StyleSheet.create({
         marginTop: 16,
         paddingVertical: 12,
     },
-    settingsButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '700',
-    },
+    settingsButtonText: theme.typography.button,
 });

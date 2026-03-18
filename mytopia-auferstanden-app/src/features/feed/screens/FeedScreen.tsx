@@ -258,7 +258,7 @@ export function FeedScreen() {
 
         {isLoadingInitial && (
           <View style={[styles.stateBox, { marginBottom: 14 }]}>
-            <ActivityIndicator size="large" color="#f97316" />
+            <ActivityIndicator size="large" color={theme.colors.orange} />
             <Text style={styles.stateText}>Loading narrative feed...</Text>
           </View>
         )}
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
   modeBadge: { 
     backgroundColor: theme.colors.orange, 
     borderRadius: 999, 
-    color: '#111827', 
+    color: theme.colors.cardTextPrimary, 
     fontSize: 11, 
     fontWeight: '800', 
     marginTop: 10, 
@@ -561,8 +561,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4, 
     textTransform: 'uppercase' 
   } as TextStyle,
-  errorBanner: { backgroundColor: '#7f1d1d', borderRadius: 12, padding: 12 } as ViewStyle,
-  errorText: { color: '#fee2e2', fontSize: 13, lineHeight: 18 } as TextStyle,
+  errorBanner: {
+    backgroundColor: theme.colors.errorSurface,
+    borderColor: theme.colors.errorBorder,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  } as ViewStyle,
+  errorText: { color: theme.colors.errorText, fontSize: 13, lineHeight: 18 } as TextStyle,
   stateBox: { 
     alignItems: 'center', 
     backgroundColor: theme.colors.headerBackground, 
@@ -576,28 +582,27 @@ const styles = StyleSheet.create({
   bubbleContainer: { flex: 1, marginLeft: 60 } as ViewStyle,
   messageBubble: { backgroundColor: theme.colors.beige, borderRadius: 10, flex: 1, padding: 10, gap: 8 } as ViewStyle,
   headline: { color: theme.colors.charcoal, fontFamily: 'NunitoSans_700Bold', fontSize: 13 } as TextStyle,
-  messageText: { color: '#000000', fontFamily: 'NunitoSans_400Regular', fontSize: 12, lineHeight: 18 } as TextStyle,
+  messageText: { color: theme.colors.cardTextPrimary, fontFamily: 'NunitoSans_400Regular', fontSize: 12, lineHeight: 18 } as TextStyle,
   avatarImage: { borderRadius: 24, height: 48, width: 48 } as ImageStyle,
-  avatarFallback: { alignItems: 'center', backgroundColor: '#64748b', borderRadius: 24, height: 48, justifyContent: 'center', width: 48 } as ViewStyle,
-  avatarFallbackLabel: { color: '#f8fafc', fontSize: 18, fontWeight: '700' } as TextStyle,
-  attachmentBox: { backgroundColor: '#f3f4f6', borderRadius: 14, overflow: 'hidden' } as ViewStyle,
-  attachmentCaption: { color: '#374151', fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 } as TextStyle,
+  avatarFallback: { alignItems: 'center', backgroundColor: theme.colors.avatarFallback, borderRadius: 24, height: 48, justifyContent: 'center', width: 48 } as ViewStyle,
+  avatarFallbackLabel: { color: theme.colors.avatarFallbackText, fontSize: 18, fontWeight: '700' } as TextStyle,
+  attachmentBox: { backgroundColor: theme.colors.cardSubtleBackground, borderRadius: 14, overflow: 'hidden' } as ViewStyle,
+  attachmentCaption: { color: theme.colors.cardTextSecondary, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10 } as TextStyle,
   imageAttachment: { height: 220, width: '100%' } as ImageStyle,
-  videoPlaceholder: { alignItems: 'center', backgroundColor: '#374151', height: 200, justifyContent: 'center', width: '100%', overflow: 'hidden' } as ViewStyle,
-  videoOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.3)', alignItems: 'center', justifyContent: 'center' } as ViewStyle,
-  playIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0, 0, 0, 0.5)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)' } as ViewStyle,
+  videoPlaceholder: { alignItems: 'center', backgroundColor: theme.colors.mediaSurface, height: 200, justifyContent: 'center', width: '100%', overflow: 'hidden' } as ViewStyle,
+  videoOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.colors.overlaySoft, alignItems: 'center', justifyContent: 'center' } as ViewStyle,
+  playIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.overlayStrong, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.overlayBorder } as ViewStyle,
   orange: { backgroundColor: theme.colors.orange, borderRadius: 10, padding: 5 } as ViewStyle,
   missionCardImage: { borderRadius: 6, height: 140, width: '100%' } as ImageStyle,
   missionCardContent: { paddingHorizontal: 4, paddingBottom: 2 } as ViewStyle,
-  missionTitle: { color: '#000000', fontFamily: 'Nunito_700Bold', fontSize: 15 } as TextStyle,
-  missionExcerpt: { color: '#000000', fontFamily: 'NunitoSans_400Regular', fontSize: 12, marginTop: 2 } as TextStyle,
+  missionTitle: { color: theme.colors.cardTextPrimary, fontFamily: 'Nunito_700Bold', fontSize: 15 } as TextStyle,
+  missionExcerpt: { color: theme.colors.cardTextSecondary, fontFamily: 'NunitoSans_400Regular', fontSize: 12, marginTop: 2 } as TextStyle,
   audioHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', padding: 12 } as ViewStyle,
-  audioTitle: { color: '#111827', flex: 1, fontSize: 15, fontWeight: '600', marginRight: 12 } as TextStyle,
-  audioButtonLabel: { color: '#111827', fontSize: 13, fontWeight: '700' } as TextStyle,
-  modalContainer: { backgroundColor: '#000000', flex: 1 } as ViewStyle,
+  audioTitle: { color: theme.colors.cardTextPrimary, flex: 1, fontSize: 15, fontWeight: '600', marginRight: 12 } as TextStyle,
+  audioButtonLabel: { color: theme.colors.cardTextPrimary, fontSize: 13, fontWeight: '700' } as TextStyle,
+  modalContainer: { backgroundColor: theme.colors.modalBackground, flex: 1 } as ViewStyle,
   fullImage: { height: '100%', width: '100%' } as ViewStyle,
   loadMoreButton: { alignItems: 'center', backgroundColor: theme.colors.orange, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 } as ViewStyle,
   loadMoreButtonDisabled: { opacity: 0.7 } as ViewStyle,
-  loadMoreLabel: { color: '#111827', fontSize: 14, fontWeight: '700' } as TextStyle,
+  loadMoreLabel: { color: theme.colors.cardTextPrimary, fontSize: 14, fontWeight: '700' } as TextStyle,
 });
-

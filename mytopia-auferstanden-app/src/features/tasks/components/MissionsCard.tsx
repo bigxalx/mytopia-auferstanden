@@ -39,9 +39,9 @@ export function MissionsCard({ userId, mode }: MissionsCardProps) {
 
   if (isLoading) {
     return (
-      <SectionCard title="Missionen">
+        <SectionCard title="Missionen">
         <View style={styles.centered}>
-          <ActivityIndicator size="small" color="#f97316" />
+          <ActivityIndicator size="small" color={theme.colors.orange} />
           <Text style={styles.loadingText}>Laden…</Text>
         </View>
       </SectionCard>
@@ -93,7 +93,7 @@ export function MissionsCard({ userId, mode }: MissionsCardProps) {
 
 const styles = StyleSheet.create({
   body: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   errorText: {
-    color: '#f87171',
+    color: theme.colors.errorText,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -112,19 +112,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   loadingText: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
   },
   row: {
-    borderColor: theme.colors.headerBorder,
+    borderColor: theme.colors.cardBorder,
     borderRadius: 10,
     borderWidth: 1,
     gap: 4,
     padding: 12,
   },
   rowCompleted: {
-    backgroundColor: theme.colors.headerBackground,
-    opacity: 0.6,
+    backgroundColor: theme.colors.cardSubtleBackground,
   },
   rowHeader: {
     alignItems: 'center',
@@ -132,15 +131,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rowMeta: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.cardTextSecondary,
     fontSize: 12,
     marginLeft: 26,
   },
   rowTitle: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.cardTextPrimary,
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
   },
 });
-

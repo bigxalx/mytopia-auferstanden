@@ -29,10 +29,9 @@ const styles = StyleSheet.create({
     padding: 24,
   } as ViewStyle,
   description: {
-    color: theme.colors.charcoal,
+    color: theme.colors.cardTextSecondary,
     fontSize: 13,
     lineHeight: 18,
   } as TextStyle,
   title: theme.typography.h1,
 });
-

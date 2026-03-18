@@ -3,6 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { theme } from '@/src/shared/ui/theme';
 import { GpsMap } from '@/src/features/tasks/components/GpsMap';
 
 type GpsTarget = {
@@ -192,13 +193,13 @@ function toRad(deg: number) {
 
 const styles = StyleSheet.create({
     body: {
-        color: '#1f2937',
+        color: theme.colors.cardTextSecondary,
         fontSize: 14,
         lineHeight: 20,
     },
     checkInButton: {
         alignItems: 'center',
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
         borderRadius: 10,
         paddingVertical: 14,
     },
@@ -206,9 +207,7 @@ const styles = StyleSheet.create({
         opacity: 0.4,
     },
     checkInButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '700',
+        ...theme.typography.button,
     },
     container: {
         gap: 16,
@@ -218,80 +217,78 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     distanceLabel: {
-        color: '#5d6979',
+        color: theme.colors.cardTextSecondary,
         fontSize: 12,
     },
     distanceValue: {
-        color: '#101828',
+        color: theme.colors.cardTextPrimary,
         fontSize: 32,
         fontWeight: '800',
     },
     errorText: {
-        color: '#a12b2b',
+        color: theme.colors.errorText,
         fontSize: 13,
         fontWeight: '500',
     },
     hintText: {
-        color: '#5d6979',
+        color: theme.colors.cardTextSecondary,
         fontSize: 13,
         lineHeight: 18,
         marginTop: 4,
     },
     inRangeBadge: {
         alignItems: 'center',
-        backgroundColor: '#dcfce7',
+        backgroundColor: theme.colors.successSurface,
         borderRadius: 8,
         paddingVertical: 8,
     },
     inRangeText: {
-        color: '#15803d',
+        color: theme.colors.successText,
         fontSize: 14,
         fontWeight: '600',
     },
     loadingText: {
-        color: '#5d6979',
+        color: theme.colors.cardTextSecondary,
         fontSize: 13,
         textAlign: 'center',
     },
     outOfRangeText: {
-        color: '#5d6979',
+        color: theme.colors.cardTextSecondary,
         fontSize: 13,
         textAlign: 'center',
     },
     settingsButton: {
         alignItems: 'center',
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
         borderRadius: 10,
         marginTop: 12,
         paddingVertical: 12,
     },
     settingsButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '700',
+        ...theme.typography.button,
     },
     successCircle: {
         alignItems: 'center',
         alignSelf: 'center',
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
         borderRadius: 50,
         height: 100,
         justifyContent: 'center',
         width: 100,
     },
     successLabel: {
-        color: '#fff',
+        color: theme.colors.cardTextPrimary,
         fontSize: 12,
         fontWeight: '600',
         opacity: 0.8,
     },
     successNumber: {
-        color: '#fff',
+        color: theme.colors.cardTextPrimary,
         fontSize: 28,
         fontWeight: '800',
     },
     successText: {
-        color: '#15803d',
+        color: theme.colors.successText,
         fontSize: 14,
         fontWeight: '600',
         textAlign: 'center',

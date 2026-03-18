@@ -19,6 +19,7 @@ import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
 import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
 
 const MODE_STORAGE_KEY_PREFIX = 'mytopia:narrativeMode:v1';
+const HYDRATION_TIMEOUT_MS = 10_000;
 
 export type SessionUser = {
   displayName: string;
@@ -67,30 +68,30 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
       void (async () => {
         if (firebaseUser && firebaseUser.emailVerified) {
-          const modeState = await resolveModeState(firebaseUser);
+          const hydrationResult = await Promise.race([
+            hydrateAuthenticatedSession(firebaseUser),
+            timeoutAfter(HYDRATION_TIMEOUT_MS),
+          ]);
 
-          try {
-            const synced = await syncSessionProfile(firebaseUser);
-            if (!isActive || authEventVersion !== version) {
-              return;
-            }
+          if (!isActive || authEventVersion !== version) {
+            return;
+          }
 
-            setCanUseDevMode(modeState.canUseDevMode);
+          if (hydrationResult === 'timeout') {
+            console.warn(
+              `[session] Hydration timed out after ${HYDRATION_TIMEOUT_MS}ms. Falling back to basic profile.`
+            );
+            setCanUseDevMode(false);
             setModeStorageUid(firebaseUser.uid);
-            setSelectedModeState(modeState.selectedMode);
-            setUser(synced.profile);
-            setShouldShowWelcomeBack(synced.importedLegacySummary);
-          } catch (error) {
-            console.error('Failed to hydrate session from Firestore profile.', error);
-            if (!isActive || authEventVersion !== version) {
-              return;
-            }
-
-            setCanUseDevMode(modeState.canUseDevMode);
-            setModeStorageUid(firebaseUser.uid);
-            setSelectedModeState(modeState.selectedMode);
+            setSelectedModeState('production');
             setUser(mapSessionUser(firebaseUser));
             setShouldShowWelcomeBack(false);
+          } else {
+            setCanUseDevMode(hydrationResult.canUseDevMode);
+            setModeStorageUid(firebaseUser.uid);
+            setSelectedModeState(hydrationResult.selectedMode);
+            setUser(hydrationResult.profile);
+            setShouldShowWelcomeBack(hydrationResult.importedLegacySummary);
           }
         } else {
           if (!isActive || authEventVersion !== version) {
@@ -267,4 +268,39 @@ async function persistSelectedMode(uid: string, mode: AppMode) {
   } catch (error) {
     console.warn('[session] Failed to persist app mode selection.', error);
   }
+}
+
+type HydrationResult = {
+  canUseDevMode: boolean;
+  importedLegacySummary: boolean;
+  profile: SessionUser;
+  selectedMode: AppMode;
+};
+
+async function hydrateAuthenticatedSession(
+  firebaseUser: FirebaseAuthTypes.User
+): Promise<HydrationResult> {
+  const modeState = await resolveModeState(firebaseUser);
+
+  try {
+    const synced = await syncSessionProfile(firebaseUser);
+    return {
+      canUseDevMode: modeState.canUseDevMode,
+      importedLegacySummary: synced.importedLegacySummary,
+      profile: synced.profile,
+      selectedMode: modeState.selectedMode,
+    };
+  } catch (error) {
+    console.error('Failed to hydrate session from Firestore profile.', error);
+    return {
+      canUseDevMode: modeState.canUseDevMode,
+      importedLegacySummary: false,
+      profile: mapSessionUser(firebaseUser),
+      selectedMode: modeState.selectedMode,
+    };
+  }
+}
+
+function timeoutAfter(ms: number): Promise<'timeout'> {
+  return new Promise((resolve) => setTimeout(() => resolve('timeout'), ms));
 }

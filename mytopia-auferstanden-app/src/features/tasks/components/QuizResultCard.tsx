@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { theme } from '@/src/shared/ui/theme';
 
 type QuizResultCardProps = {
     correct: number;
@@ -31,32 +32,32 @@ export function QuizResultCard({ correct, earned, total }: QuizResultCardProps) 
 
 const styles = StyleSheet.create({
     breakdown: {
-        color: '#5d6979',
+        color: theme.colors.cardTextSecondary,
         fontSize: 14,
         textAlign: 'center',
     },
     scoreCircle: {
         alignItems: 'center',
         alignSelf: 'center',
-        backgroundColor: '#f97316',
+        backgroundColor: theme.colors.orange,
         borderRadius: 50,
         height: 100,
         justifyContent: 'center',
         width: 100,
     },
     scoreLabel: {
-        color: '#fff',
+        color: theme.colors.cardTextPrimary,
         fontSize: 12,
         fontWeight: '600',
         opacity: 0.8,
     },
     scoreNumber: {
-        color: '#fff',
+        color: theme.colors.cardTextPrimary,
         fontSize: 28,
         fontWeight: '800',
     },
     successText: {
-        color: '#15803d',
+        color: theme.colors.successText,
         fontSize: 14,
         fontWeight: '600',
         textAlign: 'center',
