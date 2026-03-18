@@ -5,6 +5,8 @@ import { theme } from './theme';
 
 type ScreenProps = PropsWithChildren<{
   noPadding?: boolean;
+  /** Whether to apply safe-area bottom padding. Defaults to true. */
+  bottomInset?: boolean;
   /** When false the children are rendered in a plain View instead of a ScrollView. */
   scrollable?: boolean;
   subtitle?: string;
@@ -20,6 +22,7 @@ type ScreenProps = PropsWithChildren<{
 export function Screen({ 
   children, 
   noPadding = false, 
+  bottomInset = true,
   scrollable = true, 
   subtitle, 
   title,
@@ -28,6 +31,7 @@ export function Screen({
   backgroundColor
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
+  const bottomPadding = bottomInset ? Math.max(insets.bottom, 20) : 0;
   
   const header = headerShown ? (
     <View style={[styles.header, { paddingTop: insets.top }]}>
@@ -45,7 +49,7 @@ export function Screen({
         {header}
         <View style={[
           styles.fillContent, 
-          { paddingBottom: Math.max(insets.bottom, 20) }, // Use safe area for bottom padding
+          { paddingBottom: bottomPadding },
           noPadding && styles.noPadding, 
           centerContent && { justifyContent: 'center' },
           bgStyle
@@ -64,7 +68,7 @@ export function Screen({
         style={[styles.scrollView, bgStyle]}
         contentContainerStyle={[
           styles.content, 
-          { paddingBottom: Math.max(insets.bottom, 20) }, // Use safe area for bottom padding
+          { paddingBottom: bottomPadding },
           noPadding && styles.noPadding,
           centerContent && { flexGrow: 1, justifyContent: 'center' }
         ]} 
@@ -114,4 +118,3 @@ const styles = StyleSheet.create({
   } as TextStyle,
   title: theme.typography.title,
 });
-

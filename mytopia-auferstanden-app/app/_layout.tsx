@@ -21,9 +21,9 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      {loaded && (
-        <ThemeProvider value={DarkTheme}>
-          <AppProviders>
+      <AppProviders>
+        {loaded && (
+          <ThemeProvider value={DarkTheme}>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="(auth)" />
@@ -31,10 +31,10 @@ export default function RootLayout() {
               <Stack.Screen name="welcome-back" />
               <Stack.Screen name="tasks/[taskId]" options={{ headerShown: true, title: 'Mission', headerBackTitle: 'Zurück' }} />
             </Stack>
-          </AppProviders>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      )}
+          </ThemeProvider>
+        )}
+        <StatusBar style="auto" />
+      </AppProviders>
     </SafeAreaProvider>
   );
 }

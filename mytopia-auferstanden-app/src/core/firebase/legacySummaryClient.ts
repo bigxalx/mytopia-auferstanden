@@ -60,10 +60,47 @@ export async function syncSessionProfile(firebaseUser: FirebaseIdentity): Promis
   };
 }
 
+/**
+ * Reads the user's profile doc. Only writes if the document doesn't exist yet
+ * (first sign-in) or if the displayName has changed. This avoids unnecessary
+ * Firestore writes that caused contention on the Android SDK.
+ */
 async function upsertProfileDoc(
   userRef: FirebaseFirestoreTypes.DocumentReference,
   firebaseUser: FirebaseIdentity
 ): Promise<V2UserDoc> {
+  const snapshot = await getDoc(userRef);
+
+  if (snapshot.exists()) {
+    const existing = (snapshot.data() as Partial<V2UserDoc> | undefined) ?? {};
+    const currentDisplayName = resolveDisplayName(existing.displayName, firebaseUser);
+    const needsUpdate = existing.displayName !== currentDisplayName;
+
+    if (needsUpdate) {
+      const now = new Date().toISOString();
+      await setDoc(
+        userRef,
+        { displayName: currentDisplayName, updatedAt: now },
+        { merge: true }
+      );
+    }
+
+    const normalizedLegacySummary = normalizeLegacySummary(existing.legacySummary);
+    return {
+      createdAt: typeof existing.createdAt === 'string' ? existing.createdAt : new Date().toISOString(),
+      displayName: needsUpdate ? resolveDisplayName(undefined, firebaseUser) : resolveDisplayName(existing.displayName, firebaseUser),
+      email: resolveEmail(existing.email, firebaseUser),
+      uid: firebaseUser.uid,
+      updatedAt: typeof existing.updatedAt === 'string' ? existing.updatedAt : new Date().toISOString(),
+      ...(typeof existing.photoURL === 'string' ? { photoURL: existing.photoURL } : {}),
+      ...(normalizedLegacySummary ? { legacySummary: normalizedLegacySummary } : {}),
+      ...(typeof existing.pointsCurrent === 'number' && Number.isFinite(existing.pointsCurrent)
+        ? { pointsCurrent: existing.pointsCurrent }
+        : {}),
+    };
+  }
+
+  // Document doesn't exist — create it.
   const now = new Date().toISOString();
   const createPayload: V2UserDoc = {
     createdAt: now,
@@ -73,52 +110,34 @@ async function upsertProfileDoc(
     updatedAt: now,
   };
 
-  const initialSnapshot = await getDoc(userRef);
-  const initialExists = initialSnapshot.exists();
-  let existingBeforeWrite = initialExists ? ((initialSnapshot.data() as Partial<V2UserDoc> | undefined) ?? undefined) : undefined;
-  
-  if (!initialExists) {
-    try {
-      await setDoc(userRef, createPayload);
-      return createPayload;
-    } catch (error) {
-      if (!isPermissionDeniedError(error)) {
-        throw error;
-      }
-
-      const racedSnapshot = await getDoc(userRef);
-      if (!racedSnapshot.exists()) {
-        throw error;
-      }
-      existingBeforeWrite = (racedSnapshot.data() as Partial<V2UserDoc> | undefined) ?? undefined;
+  try {
+    await setDoc(userRef, createPayload);
+  } catch (error) {
+    if (!isPermissionDeniedError(error)) {
+      throw error;
     }
+    // Race condition: another client created the doc first. Read and return it.
+    const racedSnapshot = await getDoc(userRef);
+    if (!racedSnapshot.exists()) {
+      throw error;
+    }
+    const racedData = (racedSnapshot.data() as Partial<V2UserDoc> | undefined) ?? {};
+    const normalizedLegacySummary = normalizeLegacySummary(racedData.legacySummary);
+    return {
+      createdAt: typeof racedData.createdAt === 'string' ? racedData.createdAt : now,
+      displayName: resolveDisplayName(racedData.displayName, firebaseUser),
+      email: resolveEmail(racedData.email, firebaseUser),
+      uid: firebaseUser.uid,
+      updatedAt: typeof racedData.updatedAt === 'string' ? racedData.updatedAt : now,
+      ...(typeof racedData.photoURL === 'string' ? { photoURL: racedData.photoURL } : {}),
+      ...(normalizedLegacySummary ? { legacySummary: normalizedLegacySummary } : {}),
+      ...(typeof racedData.pointsCurrent === 'number' && Number.isFinite(racedData.pointsCurrent)
+        ? { pointsCurrent: racedData.pointsCurrent }
+        : {}),
+    };
   }
 
-  await setDoc(
-    userRef,
-    {
-      displayName: resolveDisplayName(existingBeforeWrite?.displayName, firebaseUser),
-      updatedAt: now,
-    },
-    { merge: true }
-  );
-
-  const snapshot = await getDoc(userRef);
-  const existing = snapshot.data() as Partial<V2UserDoc> | undefined;
-  const normalizedLegacySummary = normalizeLegacySummary(existing?.legacySummary);
-
-  return {
-    createdAt: typeof existing?.createdAt === 'string' ? existing.createdAt : now,
-    displayName: resolveDisplayName(existing?.displayName, firebaseUser),
-    email: resolveEmail(existing?.email, firebaseUser),
-    uid: firebaseUser.uid,
-    updatedAt: typeof existing?.updatedAt === 'string' ? existing.updatedAt : now,
-    ...(typeof existing?.photoURL === 'string' ? { photoURL: existing.photoURL } : {}),
-    ...(normalizedLegacySummary ? { legacySummary: normalizedLegacySummary } : {}),
-    ...(typeof existing?.pointsCurrent === 'number' && Number.isFinite(existing.pointsCurrent)
-      ? { pointsCurrent: existing.pointsCurrent }
-      : {}),
-  };
+  return createPayload;
 }
 
 async function importLegacySummaryIfMissing(

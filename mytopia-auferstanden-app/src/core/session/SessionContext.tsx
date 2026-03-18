@@ -1,5 +1,4 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   AuthActionResult,
@@ -11,27 +10,17 @@ import {
   signInWithEmailPassword,
   signOutFromFirebase,
   signUpWithEmailPassword,
-  subscribeAuthState,
 } from '@/src/core/firebase/authClient';
-import { getIdTokenResult, FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { ensureNarrativeTopicSubscription } from '@/src/core/firebase/messagingClient';
-import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
 import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
+import {
+  onAuthSessionChange,
+  persistSelectedMode,
+  type AuthSessionState,
+  type SessionUser,
+} from '@/src/core/session/authSessionManager';
 
-const MODE_STORAGE_KEY_PREFIX = 'mytopia:narrativeMode:v1';
-const HYDRATION_TIMEOUT_MS = 10_000;
-
-export type SessionUser = {
-  displayName: string;
-  email: string;
-  id: string;
-  legacySummary?: {
-    citizenship?: Record<string, unknown>;
-    properties?: unknown[];
-    rankSnapshot: number;
-    totalPoints: number;
-  };
-};
+export type { SessionUser } from '@/src/core/session/authSessionManager';
 
 type SessionContextValue = {
   canUseDevMode: boolean;
@@ -58,64 +47,27 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
-    let hasHydrated = false;
-    let isActive = true;
-    let authEventVersion = 0;
+    return onAuthSessionChange((authState: AuthSessionState) => {
+      if (authState.status === 'loading') {
+        return;
+      }
 
-    const unsubscribe = subscribeAuthState((firebaseUser) => {
-      const version = authEventVersion + 1;
-      authEventVersion = version;
+      if (authState.status === 'authenticated') {
+        setCanUseDevMode(authState.canUseDevMode);
+        setModeStorageUid(authState.profile.id);
+        setSelectedModeState(authState.selectedMode);
+        setUser(authState.profile);
+        setShouldShowWelcomeBack(authState.importedLegacySummary);
+      } else {
+        setCanUseDevMode(false);
+        setModeStorageUid(null);
+        setSelectedModeState('production');
+        setShouldShowWelcomeBack(false);
+        setUser(null);
+      }
 
-      void (async () => {
-        if (firebaseUser && firebaseUser.emailVerified) {
-          const hydrationResult = await Promise.race([
-            hydrateAuthenticatedSession(firebaseUser),
-            timeoutAfter(HYDRATION_TIMEOUT_MS),
-          ]);
-
-          if (!isActive || authEventVersion !== version) {
-            return;
-          }
-
-          if (hydrationResult === 'timeout') {
-            console.warn(
-              `[session] Hydration timed out after ${HYDRATION_TIMEOUT_MS}ms. Falling back to basic profile.`
-            );
-            setCanUseDevMode(false);
-            setModeStorageUid(firebaseUser.uid);
-            setSelectedModeState('production');
-            setUser(mapSessionUser(firebaseUser));
-            setShouldShowWelcomeBack(false);
-          } else {
-            setCanUseDevMode(hydrationResult.canUseDevMode);
-            setModeStorageUid(firebaseUser.uid);
-            setSelectedModeState(hydrationResult.selectedMode);
-            setUser(hydrationResult.profile);
-            setShouldShowWelcomeBack(hydrationResult.importedLegacySummary);
-          }
-        } else {
-          if (!isActive || authEventVersion !== version) {
-            return;
-          }
-
-          setCanUseDevMode(false);
-          setModeStorageUid(null);
-          setSelectedModeState('production');
-          setShouldShowWelcomeBack(false);
-          setUser(null);
-        }
-
-        if (!hasHydrated) {
-          setIsHydrated(true);
-          hasHydrated = true;
-        }
-      })();
+      setIsHydrated(true);
     });
-
-    return () => {
-      isActive = false;
-      unsubscribe();
-    };
   }, []);
 
   useEffect(() => {
@@ -211,96 +163,4 @@ export function useSession() {
   }
 
   return context;
-}
-
-function mapSessionUser(user: { uid: string; email: string | null; displayName: string | null }): SessionUser {
-  const fallbackName = user.email ? user.email.split('@')[0] : 'Mytopia Survivor';
-
-  return {
-    displayName: user.displayName?.trim() || fallbackName,
-    email: user.email ?? '',
-    id: user.uid,
-  };
-}
-
-async function resolveModeState(user: FirebaseAuthTypes.User) {
-  const canUseDevMode = await hasDevClaim(user);
-  const persistedMode = await readPersistedMode(user.uid);
-  const selectedMode = canUseDevMode ? normalizeAppMode(persistedMode) : 'production';
-
-  if (!canUseDevMode && persistedMode === 'dev') {
-    await persistSelectedMode(user.uid, 'production');
-  }
-
-  return {
-    canUseDevMode,
-    selectedMode,
-  };
-}
-
-async function hasDevClaim(user: FirebaseAuthTypes.User) {
-  try {
-    const idTokenResult = await getIdTokenResult(user, true);
-    return idTokenResult.claims.dev === true;
-  } catch (error) {
-    console.warn('[session] Unable to read Firebase custom claims; defaulting to production mode.', error);
-    return false;
-  }
-}
-
-function storageKeyForMode(uid: string) {
-  return `${MODE_STORAGE_KEY_PREFIX}:${uid}`;
-}
-
-async function readPersistedMode(uid: string): Promise<AppMode> {
-  try {
-    const raw = await AsyncStorage.getItem(storageKeyForMode(uid));
-    return normalizeAppMode(raw);
-  } catch (error) {
-    console.warn('[session] Failed to read persisted app mode.', error);
-    return 'production';
-  }
-}
-
-async function persistSelectedMode(uid: string, mode: AppMode) {
-  try {
-    await AsyncStorage.setItem(storageKeyForMode(uid), mode);
-  } catch (error) {
-    console.warn('[session] Failed to persist app mode selection.', error);
-  }
-}
-
-type HydrationResult = {
-  canUseDevMode: boolean;
-  importedLegacySummary: boolean;
-  profile: SessionUser;
-  selectedMode: AppMode;
-};
-
-async function hydrateAuthenticatedSession(
-  firebaseUser: FirebaseAuthTypes.User
-): Promise<HydrationResult> {
-  const modeState = await resolveModeState(firebaseUser);
-
-  try {
-    const synced = await syncSessionProfile(firebaseUser);
-    return {
-      canUseDevMode: modeState.canUseDevMode,
-      importedLegacySummary: synced.importedLegacySummary,
-      profile: synced.profile,
-      selectedMode: modeState.selectedMode,
-    };
-  } catch (error) {
-    console.error('Failed to hydrate session from Firestore profile.', error);
-    return {
-      canUseDevMode: modeState.canUseDevMode,
-      importedLegacySummary: false,
-      profile: mapSessionUser(firebaseUser),
-      selectedMode: modeState.selectedMode,
-    };
-  }
-}
-
-function timeoutAfter(ms: number): Promise<'timeout'> {
-  return new Promise((resolve) => setTimeout(() => resolve('timeout'), ms));
 }
