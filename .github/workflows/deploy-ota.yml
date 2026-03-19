@@ -1,0 +1,46 @@
+name: Deploy OTA Update
+
+on:
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions tab
+  # push: 
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'mytopia-auferstanden-app/**'
+
+jobs:
+  update-app:
+    name: Build & Publish OTA Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run App Linter
+        run: bun run --cwd mytopia-auferstanden-app lint
+
+      - name: Run App Typecheck
+        run: bun --cwd mytopia-auferstanden-app run tsc --noEmit
+
+      - name: Inject Git Hash as OTA Version
+        working-directory: mytopia-auferstanden-app
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "Setting OTA version to ${SHORT_SHA}..."
+          jq ".expo.extra.otaVersion = \"${SHORT_SHA}\"" app.json > app.tmp.json
+          mv app.tmp.json app.json
+
+      - name: Publish OTA Update to Production
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          bun run update:js:production -- "Automated Action update (${SHORT_SHA})"

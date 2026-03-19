@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import { theme } from '@/src/shared/ui/theme';
 
 import { deleteCurrentUserAccount } from '@/src/core/firebase/accountDeletionClient';
@@ -30,6 +31,15 @@ export function ProfileScreen() {
   const [updatesError, setUpdatesError] = useState<string | null>(null);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setRefreshTrigger((prev) => prev + 1);
+  }, []);
+
+  const otaVersion = Constants.expoConfig?.extra?.otaVersion ?? Constants.expoConfig?.version ?? 'Unavailable';
 
   useEffect(() => {
     if (selectedMode === 'dev') {
@@ -123,9 +133,25 @@ export function ProfileScreen() {
   }
 
   return (
-    <Screen title="Profil" headerShown={false}>
+    <Screen 
+      title="Profil" 
+      headerShown={false}
+      refreshControl={
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={onRefresh} 
+          tintColor={theme.colors.orange} 
+          colors={[theme.colors.orange]} 
+        />
+      }
+    >
       {/* Missions section — first */}
-      <MissionsCard userId={user.id} mode={selectedMode} />
+      <MissionsCard 
+        userId={user.id} 
+        mode={selectedMode} 
+        refreshTrigger={refreshTrigger}
+        onRefreshComplete={() => setRefreshing(false)}
+      />
 
       <SectionCard title="Account">
         <View style={styles.row}>
@@ -205,6 +231,10 @@ export function ProfileScreen() {
           <View style={styles.row}>
             <Text style={styles.label}>Runtime version</Text>
             <Text style={styles.value}>{runtimeVersion ?? 'Unavailable'}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>App version (OTA)</Text>
+            <Text style={styles.value}>{otaVersion}</Text>
           </View>
           <Text style={styles.body}>{updatesSummary}</Text>
           {updatesError ? <Text style={styles.errorText}>{updatesError}</Text> : null}

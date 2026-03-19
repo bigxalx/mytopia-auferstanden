@@ -1,13 +1,13 @@
-import type { ExpoConfig } from 'expo/config';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 import fs from 'fs';
 import path from 'path';
 
-const appJson = require('./app.json') as { expo: ExpoConfig };
 const defaultIosGoogleServicesFile = 'secrets/firebase/GoogleService-Info.plist';
 const defaultAndroidGoogleServicesFile = 'secrets/firebase/google-services.json';
 
-export default (): ExpoConfig => {
-  const base = appJson.expo;
+export default ({ config }: ConfigContext): ExpoConfig => {
+  const base = config as ExpoConfig;
+  console.log('[debug] app.config.ts running, base.extra:', JSON.stringify(base.extra, null, 2));
   const appEnv = process.env.EXPO_PUBLIC_APP_ENV ?? 'development';
   const isProduction = appEnv === 'production';
 
@@ -46,6 +46,7 @@ export default (): ExpoConfig => {
     },
     extra: {
       ...base.extra,
+      otaVersion: (base.extra as any)?.otaVersion ?? '1',
       EXPO_PUBLIC_APP_ENV: appEnv,
     },
   };

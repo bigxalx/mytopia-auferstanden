@@ -11,9 +11,11 @@ import type { AppMode } from '@/src/core/session/appMode';
 type MissionsCardProps = {
   userId?: string;
   mode: AppMode;
+  refreshTrigger?: number;
+  onRefreshComplete?: () => void;
 };
 
-export function MissionsCard({ userId, mode }: MissionsCardProps) {
+export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }: MissionsCardProps) {
   const completedMissions = useCompletedMissions(userId);
   const [missions, setMissions] = useState<MissionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,12 +32,13 @@ export function MissionsCard({ userId, mode }: MissionsCardProps) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load missions.');
       } finally {
         if (active) setIsLoading(false);
+        onRefreshComplete?.();
       }
     }
 
     load();
     return () => { active = false; };
-  }, [mode]);
+  }, [mode, refreshTrigger]);
 
   if (isLoading) {
     return (

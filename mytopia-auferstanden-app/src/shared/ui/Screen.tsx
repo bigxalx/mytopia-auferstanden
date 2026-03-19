@@ -17,6 +17,8 @@ type ScreenProps = PropsWithChildren<{
   centerContent?: boolean;
   /** Optional background color override. */
   backgroundColor?: string;
+  /** Optional refresh control component for pull-to-refresh functionality */
+  refreshControl?: React.ReactElement<any>;
 }>;
 
 export function Screen({ 
@@ -28,7 +30,8 @@ export function Screen({
   title,
   headerShown = true,
   centerContent = false,
-  backgroundColor
+  backgroundColor,
+  refreshControl,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const bottomPadding = bottomInset ? Math.max(insets.bottom, 20) : 0;
@@ -73,6 +76,7 @@ export function Screen({
           centerContent && { flexGrow: 1, justifyContent: 'center' }
         ]} 
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
       >
         {children}
       </ScrollView>
