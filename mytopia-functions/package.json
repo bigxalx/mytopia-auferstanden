@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "deploy": "firebase deploy --config firebase.json --only functions:narrative --project mytopia-6c440",
+    "deploy": "firebase deploy --config firebase.json --only functions --project mytopia-6c440",
     "webhook:probe": "bun --env-file=.env ./scripts/probe-webhook-signature.mjs"
   },
   "dependencies": {

@@ -502,7 +502,10 @@ async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const query = `*[_type == "mission" && active == true] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
+    const query =
+      mode === 'dev'
+        ? `*[_type == "mission" && active == true && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`
+        : `*[_type == "mission" && active == true] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
     const missions = await sanityQuery<unknown[]>(query, {}, mode);
 
     res.status(200).json({ missions });
@@ -572,7 +575,10 @@ async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     }
 
     // Fetch mission with correct answers from Sanity
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**"))][0]{${MISSION_SCORING_PROJECTION}}`;
+    const query =
+      mode === 'dev'
+        ? `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{${MISSION_SCORING_PROJECTION}}`
+        : `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**"))][0]{${MISSION_SCORING_PROJECTION}}`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
@@ -698,7 +704,10 @@ async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     }
 
     // Fetch mission from Sanity (no answers needed, just verify it exists)
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**"))][0]{ _id, title, kind, points, active }`;
+    const query =
+      mode === 'dev'
+        ? `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active }`
+        : `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**"))][0]{ _id, title, kind, points, active }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
