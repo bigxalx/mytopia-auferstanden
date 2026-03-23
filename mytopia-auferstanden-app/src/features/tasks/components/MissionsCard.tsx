@@ -15,8 +15,11 @@ type MissionsCardProps = {
   onRefreshComplete?: () => void;
 };
 
+import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
+
 export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }: MissionsCardProps) {
   const completedMissions = useCompletedMissions(userId);
+  const { pulse } = useNarrativeSignal();
   const [missions, setMissions] = useState<MissionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,14 +34,16 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : 'Failed to load missions.');
       } finally {
-        if (active) setIsLoading(false);
-        onRefreshComplete?.();
+        if (active) {
+          setIsLoading(false);
+          onRefreshComplete?.();
+        }
       }
     }
 
     load();
     return () => { active = false; };
-  }, [mode, refreshTrigger]);
+  }, [mode, refreshTrigger, pulse?.token]);
 
   if (isLoading) {
     return (

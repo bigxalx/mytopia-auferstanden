@@ -30,8 +30,7 @@ import {
   type NarrativeBundleDto,
   type NarrativeMessageDto,
 } from '@/src/features/feed/data/narrativeFeedClient';
-import { subscribeNarrativeSignal } from '@/src/features/feed/data/narrativeSignalClient';
-
+import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 type PlaybackMessage = {
   bundleId: string;
   bundleTitle: string;
@@ -51,6 +50,7 @@ function debugFeed(message: string, payload?: Record<string, unknown>) {
 
 export function FeedScreen() {
   const { selectedMode, user } = useSession();
+  const { markAsRead, pulse } = useNarrativeSignal();
 
   const requestVersionRef = useRef(0);
   const activeInitialLoadsRef = useRef(0);
@@ -147,21 +147,24 @@ export function FeedScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user) void loadFirstPage('silent');
-    }, [loadFirstPage, user])
+      if (user) {
+        // Feed viewed, mark newest narrative as read to clear icon badge
+        markAsRead().catch(() => {});
+        void loadFirstPage('silent');
+      }
+    }, [loadFirstPage, markAsRead, user])
   );
 
   useEffect(() => {
-    if (!user) return;
-    return subscribeNarrativeSignal({
-      listener: (signal) => {
-        if (!signal || signal.token === latestSignalTokenRef.current) return;
-        latestSignalTokenRef.current = signal.token;
-        void loadFirstPage('silent');
-      },
-      mode: selectedMode,
-    });
-  }, [loadFirstPage, selectedMode, user]);
+    if (!user || (!pulse && latestSignalTokenRef.current === null)) return;
+    
+    // Default to the first pulse as the starting point so we catch unread
+    // updates happening later. Or if the token changed over our remembered token.
+    if (pulse?.token && pulse.token !== latestSignalTokenRef.current) {
+      latestSignalTokenRef.current = pulse.token;
+      void loadFirstPage('silent');
+    }
+  }, [loadFirstPage, pulse, user]);
 
   useEffect(() => {
     if (!user) return;

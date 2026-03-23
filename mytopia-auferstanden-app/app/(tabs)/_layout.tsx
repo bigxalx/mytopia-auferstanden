@@ -8,14 +8,23 @@ import { ChatLineBold, MapBold, UserBold } from '@/components/ui/SolarTabIcons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { MainHeader } from '@/src/shared/ui/MainHeader';
-
 import { theme } from '@/src/shared/ui/theme';
+import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 
 const renderHeader = (props: any) => <MainHeader {...props} />;
 
 export default function TabLayout() {
+  return (
+    <NarrativeSignalProvider>
+      <TabLayoutInner />
+    </NarrativeSignalProvider>
+  );
+}
+
+function TabLayoutInner() {
   const insets = useSafeAreaInsets();
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
+  const { hasUnreadNarrative } = useNarrativeSignal();
 
   if (!isHydrated) {
     return (
@@ -72,6 +81,8 @@ export default function TabLayout() {
         options={{
           title: 'Notfallkanal',
           tabBarIcon: ({ color }) => <ChatLineBold size={28} color={color} />,
+          tabBarBadge: hasUnreadNarrative ? '' : undefined,
+          tabBarBadgeStyle: { backgroundColor: theme.colors.orange, minWidth: 10, minHeight: 10 },
         }}
       />
       <Tabs.Screen
