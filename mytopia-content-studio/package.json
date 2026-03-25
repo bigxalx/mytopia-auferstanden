@@ -12,13 +12,15 @@
   "dependencies": {
     "@sanity/color-input": "^6.0.4",
     "@sanity/google-maps-input": "^4.2.1",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "sanity": "^3.54.0",
-    "styled-components": "^6.1.15"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "sanity": "^5.18.0",
+    "styled-components": "^6.3.12"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
-    "typescript": "^5.9.2"
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.2"
   }
 }
