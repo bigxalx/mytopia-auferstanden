@@ -24,7 +24,7 @@ import { SectionCard } from '@/src/shared/ui/SectionCard';
 export function TaskDetailScreen() {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { canUseDevMode, user, selectedMode } = useSession();
+  const { user, selectedMode } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
   const [mission, setMission] = useState<MissionListItem | null>(null);

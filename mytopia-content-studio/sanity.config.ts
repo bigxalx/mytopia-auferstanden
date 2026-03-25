@@ -9,7 +9,7 @@ const dataset = process.env.SANITY_STUDIO_DATASET || 'production';
 
 export default defineConfig({
   name: 'default',
-  title: dataset === 'development' ? 'Mytopia Content Studio (DEV)' : 'Mytopia Content Studio',
+  title: dataset === 'development' ? 'Dev - Mytopia Content Studio (Dev)' : 'Mytopia Content Studio',
   projectId: process.env.SANITY_STUDIO_PROJECT_ID || '',
   dataset: dataset,
   plugins: [
@@ -24,7 +24,14 @@ export default defineConfig({
                 S.list()
                   .title('Narrative')
                   .items([
-                    S.documentTypeListItem('narrativeBundle').title('Stories'),
+                    S.listItem()
+                      .title('Stories')
+                      .schemaType('narrativeBundle')
+                      .child(
+                        S.documentTypeList('narrativeBundle')
+                          .title('Stories')
+                          .defaultOrdering([{ field: 'releaseAt', direction: 'desc' }])
+                      ),
                     S.documentTypeListItem('narrativeActor').title('Absender'),
                   ])
               ),

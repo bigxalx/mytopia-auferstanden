@@ -1,4 +1,5 @@
 import { defineArrayMember, defineField, defineType } from 'sanity';
+import { ChatEditor } from '../components/ChatEditor';
 
 export const imageAttachment = defineType({
   name: 'imageAttachment',
@@ -196,61 +197,66 @@ export const narrativeBundle = defineType({
   name: 'narrativeBundle',
   title: 'Story',
   type: 'document',
-  groups: [
-    { name: 'story', title: 'Seite 1: Story', default: true },
-    { name: 'push', title: 'Seite 2: Push' },
-  ],
   fields: [
     defineField({
-      name: 'script',
-      title: 'Nachrichten-Skript',
-      type: 'text',
-      rows: 18,
-      group: 'story',
+      name: 'releaseAt',
+      title: 'Release At',
+      type: 'datetime',
       description:
-        'Trage hier deine Nachrichten ein. Jede Leerzeile erzeugt eine neue Nachricht im Feed.',
+        'Wähle den Veröffentlichungszeitpunkt (Europe/Berlin). Dann werden Release und Push ausgelöst.',
+      validation: (rule) => rule.required(),
     }),
     defineField({
       name: 'scriptActor',
       title: 'Standard-Absender',
       type: 'reference',
       to: [{ type: 'narrativeActor' }],
-      group: 'story',
-      description: 'Wähle den Absender, der für alle Skript-Nachrichten verwendet wird.',
+      description: 'Wähle den Absender, der für neue Nachrichten im Chat-Editor verwendet wird.',
     }),
     defineField({
-      name: 'releaseAt',
-      title: 'Release At',
-      type: 'datetime',
-      group: 'story',
+      name: 'messages',
+      title: 'Nachrichten & Anhänge (Chat-Editor)',
+      type: 'array',
       description:
-        'Wähle den Veröffentlichungszeitpunkt (Europe/Berlin). Dann werden Release und Push ausgelöst.',
-      validation: (rule) => rule.required(),
+        'Der neue Standard-Editor. Nutze dieses Feld für strukturierte Nachrichten mit Bildern, Audio oder Missionen.',
+      of: [defineArrayMember({ type: 'narrativeMessage' })],
+      components: {
+        input: ChatEditor,
+      },
     }),
     defineField({
       name: 'pushTitle',
       title: 'Push-Titel',
       type: 'string',
-      group: 'push',
-      description: 'Optional: Trage einen Push-Titel ein. Leer = Standardtext.',
+      description: 'Optional: Leer = "Neue Nachricht von [Name]".',
     }),
     defineField({
       name: 'pushBody',
       title: 'Push-Text',
       type: 'text',
       rows: 2,
-      group: 'push',
-      description: 'Optional: Trage einen Push-Text ein. Leer = Standardtext.',
+      description: 'Optional: Leer = Erster Text der Nachricht oder ein passendes Emoji (📸, 🎥, 🧠, etc.).',
     }),
     defineField({
-      name: 'messages',
-      title: 'Nachrichten-Override (optional)',
-      type: 'array',
-      group: 'push',
+      name: 'script',
+      title: 'Nachrichten-Skript (LEGACY / ALT)',
+      type: 'text',
+      rows: 10,
       description:
-        'Optional: Nutze dieses Feld nur für gezielte Overrides (z. B. Attachments). Wenn Einträge vorhanden sind, ersetzen sie das Skript komplett.',
-      of: [defineArrayMember({ type: 'narrativeMessage' })],
+        '⚠️ ALT: Nutze dieses Feld nur, wenn du den neuen Chat-Editor nicht verwenden möchtest. Das neue Feld (Nachrichten & Anhänge) überschreibt dieses Skript komplett.',
     }),
+  ],
+  orderings: [
+    {
+      title: 'Release-Datum (Absteigend)',
+      name: 'releaseAtDesc',
+      by: [{ field: 'releaseAt', direction: 'desc' }],
+    },
+    {
+      title: 'Release-Datum (Aufsteigend)',
+      name: 'releaseAtAsc',
+      by: [{ field: 'releaseAt', direction: 'asc' }],
+    },
   ],
   preview: {
     select: {

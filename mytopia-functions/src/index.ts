@@ -444,8 +444,45 @@ async function handleReleaseNarrativeBundle(req: Request, res: FirebaseResponse)
     }
 
     try {
-      const title = bundle.pushTitle?.trim() || 'Notfallkanal';
-      const body = bundle.pushBody?.trim() || 'New narrative messages are available.';
+      // --- DYNAMIC PUSH NOTIFICATION LOGIC ---
+      // We calculate defaults based on content if push fields are empty in Sanity.
+      
+      const firstMessage = bundle.messages && bundle.messages.length > 0 ? bundle.messages[0] : null;
+      
+      // 1. Resolve Actor Name for Title
+      const actorName = firstMessage?.actor?.name || bundle.scriptActor?.name || 'Notfallkanal';
+
+      // Default Title: "Neue Nachricht von [Actor]"
+      const defaultTitle = `Neue Nachricht von ${actorName}`;
+      const title = bundle.pushTitle?.trim() || defaultTitle;
+
+      // 2. Resolve Body (First text or Emoji based on attachment type)
+      let defaultBody = 'New narrative messages are available.';
+      if (firstMessage) {
+        if (firstMessage.text?.trim()) {
+          defaultBody = firstMessage.text.trim();
+        } else if (firstMessage.attachment) {
+          const type = firstMessage.attachment._type;
+          // Map attachment types to user-friendly German summaries with emojis
+          if (type === 'imageAttachment') defaultBody = '📸 Bild empfangen';
+          else if (type === 'videoAttachment') defaultBody = '🎥 Video empfangen';
+          else if (type === 'audioAttachment') defaultBody = '🎙️ Sprachnachricht';
+          else if (type === 'missionAttachment') {
+            const kind = (firstMessage.attachment as any).missionKind;
+            if (kind === 'quiz') defaultBody = '🧠 Quiz verfügbar';
+            else if (kind === 'photo') defaultBody = '📸 Foto-Mission';
+            else if (kind === 'gps') defaultBody = '📍 Ort finden';
+            else if (kind === 'text') defaultBody = '✏️ Text-Aufgabe';
+            else defaultBody = '🚩 Neue Mission';
+          }
+        }
+      } else if (bundle.script?.trim()) {
+        // Fallback for legacy script-only bundles
+        const firstLine = bundle.script.trim().split('\n')[0].trim();
+        if (firstLine) defaultBody = firstLine;
+      }
+
+      const body = bundle.pushBody?.trim() || defaultBody;
 
       const pushMessageId = await messaging.send({
         data: {
@@ -454,8 +491,9 @@ async function handleReleaseNarrativeBundle(req: Request, res: FirebaseResponse)
           route: '/(tabs)/feed',
         },
         notification: {
-          body,
-          title,
+          // Truncate to avoid FCM errors or weird UI cuts
+          body: body.length > 200 ? `${body.substring(0, 197)}...` : body,
+          title: title.length > 100 ? `${title.substring(0, 97)}...` : title,
         },
         topic: resolveNarrativeTopic(mode),
       });
