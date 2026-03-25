@@ -26,7 +26,10 @@
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "remote-notification"
-        ]
+        ],
+        "NSLocationWhenInUseUsageDescription": "Wir benötigen deinen Standort, um GPS-Missionen durchzuführen und deine Entfernung zum Ziel anzuzeigen.",
+        "NSCameraUsageDescription": "Wir benötigen Zugriff auf deine Kamera, damit du Fotos für Missionen aufnehmen kannst.",
+        "NSPhotoLibraryUsageDescription": "Wir benötigen Zugriff auf deine Mediathek, damit du Fotos für Missionen auswählen kannst."
       }
     },
     "android": {
@@ -40,6 +43,11 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "de.theateraltenburggera.mytopia",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
@@ -70,15 +78,30 @@
             "forceStaticLinking": [
               "RNFBApp",
               "RNFBAuth",
-              "RNFBMessaging"
+              "RNFBMessaging",
+              "RNFBCrashlytics"
             ]
           }
         }
       ],
       "expo-updates",
       "expo-video",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Wir benötigen deinen Standort, um GPS-Missionen durchzuführen und deine Entfernung zum Ziel anzuzeigen."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Wir benötigen Zugriff auf deine Kamera, damit du Fotos für Missionen aufnehmen kannst.",
+          "photosPermission": "Wir benötigen Zugriff auf deine Mediathek, damit du Fotos für Missionen auswählen kannst."
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
+      "@react-native-firebase/crashlytics",
       [
         "expo-splash-screen",
         {

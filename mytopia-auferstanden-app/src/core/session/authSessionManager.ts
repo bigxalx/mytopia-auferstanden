@@ -49,6 +49,7 @@ export type SessionUser = {
     rankSnapshot: number;
     totalPoints: number;
   };
+  pointsCurrent?: number;
 };
 
 export type AuthSessionState =

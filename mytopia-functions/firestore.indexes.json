@@ -33,7 +33,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "taskId",
+          "fieldPath": "sourceId",
           "order": "ASCENDING"
         },
         {
@@ -65,7 +65,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "totalPoints",
+          "fieldPath": "pointsCurrent",
           "order": "DESCENDING"
         },
         {

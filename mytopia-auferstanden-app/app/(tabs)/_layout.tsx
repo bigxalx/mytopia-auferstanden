@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { ChatLineBold, MapBold, UserBold } from '@/components/ui/SolarTabIcons';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { MainHeader } from '@/src/shared/ui/MainHeader';
 import { theme } from '@/src/shared/ui/theme';
@@ -24,7 +23,7 @@ export default function TabLayout() {
 function TabLayoutInner() {
   const insets = useSafeAreaInsets();
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
-  const { hasUnreadNarrative } = useNarrativeSignal();
+  const { unreadCount } = useNarrativeSignal();
 
   if (!isHydrated) {
     return (
@@ -81,8 +80,7 @@ function TabLayoutInner() {
         options={{
           title: 'Notfallkanal',
           tabBarIcon: ({ color }) => <ChatLineBold size={28} color={color} />,
-          tabBarBadge: hasUnreadNarrative ? '' : undefined,
-          tabBarBadgeStyle: { backgroundColor: theme.colors.orange, minWidth: 10, minHeight: 10 },
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
       <Tabs.Screen

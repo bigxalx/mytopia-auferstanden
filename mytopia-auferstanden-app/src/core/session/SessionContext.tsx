@@ -12,7 +12,8 @@ import {
   signUpWithEmailPassword,
 } from '@/src/core/firebase/authClient';
 import { ensureNarrativeTopicSubscription } from '@/src/core/firebase/messagingClient';
-import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
+import { useFcmTokenSync } from '@/src/core/firebase/useFcmTokenSync';
+import { type AppMode } from '@/src/core/session/appMode';
 import {
   onAuthSessionChange,
   persistSelectedMode,
@@ -45,6 +46,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [modeStorageUid, setModeStorageUid] = useState<string | null>(null);
   const [shouldShowWelcomeBack, setShouldShowWelcomeBack] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
+  useFcmTokenSync(user?.id);
 
   useEffect(() => {
     return onAuthSessionChange((authState: AuthSessionState) => {

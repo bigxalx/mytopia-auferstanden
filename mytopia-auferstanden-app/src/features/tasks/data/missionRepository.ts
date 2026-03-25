@@ -1,6 +1,7 @@
 import { getIdToken } from '@react-native-firebase/auth';
 import { env, hasConfiguredFeedApi, hasConfiguredMissionApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
+import type { AppMode } from '@/src/core/session/appMode';
 
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -8,7 +9,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 // Types
 // ---------------------------------------------------------------------------
 
-export type MissionKind = 'quiz' | 'gps';
+export type MissionKind = 'quiz' | 'gps' | 'text' | 'photo';
 
 export type MissionListItem = {
     _id: string;
@@ -43,11 +44,13 @@ export type GpsCompleteResult = {
     earned: number;
 };
 
+export type SubmitResult = {
+    action: 'submitted' | 'already_submitted';
+};
+
 // ---------------------------------------------------------------------------
 // Fetch missions (via narrativeApi /missions)
 // ---------------------------------------------------------------------------
-
-import type { AppMode } from '@/src/core/session/appMode';
 
 export async function fetchMissions({
     mode = 'production',
@@ -89,7 +92,7 @@ export async function fetchMissions({
 export async function submitQuizCompletion(
     missionId: string,
     answers: number[],
-    mode: string = 'production'
+    mode: AppMode = 'production'
 ): Promise<QuizCompleteResult> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
@@ -122,7 +125,7 @@ export async function submitQuizCompletion(
 
 export async function submitGpsCompletion(
     missionId: string,
-    mode: string = 'production'
+    mode: AppMode = 'production'
 ): Promise<GpsCompleteResult> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
@@ -147,6 +150,74 @@ export async function submitGpsCompletion(
     }
 
     return (await response.json()) as GpsCompleteResult;
+}
+
+// ---------------------------------------------------------------------------
+// Submit text mission (via missionApi /text/submit)
+// ---------------------------------------------------------------------------
+
+export async function submitTextMission(
+    missionId: string,
+    text: string,
+    mode: AppMode = 'production'
+): Promise<SubmitResult> {
+    if (!hasConfiguredMissionApi()) {
+        throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
+    }
+
+    const idToken = await ensureIdToken();
+    const baseUrl = normalizeBaseUrl(env.missionApiBaseUrl);
+    const url = `${baseUrl}text/submit?mode=${mode}`;
+
+    const response = await fetchWithTimeout(url, {
+        body: JSON.stringify({ missionId, text }),
+        headers: {
+            Authorization: `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+        },
+        method: 'POST',
+    });
+
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Text submission failed (${response.status}): ${body}`);
+    }
+
+    return (await response.json()) as SubmitResult;
+}
+
+// ---------------------------------------------------------------------------
+// Submit photo mission (via missionApi /photo/submit)
+// ---------------------------------------------------------------------------
+
+export async function submitPhotoMission(
+    missionId: string,
+    photoPath: string,
+    mode: AppMode = 'production'
+): Promise<SubmitResult> {
+    if (!hasConfiguredMissionApi()) {
+        throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
+    }
+
+    const idToken = await ensureIdToken();
+    const baseUrl = normalizeBaseUrl(env.missionApiBaseUrl);
+    const url = `${baseUrl}photo/submit?mode=${mode}`;
+
+    const response = await fetchWithTimeout(url, {
+        body: JSON.stringify({ missionId, photoPath }),
+        headers: {
+            Authorization: `Bearer ${idToken}`,
+            'Content-Type': 'application/json',
+        },
+        method: 'POST',
+    });
+
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Photo submission failed (${response.status}): ${body}`);
+    }
+
+    return (await response.json()) as SubmitResult;
 }
 
 // ---------------------------------------------------------------------------

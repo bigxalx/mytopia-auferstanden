@@ -6,7 +6,7 @@
     "build": "bun run build:studio && bun run build:functions",
     "build:functions": "bun run --cwd mytopia-functions build",
     "build:studio": "bun run --cwd mytopia-content-studio build",
-    "dev": "turbo run dev --parallel --continue --filter=mytopia-content-studio --filter=mytopia-auferstanden-app",
+    "dev": "turbo run dev --parallel --continue --filter=mytopia-content-studio --filter=mytopia-auferstanden-app --filter=mytopia-website",
     "dev:app": "bun run --cwd mytopia-auferstanden-app start",
     "dev:studio": "bun run --cwd mytopia-content-studio dev",
     "release:bootstrap": "bun run --cwd mytopia-auferstanden-app release:bootstrap",
@@ -24,6 +24,7 @@
   "workspaces": [
     "mytopia-auferstanden-app",
     "mytopia-content-studio",
-    "mytopia-functions"
+    "mytopia-functions",
+    "mytopia-website"
   ]
 }

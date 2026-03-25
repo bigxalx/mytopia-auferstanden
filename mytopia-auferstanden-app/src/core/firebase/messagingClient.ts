@@ -1,9 +1,11 @@
 import { 
   getMessaging, 
   getToken, 
+  onMessage,
   subscribeToTopic as firebaseSubscribeToTopic, 
   unsubscribeFromTopic as firebaseUnsubscribeFromTopic,
   requestPermission as firebaseRequestPermission,
+  setBackgroundMessageHandler,
   AuthorizationStatus
 } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
@@ -136,6 +138,56 @@ async function requestPermissionsIfNeeded(instance: ReturnType<typeof getMessagi
   }
 }
 
+
+export type FcmNarrativePayload = {
+  bundleId?: string;
+  eventType?: string;
+  route?: string;
+};
+
+export function subscribeToForegroundNarrativeMessages(
+  callback: (payload: FcmNarrativePayload) => void
+) {
+  try {
+    const instance = getMessaging();
+    return onMessage(instance, (remoteMessage) => {
+      const data = (remoteMessage.data ?? {}) as Record<string, string>;
+      if (data.eventType === 'release' || data.bundleId) {
+        callback({
+          bundleId: data.bundleId,
+          eventType: data.eventType,
+          route: data.route,
+        });
+      }
+    });
+  } catch (error) {
+    if (!isNoDefaultFirebaseAppError(error)) {
+      console.warn('[messaging] Failed to subscribe to foreground messages.', error);
+    }
+    return () => undefined;
+  }
+}
+
+let backgroundHandlerRegistered = false;
+
+export function registerBackgroundNarrativeHandler() {
+  if (backgroundHandlerRegistered) return;
+  backgroundHandlerRegistered = true;
+
+  try {
+    const instance = getMessaging();
+    setBackgroundMessageHandler(instance, async () => {
+      // Background messages surface as OS notifications.
+      // When the user taps or returns to the app, AppState change
+      // and useFocusEffect already trigger a feed refresh.
+    });
+  } catch (error) {
+    backgroundHandlerRegistered = false;
+    if (!isNoDefaultFirebaseAppError(error)) {
+      console.warn('[messaging] Failed to register background message handler.', error);
+    }
+  }
+}
 
 function isNoDefaultFirebaseAppError(error: unknown) {
   if (typeof error !== 'object' || error === null) {

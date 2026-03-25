@@ -6,6 +6,7 @@ export const V2_COLLECTION = {
   submissions: 'v2/app/submissions',
   tasks: 'v2/app/tasks',
   users: 'v2/app/users',
+  fcmRegistrations: 'v2/app/fcmRegistrations',
 } as const;
 
 export type FirestoreTimestampString = string;
@@ -14,14 +15,15 @@ export type SubmissionType = 'text' | 'photo';
 export type SubmissionStatus = 'draft' | 'pending' | 'approved' | 'rejected';
 
 export type ScoreEventReason =
-  | 'task_approved'
   | 'quiz_completed'
   | 'gps_completed'
+  | 'text_approved'
+  | 'photo_approved'
   | 'moderation_penalty'
   | 'legacy_import'
   | 'manual_adjustment';
 
-export type ScoreEventSourceType = 'submission' | 'quiz' | 'gps' | 'import' | 'admin';
+export type ScoreEventSourceType = 'submission' | 'quiz' | 'gps' | 'text' | 'photo' | 'import' | 'admin';
 
 export type LegacySummary = {
   citizenship?: Record<string, unknown>;
@@ -53,18 +55,20 @@ export type V2TaskDoc = {
 };
 
 export type V2SubmissionDoc = {
+  awarded?: boolean;
+  awardedAt?: FirestoreTimestampString;
   createdAt: FirestoreTimestampString;
+  earnedPoints?: number;
+  idempotencyKey: string;
+  metadata?: Record<string, string | number | boolean | null>;
   moderatorNote?: string;
   ownerUid: string;
-  photoPath?: string;
+  payload: string;
   reviewedAt?: FirestoreTimestampString;
   reviewedBy?: string;
+  sourceId: string;
+  sourceType: SubmissionType;
   status: SubmissionStatus;
-  submittedAt?: FirestoreTimestampString;
-  taskId: string;
-  text?: string;
-  type: SubmissionType;
-  updatedAt: FirestoreTimestampString;
 };
 
 export type V2ScoreEventDoc = {
@@ -81,8 +85,8 @@ export type V2ScoreEventDoc = {
 
 export type V2LeaderboardDoc = {
   displayName: string;
+  pointsCurrent: number;
   rank?: number;
-  totalPoints: number;
   uid: string;
   updatedAt: FirestoreTimestampString;
 };

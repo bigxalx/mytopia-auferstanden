@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, StyleSheet, Switch, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { theme } from '@/src/shared/ui/theme';
+import { PrivacyManager } from '@/src/core/firebase/privacyManager';
 
 import { deleteCurrentUserAccount } from '@/src/core/firebase/accountDeletionClient';
 import { useSession } from '@/src/core/session/SessionContext';
@@ -33,10 +34,18 @@ export function ProfileScreen() {
   const [hasCopied, setHasCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
+
+  useEffect(() => {
+    void PrivacyManager.getConsent().then(setTelemetryEnabled);
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setRefreshTrigger((prev) => prev + 1);
+  }, []);
+  const handleMissionsRefreshComplete = useCallback(() => {
+    setRefreshing(false);
   }, []);
 
   const otaVersion = Constants.expoConfig?.extra?.otaVersion ?? Constants.expoConfig?.version ?? 'Unavailable';
@@ -132,6 +141,19 @@ export function ProfileScreen() {
     }
   }
 
+  const handleToggleTelemetry = async (value: boolean) => {
+    setTelemetryEnabled(value);
+    await PrivacyManager.setTelemetryConsent(value);
+
+    if (value) {
+      Alert.alert(
+        'Diagnose aktiviert',
+        'Vielen Dank! Damit die Änderungen vollständig übernommen werden, starte die App bitte einmal neu.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   return (
     <Screen 
       title="Profil" 
@@ -150,7 +172,7 @@ export function ProfileScreen() {
         userId={user.id} 
         mode={selectedMode} 
         refreshTrigger={refreshTrigger}
-        onRefreshComplete={() => setRefreshing(false)}
+        onRefreshComplete={handleMissionsRefreshComplete}
       />
 
       <SectionCard title="Account">
@@ -177,7 +199,22 @@ export function ProfileScreen() {
         </Pressable>
       </SectionCard>
 
-      <RankingSummaryCard user={user} />
+      <RankingSummaryCard user={user} refreshTrigger={refreshTrigger} />
+
+      <SectionCard title="Privatsphäre">
+        <View style={styles.switchRow}>
+          <View style={styles.switchTextContainer}>
+            <Text style={styles.label}>Crashberichte & Diagnose</Text>
+            <Text style={styles.body}>Hilf uns, die App zu verbessern, indem du anonyme Berichte bei App-Abstürzen teilst.</Text>
+          </View>
+          <Switch
+            value={telemetryEnabled}
+            onValueChange={handleToggleTelemetry}
+            trackColor={{ false: theme.colors.cardBorder, true: theme.colors.orange }}
+            thumbColor="#fff"
+          />
+        </View>
+      </SectionCard>
 
       {canUseDevMode ? (
         <SectionCard title="Mode">
@@ -332,6 +369,15 @@ const styles = StyleSheet.create({
   modeRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  switchRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  switchTextContainer: {
+    flex: 1,
+    marginRight: 15,
   },
   row: {
     flexDirection: 'row',

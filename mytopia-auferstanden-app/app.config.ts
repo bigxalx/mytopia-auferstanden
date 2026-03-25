@@ -7,7 +7,6 @@ const defaultAndroidGoogleServicesFile = 'secrets/firebase/google-services.json'
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const base = config as ExpoConfig;
-  console.log('[debug] app.config.ts running, base.extra:', JSON.stringify(base.extra, null, 2));
   const appEnv = process.env.EXPO_PUBLIC_APP_ENV ?? 'development';
   const isProduction = appEnv === 'production';
 

@@ -7,7 +7,7 @@ import { V2_COLLECTION } from '@/src/core/firestore/schema';
  * Real-time listener for a user's current season points from Firestore.
  * Returns `null` while loading or if no user doc exists.
  */
-export function useUserPoints(uid: string | undefined): number | null {
+export function useUserPoints(uid: string | undefined, refreshTrigger?: number): number | null {
     const [points, setPoints] = useState<number | null>(null);
 
     useEffect(() => {
@@ -41,7 +41,7 @@ export function useUserPoints(uid: string | undefined): number | null {
         );
 
         return () => unsubscribe();
-    }, [uid]);
+    }, [uid, refreshTrigger]);
 
     return points;
 }

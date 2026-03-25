@@ -1,6 +1,5 @@
 import { 
   getFirestore, 
-  collection as firestoreCollection, 
   doc, 
   getDoc, 
   setDoc,
@@ -20,6 +19,7 @@ export type SessionProfile = {
     rankSnapshot: number;
     totalPoints: number;
   };
+  pointsCurrent?: number;
 };
 
 export type SyncSessionProfileResult = {
@@ -192,6 +192,7 @@ function mapSessionProfile(data: V2UserDoc): SessionProfile {
           },
         }
       : {}),
+    pointsCurrent: data.pointsCurrent ?? 0,
   };
 }
 
@@ -343,4 +344,3 @@ function isPermissionDeniedError(error: unknown) {
   const code = (error as { code?: unknown }).code;
   return code === 'permission-denied' || code === 'firestore/permission-denied';
 }
-

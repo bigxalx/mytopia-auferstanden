@@ -4,7 +4,9 @@ import { initializeApp } from 'firebase-admin/app';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import { FieldValue, getFirestore, Timestamp, type DocumentData, type Query } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
+import { getStorage } from 'firebase-admin/storage';
 import { onRequest, type Request } from 'firebase-functions/v2/https';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 import { isValidSignature, SIGNATURE_HEADER_NAME } from '@sanity/webhook';
 
@@ -13,6 +15,7 @@ initializeApp();
 const firestore = getFirestore();
 const auth = getAuth();
 const messaging = getMessaging();
+const storage = getStorage();
 const tasksClient = new CloudTasksClient();
 const oidcClient = new OAuth2Client();
 
@@ -23,6 +26,38 @@ const V2_LEADERBOARD_COLLECTION_PATH = 'v2/app/leaderboard';
 const V2_SCORE_EVENTS_COLLECTION_PATH = 'v2/app/scoreEvents';
 const V2_SUBMISSIONS_COLLECTION_PATH = 'v2/app/submissions';
 const V2_USERS_COLLECTION_PATH = 'v2/app/users';
+
+/**
+ * Ensures a user's current points and display name are mirrored to the leaderboard collection.
+ * This should be called after any points update.
+ */
+async function syncUserToLeaderboard(uid: string) {
+  try {
+    const userRef = firestore.collection(V2_USERS_COLLECTION_PATH).doc(uid);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      logger.warn('syncUserToLeaderboard: user doc not found', { uid });
+      return;
+    }
+
+    const userData = userDoc.data()!;
+    const points = userData.pointsCurrent || 0;
+    const name = userData.displayName || 'Anonym';
+
+    const leadRef = firestore.collection(V2_LEADERBOARD_COLLECTION_PATH).doc(uid);
+    await leadRef.set({
+      uid,
+      displayName: name,
+      pointsCurrent: points,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logger.info('Leaderboard synced', { uid, points });
+  } catch (err) {
+    logger.error('Failed to sync leaderboard', { uid, error: err });
+  }
+}
+
 const SANITY_API_VERSION = 'v2025-02-19';
 const SANITY_BUNDLE_PROJECTION = `
   _id,
@@ -132,12 +167,15 @@ type FeedCursor = {
 type NarrativeMode = 'production' | 'dev';
 type NarrativeStateEventType = 'content_update' | 'release';
 
-type SanityBundleWebhookPayload = {
+type SanityWebhookPayload = {
   _id?: unknown;
+  _type?: unknown;
   documentId?: unknown;
+  operation?: unknown;
   ids?: {
     created?: unknown;
     updated?: unknown;
+    deleted?: unknown;
   };
 };
 
@@ -207,8 +245,8 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
     return;
   }
 
-  if (path === '/sanity/webhook/bundle-upsert') {
-    await handleSanityBundleUpsert(req, res);
+  if (path === '/sanity/webhook') {
+    await handleSanityWebhook(req, res);
     return;
   }
 
@@ -249,7 +287,7 @@ async function handleDeleteAccount(req: Request, res: FirebaseResponse) {
   }
 }
 
-async function handleSanityBundleUpsert(req: Request, res: FirebaseResponse) {
+async function handleSanityWebhook(req: Request, res: FirebaseResponse) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -258,23 +296,60 @@ async function handleSanityBundleUpsert(req: Request, res: FirebaseResponse) {
   try {
     await verifySanitySignature(req, env().sanityWebhookSecret);
     const mode = resolveMode(readQueryParam(req, 'mode'));
+    const payload = req.body as SanityWebhookPayload;
 
-    const bundleId = extractBundleId(req.body as SanityBundleWebhookPayload);
-    if (!bundleId) {
-      throw new HttpError(400, 'Unable to determine Sanity bundle ID from webhook payload.');
+    const docId = extractBundleId(payload);
+    const docType = typeof payload._type === 'string' ? payload._type : null;
+
+    if (!docId) {
+      throw new HttpError(400, 'Unable to determine document ID from webhook payload.');
     }
 
-    logger.info('sanityBundleUpsert received', {
-      bundleId,
+    logger.info('sanityWebhook received', {
+      docId,
+      docType,
       mode,
       sanityWebhookId: readHeader(req, 'x-sanity-webhook-id'),
     });
 
-    const bundle = await getBundleById(bundleId, mode);
+    const bundle = await getBundleById(docId, mode);
+
+    // If the document is not found, it's a deletion or unpublishing
     if (!bundle) {
-      await deleteReleaseTask(bundleId, mode);
-      logger.info('sanityBundleUpsert unpublished_ignored', { bundleId, mode });
-      res.status(200).json({ ok: true, action: 'unpublished_ignored', bundleId, mode });
+      if (docType === 'mission') {
+        const missionId = docId.replace(/^drafts\./, '');
+        logger.info('sanityWebhook mission_deleted', { missionId, mode });
+
+        const submissionsQuery = firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).where('sourceId', '==', missionId);
+        const submissionsSnapshot = await submissionsQuery.get();
+
+        const batch = firestore.batch();
+        const storageDeletes: Promise<any>[] = [];
+
+        for (const doc of submissionsSnapshot.docs) {
+          const data = doc.data();
+          if (data.sourceType === 'photo' && typeof data.payload === 'string' && data.payload.length > 0) {
+            storageDeletes.push(storage.bucket().file(data.payload).delete().catch(() => undefined));
+          }
+          batch.delete(doc.ref);
+        }
+
+        await Promise.all([batch.commit(), ...storageDeletes]);
+        res.status(200).json({ ok: true, action: 'mission_data_deleted', missionId });
+        return;
+      }
+
+      // Default behavior for narrativeBundle (and other types not explicitly handled)
+      await deleteReleaseTask(docId, mode);
+      logger.info('sanityWebhook document_deleted_or_unpublished', { docId, docType, mode });
+      res.status(200).json({ ok: true, action: 'deleted_or_unpublished', docId, mode });
+      return;
+    }
+
+    // From here on, we have a valid document (bundle or mission)
+    // If it's a mission, we don't have further logic yet for updates
+    if (docType === 'mission') {
+      res.status(200).json({ ok: true, action: 'mission_update_ignored', docId });
       return;
     }
 
@@ -300,6 +375,18 @@ async function handleSanityBundleUpsert(req: Request, res: FirebaseResponse) {
     }
 
     await upsertReleaseTask(bundle, mode);
+
+    // Write signal immediately so the app's Firestore listener detects the
+    // new bundle without waiting for the Cloud Task to fire. The feed API
+    // will only return it once releaseAt has passed, but the signal primes
+    // the app to refresh as soon as it becomes available.
+    await touchNarrativeState({
+      bundleId: bundle._id,
+      eventType: 'content_update',
+      mode,
+      releaseAt: bundle.releaseAt,
+    });
+
     logger.info('sanityBundleUpsert task_upserted', {
       bundleId: bundle._id,
       mode,
@@ -519,7 +606,7 @@ async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
 type MissionDto = {
   _id: string;
   active: boolean;
-  kind: 'gps' | 'quiz';
+  kind: 'gps' | 'quiz' | 'text' | 'photo';
   points: number;
   questions?: Array<{
     options: Array<{ isCorrect: boolean; text: string }>;
@@ -538,6 +625,16 @@ export const missionApi = onRequest({ cors: true, region: 'europe-west1' }, asyn
 
   if (path === '/gps/complete') {
     await handleGpsComplete(req, res);
+    return;
+  }
+
+  if (path === '/text/submit') {
+    await handleTextSubmit(req, res);
+    return;
+  }
+
+  if (path === '/photo/submit') {
+    await handlePhotoSubmit(req, res);
     return;
   }
 
@@ -660,6 +757,7 @@ async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     }, { merge: true });
 
     await batch.commit();
+    await syncUserToLeaderboard(uid);
 
     logger.info('quizComplete scored', { correct: correctCount, earned, missionId, total: questions.length, uid });
 
@@ -758,6 +856,7 @@ async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     }, { merge: true });
 
     await batch.commit();
+    await syncUserToLeaderboard(uid);
 
     logger.info('gpsComplete scored', { earned, missionId, uid });
 
@@ -767,6 +866,150 @@ async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     });
   } catch (error) {
     logger.error('gpsComplete failed', error);
+    sendError(res, error);
+  }
+}
+
+async function handleTextSubmit(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+    const uid = decodedToken.uid;
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
+    }
+
+    const body = req.body as { missionId?: string; text?: string } | undefined;
+    const missionId = body?.missionId;
+    const text = body?.text?.trim();
+
+    if (typeof missionId !== 'string' || !missionId) {
+      throw new HttpError(400, 'Missing missionId.');
+    }
+
+    if (typeof text !== 'string' || !text) {
+      throw new HttpError(400, 'Missing text payload.');
+    }
+
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active }`;
+    const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
+
+    if (!mission) {
+      throw new HttpError(404, 'Mission not found.');
+    }
+
+    if (!mission.active) {
+      throw new HttpError(400, 'Mission is not active.');
+    }
+
+    if (mission.kind !== 'text') {
+      throw new HttpError(400, 'Mission is not a text mission.');
+    }
+
+    const idempotencyKey = `text:${missionId}:${uid}`;
+    const submissionRef = firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).doc(idempotencyKey);
+
+    const doc = await submissionRef.get();
+    if (doc.exists) {
+      res.status(200).json({ action: 'already_submitted' });
+      return;
+    }
+
+    await submissionRef.set({
+      createdAt: FieldValue.serverTimestamp(),
+      idempotencyKey,
+      metadata: {
+        missionTitle: mission.title,
+      },
+      ownerUid: uid,
+      payload: text,
+      sourceId: missionId,
+      sourceType: 'text',
+      status: 'pending',
+    });
+
+    logger.info('textSubmit queued', { missionId, uid });
+    res.status(200).json({ action: 'submitted' });
+  } catch (error) {
+    logger.error('textSubmit failed', error);
+    sendError(res, error);
+  }
+}
+
+async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+    const uid = decodedToken.uid;
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
+    }
+
+    const body = req.body as { missionId?: string; photoPath?: string } | undefined;
+    const missionId = body?.missionId;
+    const photoPath = body?.photoPath?.trim();
+
+    if (typeof missionId !== 'string' || !missionId) {
+      throw new HttpError(400, 'Missing missionId.');
+    }
+
+    if (typeof photoPath !== 'string' || !photoPath) {
+      throw new HttpError(400, 'Missing photoPath payload.');
+    }
+
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active }`;
+    const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
+
+    if (!mission) {
+      throw new HttpError(404, 'Mission not found.');
+    }
+
+    if (!mission.active) {
+      throw new HttpError(400, 'Mission is not active.');
+    }
+
+    if (mission.kind !== 'photo') {
+      throw new HttpError(400, 'Mission is not a photo mission.');
+    }
+
+    const idempotencyKey = `photo:${missionId}:${uid}`;
+    const submissionRef = firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).doc(idempotencyKey);
+
+    const doc = await submissionRef.get();
+    if (doc.exists) {
+      res.status(200).json({ action: 'already_submitted' });
+      return;
+    }
+
+    await submissionRef.set({
+      createdAt: FieldValue.serverTimestamp(),
+      idempotencyKey,
+      metadata: {
+        missionTitle: mission.title,
+      },
+      ownerUid: uid,
+      payload: photoPath,
+      sourceId: missionId,
+      sourceType: 'photo',
+      status: 'pending',
+    });
+
+    logger.info('photoSubmit queued', { missionId, uid });
+    res.status(200).json({ action: 'submitted' });
+  } catch (error) {
+    logger.error('photoSubmit failed', error);
     sendError(res, error);
   }
 }
@@ -794,6 +1037,7 @@ async function deleteAccountData(uid: string) {
     deleteDocumentsByQuery(firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).where('ownerUid', '==', uid)),
     deleteDocumentsByQuery(firestore.collection(V2_SCORE_EVENTS_COLLECTION_PATH).where('uid', '==', uid)),
     deleteDocumentsByQuery(firestore.collection(V2_LEADERBOARD_COLLECTION_PATH).where('uid', '==', uid)),
+    storage.bucket().deleteFiles({ prefix: `submissions/${uid}/` }).catch(() => undefined),
   ]);
 }
 
@@ -903,7 +1147,7 @@ async function verifyCloudTaskInvocation(req: Request) {
   }
 }
 
-function extractBundleId(payload: SanityBundleWebhookPayload | null | undefined): string | null {
+function extractBundleId(payload: SanityWebhookPayload | null | undefined): string | null {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
@@ -1365,4 +1609,140 @@ function formatError(error: unknown) {
     return error.message;
   }
   return String(error);
+}
+
+export const submissionModerated = onDocumentUpdated(
+  {
+    document: `${V2_SUBMISSIONS_COLLECTION_PATH}/{submissionId}`,
+    region: 'europe-west1',
+  },
+  async (event) => {
+    const docBefore = event.data?.before;
+    const docAfter = event.data?.after;
+
+    if (!docBefore || !docAfter) return;
+
+    const beforeStatus = docBefore.data().status;
+    const afterData = docAfter.data();
+    const afterStatus = afterData.status;
+
+    if (beforeStatus !== 'approved' && afterStatus === 'approved') {
+      const earnedPoints = Number(afterData.earnedPoints);
+      if (!Number.isFinite(earnedPoints) || earnedPoints <= 0) {
+        logger.warn('Approved submission without valid earnedPoints', { submissionId: event.params.submissionId });
+        return;
+      }
+
+      if (afterData.awarded) {
+        return; // Already awarded
+      }
+
+      const uid = afterData.ownerUid;
+      const missionId = afterData.sourceId;
+      const sourceType = afterData.sourceType as 'text' | 'photo';
+      const submitIdempotencyKey = afterData.idempotencyKey;
+
+      const awardIdempotencyKey = `award:${submitIdempotencyKey}`;
+      const eventRef = firestore.collection(V2_SCORE_EVENTS_COLLECTION_PATH).doc(awardIdempotencyKey);
+      const userRef = firestore.collection(V2_USERS_COLLECTION_PATH).doc(uid);
+      const submissionRef = docAfter.ref;
+
+      const batch = firestore.batch();
+
+      batch.set(eventRef, {
+        createdAt: FieldValue.serverTimestamp(),
+        createdBy: 'system',
+        delta: earnedPoints,
+        idempotencyKey: awardIdempotencyKey,
+        metadata: {
+          missionTitle: afterData.metadata?.missionTitle ?? 'Unbekannt',
+        },
+        reason: `${sourceType}_approved`,
+        sourceId: missionId,
+        sourceType,
+        uid,
+      });
+
+      batch.set(userRef, {
+        uid,
+        pointsCurrent: FieldValue.increment(earnedPoints),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      batch.set(submissionRef, {
+        awarded: true,
+        awardedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      await batch.commit();
+      await syncUserToLeaderboard(uid);
+
+      logger.info('submission approved and scored', { earnedPoints, missionId, uid, submissionId: event.params.submissionId });
+
+      // Send targeted notification
+      const missionTitle = afterData.metadata?.missionTitle ?? 'Unbekannt';
+      await sendTargetedNotification(uid, {
+        title: 'Mission bestätigt!',
+        body: `Deine Mission "${missionTitle}" wurde bestätigt. Du hast ${earnedPoints} Punkte erhalten.`,
+      }, {
+        type: 'submission_approved',
+        missionId,
+      });
+    } else if (beforeStatus !== 'rejected' && afterStatus === 'rejected') {
+      const uid = afterData.ownerUid;
+      const missionId = afterData.sourceId;
+      const missionTitle = afterData.metadata?.missionTitle ?? 'Unbekannt';
+
+      logger.info('submission rejected', { missionId, uid, submissionId: event.params.submissionId });
+
+      await sendTargetedNotification(uid, {
+        title: 'Mission leider nicht bestätigt',
+        body: `Deine Mission "${missionTitle}" konnte leider nicht bestätigt werden.`,
+      }, {
+        type: 'submission_rejected',
+        missionId,
+      });
+    }
+  }
+);
+
+const V2_FCM_REGISTRATIONS_COLLECTION_PATH = 'v2/app/fcmRegistrations';
+
+/**
+ * Sends a targeted push notification to all registered FCM tokens of a specific user.
+ */
+async function sendTargetedNotification(uid: string, notification: { title: string; body: string }, data?: Record<string, string>) {
+  try {
+    const regRef = firestore.collection(V2_FCM_REGISTRATIONS_COLLECTION_PATH).doc(uid);
+    const regDoc = await regRef.get();
+    if (!regDoc.exists) {
+      logger.info('sendTargetedNotification: no registration doc for user', { uid });
+      return;
+    }
+
+    const regData = regDoc.data()!;
+    const tokens = regData.fcmTokens;
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      logger.info('sendTargetedNotification: No FCM tokens for user', { uid });
+      return;
+    }
+
+    // Filter out potential non-string tokens if any corrupted data exists
+    const validTokens = tokens.filter((t): t is string => typeof t === 'string' && t.length > 0);
+    if (validTokens.length === 0) return;
+
+    const response = await messaging.sendEachForMulticast({
+      tokens: validTokens,
+      notification,
+      data: data || {},
+    });
+
+    logger.info('Targeted notification sent', {
+      uid,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+    });
+  } catch (err) {
+    logger.error('Failed to send targeted notification', { uid, error: err });
+  }
 }

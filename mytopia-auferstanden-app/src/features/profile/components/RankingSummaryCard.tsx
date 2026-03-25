@@ -1,16 +1,18 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 
-import { SessionUser } from '@/src/core/session/SessionContext';
+import { useSession, type SessionUser } from '@/src/core/session/SessionContext';
 import { useUserPoints } from '@/src/features/tasks/data/useUserPoints';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 
 type RankingSummaryCardProps = {
   user: SessionUser;
+  refreshTrigger?: number;
 };
 
-export function RankingSummaryCard({ user }: RankingSummaryCardProps) {
-  const points = useUserPoints(user.id);
+export function RankingSummaryCard({ user, refreshTrigger }: RankingSummaryCardProps) {
+  const { selectedMode } = useSession();
+  const points = useUserPoints(user.id, refreshTrigger);
 
   return (
     <SectionCard title="Ranking">
@@ -20,9 +22,16 @@ export function RankingSummaryCard({ user }: RankingSummaryCardProps) {
           {points !== null ? points : '—'}
         </Text>
       </View>
-      {user.legacySummary ? (
+
+      {selectedMode === 'dev' && user.legacySummary ? (
         <>
           <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.labelSmall}>Aktuelle Saison</Text>
+            <Text style={styles.valueSmall}>
+              {points !== null ? points : '—'}
+            </Text>
+          </View>
           <View style={styles.row}>
             <Text style={styles.labelSmall}>Legacy Rang</Text>
             <Text style={styles.valueSmall}>
@@ -75,4 +84,3 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 });
-

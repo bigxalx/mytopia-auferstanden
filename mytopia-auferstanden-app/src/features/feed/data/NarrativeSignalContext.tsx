@@ -2,6 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 import { useSession } from '@/src/core/session/SessionContext';
+import { subscribeToForegroundNarrativeMessages } from '@/src/core/firebase/messagingClient';
+import {
+  fetchNarrativeFeedPage,
+} from '@/src/features/feed/data/narrativeFeedClient';
 import {
   subscribeNarrativeSignal,
   type NarrativeStatePulse,
@@ -9,19 +13,24 @@ import {
 
 interface NarrativeSignalContextValue {
   hasUnreadNarrative: boolean;
+  unreadCount: number;
   markAsRead: () => Promise<void>;
   pulse: NarrativeStatePulse | null;
+  refreshKey: number;
 }
 
 const NarrativeSignalContext = createContext<NarrativeSignalContextValue>({
   hasUnreadNarrative: false,
+  unreadCount: 0,
   markAsRead: async () => {},
   pulse: null,
+  refreshKey: 0,
 });
 
 export const useNarrativeSignal = () => useContext(NarrativeSignalContext);
 
 const LAST_SEEN_TOKEN_KEY = 'mytopia_last_seen_narrative_token';
+const LAST_SEEN_TIME_KEY = 'mytopia_last_seen_narrative_time';
 
 export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -29,14 +38,22 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
   const { isHydrated, selectedMode, shouldShowWelcomeBack, user } = useSession();
   const [pulse, setPulse] = useState<NarrativeStatePulse | null>(null);
   const [lastSeenToken, setLastSeenToken] = useState<string | null>(null);
+  const [lastSeenTime, setLastSeenTime] = useState<number>(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
+  // Load persistence on mount
   useEffect(() => {
-    // Load last seen token
-    AsyncStorage.getItem(LAST_SEEN_TOKEN_KEY).then((token) => {
+    Promise.all([
+      AsyncStorage.getItem(LAST_SEEN_TOKEN_KEY),
+      AsyncStorage.getItem(LAST_SEEN_TIME_KEY),
+    ]).then(([token, timeStr]) => {
       if (token) setLastSeenToken(token);
+      if (timeStr) setLastSeenTime(parseInt(timeStr, 10) || 0);
     });
   }, []);
 
+  // Firestore signal listener
   useEffect(() => {
     if (!isHydrated || !user || shouldShowWelcomeBack) return;
 
@@ -54,17 +71,87 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
     };
   }, [isHydrated, user, shouldShowWelcomeBack, selectedMode]);
 
-  const hasUnreadNarrative = pulse !== null && pulse.token !== lastSeenToken;
+  // FCM foreground message listener
+  useEffect(() => {
+    if (!isHydrated || !user || shouldShowWelcomeBack) return;
+
+    const unsubscribe = subscribeToForegroundNarrativeMessages(() => {
+      setRefreshKey((k) => k + 1);
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [isHydrated, user, shouldShowWelcomeBack]);
+
+  // Update unread count when pulse or lastSeenTime changes
+  useEffect(() => {
+    if (!isHydrated || !user || shouldShowWelcomeBack || !pulse) return;
+
+    // If the pulse token matches our last seen perfectly, count is definitely 0
+    if (pulse.token === lastSeenToken) {
+      setUnreadCount(0);
+      return;
+    }
+
+    // Otherwise, fetch the current state to count unread messages
+    let isCancelled = false;
+
+    fetchNarrativeFeedPage({ limit: 20, mode: selectedMode })
+      .then((page) => {
+        if (isCancelled) return;
+
+        // Count messages released after lastSeenTime
+        let count = 0;
+        for (const bundle of page.bundles) {
+          const bundleTime = Date.parse(bundle.releaseAt);
+          if (isNaN(bundleTime)) continue;
+
+          // If entire bundle is older than last seen, skip
+          if (bundleTime <= lastSeenTime) continue;
+
+          // If child messages have their own delay logic, strictly we should
+          // respect buildPlaybackMessages, but for badge count,
+          // "bundle is newer" is usually sufficient and more robust.
+          count += bundle.messages.length;
+        }
+        setUnreadCount(count);
+      })
+      .catch((err) => {
+        console.warn('[NarrativeSignal] Failed to fetch unread count', err);
+      });
+
+    return () => { isCancelled = true; };
+  }, [pulse, lastSeenToken, lastSeenTime, isHydrated, user, shouldShowWelcomeBack, selectedMode]);
+
+  const hasUnreadNarrative = unreadCount > 0 || (pulse !== null && pulse.token !== lastSeenToken);
 
   const markAsRead = async () => {
-    if (pulse?.token && pulse.token !== lastSeenToken) {
-      setLastSeenToken(pulse.token);
-      await AsyncStorage.setItem(LAST_SEEN_TOKEN_KEY, pulse.token);
+    const now = Date.now();
+    const token = pulse?.token;
+
+    setLastSeenTime(now);
+    setUnreadCount(0);
+    if (token) {
+      setLastSeenToken(token);
     }
+
+    await Promise.all([
+      AsyncStorage.setItem(LAST_SEEN_TIME_KEY, now.toString()),
+      token ? AsyncStorage.setItem(LAST_SEEN_TOKEN_KEY, token) : Promise.resolve(),
+    ]);
   };
 
   return (
-    <NarrativeSignalContext.Provider value={{ hasUnreadNarrative, markAsRead, pulse }}>
+    <NarrativeSignalContext.Provider value={{
+      hasUnreadNarrative,
+      unreadCount,
+      markAsRead,
+      pulse,
+      refreshKey,
+    }}>
       {children}
     </NarrativeSignalContext.Provider>
   );

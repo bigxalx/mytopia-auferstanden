@@ -110,6 +110,8 @@ export const mission = defineType({
                 list: [
                     { title: 'Quiz', value: 'quiz' },
                     { title: 'GPS', value: 'gps' },
+                    { title: 'Text', value: 'text' },
+                    { title: 'Foto', value: 'photo' },
                 ],
                 layout: 'radio',
             },
@@ -213,7 +215,7 @@ export const mission = defineType({
             active: 'active',
         },
         prepare(selection) {
-            const kindLabel = selection.kind === 'quiz' ? '🧠 Quiz' : selection.kind === 'gps' ? '📍 GPS' : '❓';
+            const kindLabel = selection.kind === 'quiz' ? '🧠 Quiz' : selection.kind === 'gps' ? '📍 GPS' : selection.kind === 'text' ? '📝 Text' : selection.kind === 'photo' ? '📸 Foto' : '❓';
             const status = selection.active ? '' : ' (inaktiv)';
             return {
                 title: selection.title || 'Unbenannte Mission',

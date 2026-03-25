@@ -48,6 +48,8 @@ google-services.json
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/test_output/
+resolved_config.json
+tmp_resized/
 
 # typescript
 *.tsbuildinfo

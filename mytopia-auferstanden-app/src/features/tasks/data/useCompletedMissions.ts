@@ -7,7 +7,7 @@ import { V2_COLLECTION } from '@/src/core/firestore/schema';
  * Real-time listener for a user's completed missions from scoreEvents.
  * Returns an array of mission IDs.
  */
-export function useCompletedMissions(uid: string | undefined): string[] {
+export function useCompletedMissions(uid: string | undefined, refreshTrigger?: number): string[] {
     const [completedIds, setCompletedIds] = useState<string[]>([]);
 
     useEffect(() => {
@@ -27,7 +27,7 @@ export function useCompletedMissions(uid: string | undefined): string[] {
                 snapshot.forEach((doc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => {
                     const data = doc.data();
                     // Depending on schema, we check sourceType or reason to identify missions
-                    if ((data.sourceType === 'quiz' || data.sourceType === 'gps') && typeof data.sourceId === 'string') {
+                    if (['quiz', 'gps', 'text', 'photo'].includes(data.sourceType) && typeof data.sourceId === 'string') {
                         ids.push(data.sourceId);
                     }
                 });
@@ -40,7 +40,7 @@ export function useCompletedMissions(uid: string | undefined): string[] {
         );
 
         return () => unsubscribe();
-    }, [uid]);
+    }, [uid, refreshTrigger]);
 
     return completedIds;
 }

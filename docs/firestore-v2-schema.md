@@ -40,9 +40,16 @@ System collection:
 
 `v2/app/submissions/{submissionId}`:
 
-- User-owned text/photo submission.
-- User can create/update while `status` is `draft` or `pending`.
-- Moderation fields (`reviewedBy`, `reviewedAt`, `moderatorNote`, approval/rejection) are moderator/admin controlled.
+- Backend-created text/photo submission keyed by mission + user idempotency.
+- Canonical fields:
+  - `ownerUid`,
+  - `sourceId`,
+  - `sourceType` (`text` or `photo`),
+  - `payload` (text body or `gs://` storage path),
+  - `status` (`pending`, `approved`, `rejected`),
+  - `metadata.missionTitle`,
+  - optional moderation fields such as `reviewedBy`, `reviewedAt`, `moderatorNote`, `earnedPoints`, `awarded`, `awardedAt`.
+- Clients read their own submissions, but writes happen through backend endpoints and moderator/admin workflows only.
 
 `v2/app/scoreEvents/{eventId}`:
 
@@ -53,6 +60,7 @@ System collection:
 `v2/app/leaderboard/{uid}`:
 
 - Denormalized read model for ranking.
+- Mirrored from `users.pointsCurrent`.
 - Client read-only; updated by backend workflows.
 
 `v2/app/narrativeState/{bundleId}`:
@@ -90,14 +98,13 @@ System collection:
 
 Implemented in:
 
-- `mytopia-auferstanden-app/firebase/firestore.rules`
+- `mytopia-functions/firestore.rules`
 
 Key policy:
 
 1. Authenticated users can only write:
-   - their own `v2/app/users/{uid}` profile-safe fields,
-   - their own `v2/app/submissions/*` in `draft/pending`.
-2. Moderation/scoring writes require moderator/admin claims.
+   - their own `v2/app/users/{uid}` profile-safe fields.
+2. Submission writes require moderator/admin claims because user submission creation goes through Cloud Functions.
 3. `v2/app/scoreEvents` are immutable after creation.
 4. `v2/app/leaderboard` is client read-only.
 5. Non-`v2` access is denied by default in this rules baseline.
@@ -106,13 +113,13 @@ Key policy:
 
 Implemented in:
 
-- `mytopia-auferstanden-app/firebase/firestore.indexes.json`
+- `mytopia-functions/firestore.indexes.json`
 
 Includes indexes for:
 
 1. `submissions` by owner + time.
 2. `submissions` by status + time.
-3. `submissions` by task + status + time.
+3. `submissions` by source mission + status + time.
 4. `scoreEvents` by user + time.
 5. `leaderboard` by points + update time.
 

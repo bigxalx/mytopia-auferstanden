@@ -3,8 +3,10 @@ import { Link } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 
+import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
+import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import type { AppMode } from '@/src/core/session/appMode';
 
@@ -15,10 +17,9 @@ type MissionsCardProps = {
   onRefreshComplete?: () => void;
 };
 
-import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-
 export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }: MissionsCardProps) {
-  const completedMissions = useCompletedMissions(userId);
+  const completedMissions = useCompletedMissions(userId, refreshTrigger);
+  const submissionStates = useMissionSubmissionStates(userId, refreshTrigger);
   const { pulse } = useNarrativeSignal();
   const [missions, setMissions] = useState<MissionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +44,7 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
 
     load();
     return () => { active = false; };
-  }, [mode, refreshTrigger, pulse?.token]);
+  }, [mode, onRefreshComplete, refreshTrigger, pulse?.token]);
 
   if (isLoading) {
     return (
@@ -76,17 +77,25 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
     <SectionCard title="Missionen">
       {missions.map((mission) => {
         const isCompleted = completedMissions.includes(mission._id);
+        const submissionState = submissionStates[mission._id];
+        const isPending = !isCompleted && submissionState?.status === 'pending';
+        const isRejected = !isCompleted && submissionState?.status === 'rejected';
+        const isDone = isCompleted || isPending;
+
         return (
           <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
-            <Pressable style={[styles.row, isCompleted && styles.rowCompleted]}>
+            <Pressable style={[styles.row, isDone ? styles.rowCompleted : null, isRejected ? styles.rowRejected : null]}>
               <View style={styles.rowHeader}>
                 <Text style={styles.kindBadge}>
-                  {mission.kind === 'quiz' ? '🧠' : '📍'}
+                  {mission.kind === 'quiz' ? '🧠' : mission.kind === 'gps' ? '📍' : mission.kind === 'text' ? '📝' : mission.kind === 'photo' ? '📸' : '❓'}
                 </Text>
-                <Text style={styles.rowTitle}>{mission.title} {isCompleted ? '✅' : ''}</Text>
+                <Text style={styles.rowTitle}>
+                  {mission.title} {isCompleted ? '✅' : isPending ? '⏳' : isRejected ? '❌' : ''}
+                </Text>
               </View>
               <Text style={styles.rowMeta}>
-                {mission.kind === 'quiz' ? 'Quiz' : 'GPS'} · {mission.points} Punkte
+                {mission.kind === 'quiz' ? 'Quiz' : mission.kind === 'gps' ? 'GPS' : mission.kind === 'text' ? 'Text' : mission.kind === 'photo' ? 'Foto' : mission.kind} · {mission.points} Punkte
+                {isCompleted ? ' · Abgeschlossen' : isPending ? ' · Wird überprüft' : isRejected ? ' · Nicht bestätigt' : ''}
                 {mission.kind === 'quiz' && mission.questionCount
                   ? ` · ${mission.questionCount} Fragen`
                   : ''}
@@ -132,6 +141,10 @@ const styles = StyleSheet.create({
   },
   rowCompleted: {
     backgroundColor: theme.colors.cardSubtleBackground,
+  },
+  rowRejected: {
+    backgroundColor: theme.colors.errorSurface,
+    borderColor: theme.colors.errorBorder,
   },
   rowHeader: {
     alignItems: 'center',

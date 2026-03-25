@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
+import * as ExpoUpdates from 'expo-updates';
 
 import { createExpoUpdateHeaders, type ExpoUpdateChannel } from '@/src/core/updates/expoUpdateChannel';
-
-type ExpoUpdatesModule = typeof import('expo-updates');
 
 export type ExpoUpdatesState = {
   currentlyRunning: {
@@ -14,7 +13,6 @@ export type ExpoUpdatesState = {
   isUpdatePending: boolean;
 };
 
-const expoUpdatesModule = loadExpoUpdatesModule();
 const fallbackUpdatesState: ExpoUpdatesState = {
   currentlyRunning: {
     isEmbeddedLaunch: true,
@@ -25,17 +23,8 @@ const fallbackUpdatesState: ExpoUpdatesState = {
   isUpdatePending: false,
 };
 
-function loadExpoUpdatesModule(): ExpoUpdatesModule | null {
-  try {
-    return require('expo-updates') as ExpoUpdatesModule;
-  } catch (error) {
-    console.warn('[updates] expo-updates native module is unavailable in this build.', error);
-    return null;
-  }
-}
-
 export function useExpoUpdatesState(): ExpoUpdatesState {
-  const state = expoUpdatesModule?.useUpdates?.();
+  const state = ExpoUpdates.useUpdates();
 
   return useMemo(() => {
     if (!state) {
@@ -55,20 +44,20 @@ export function useExpoUpdatesState(): ExpoUpdatesState {
 }
 
 export function isExpoUpdatesEnabled() {
-  return expoUpdatesModule?.isEnabled ?? false;
+  return ExpoUpdates.isEnabled;
 }
 
 export function getExpoRuntimeVersion() {
-  return expoUpdatesModule?.runtimeVersion ?? null;
+  return ExpoUpdates.runtimeVersion ?? null;
 }
 
 export function setRequestedExpoUpdateChannel(channel: ExpoUpdateChannel) {
-  if (!expoUpdatesModule?.isEnabled) {
+  if (!ExpoUpdates.isEnabled) {
     return false;
   }
 
   try {
-    expoUpdatesModule.setUpdateRequestHeadersOverride(createExpoUpdateHeaders(channel));
+    ExpoUpdates.setUpdateRequestHeadersOverride(createExpoUpdateHeaders(channel));
     return true;
   } catch (error) {
     if (isDevBuildError(error)) {
@@ -80,19 +69,19 @@ export function setRequestedExpoUpdateChannel(channel: ExpoUpdateChannel) {
 }
 
 export async function checkAndFetchExpoUpdate(channel: ExpoUpdateChannel) {
-  if (!expoUpdatesModule?.isEnabled) {
+  if (!ExpoUpdates.isEnabled) {
     return false;
   }
 
   setRequestedExpoUpdateChannel(channel);
 
   try {
-    const result = await expoUpdatesModule.checkForUpdateAsync();
+    const result = await ExpoUpdates.checkForUpdateAsync();
     if (!result.isAvailable) {
       return false;
     }
 
-    await expoUpdatesModule.fetchUpdateAsync();
+    await ExpoUpdates.fetchUpdateAsync();
     return true;
   } catch (error) {
     if (isDevBuildError(error)) {
@@ -104,11 +93,11 @@ export async function checkAndFetchExpoUpdate(channel: ExpoUpdateChannel) {
 }
 
 export async function reloadToApplyExpoUpdate() {
-  if (!expoUpdatesModule?.isEnabled) {
+  if (!ExpoUpdates.isEnabled) {
     return false;
   }
 
-  await expoUpdatesModule.reloadAsync();
+  await ExpoUpdates.reloadAsync();
   return true;
 }
 

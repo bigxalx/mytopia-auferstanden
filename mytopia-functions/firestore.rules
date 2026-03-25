@@ -81,32 +81,6 @@ service cloud.firestore {
         ]);
     }
 
-    function isAllowedUserSubmissionPayload(data) {
-      return hasOnlyKeys(data, [
-          'ownerUid',
-          'taskId',
-          'type',
-          'status',
-          'text',
-          'photoPath',
-          'createdAt',
-          'updatedAt',
-          'submittedAt'
-        ])
-        && hasRequiredKeys(data, [
-          'ownerUid',
-          'taskId',
-          'type',
-          'status',
-          'createdAt',
-          'updatedAt'
-        ])
-        && data.ownerUid is string
-        && data.taskId is string
-        && data.type in ['text', 'photo']
-        && data.status in ['draft', 'pending'];
-    }
-
     function isAllowedScoreEvent(eventId) {
       return hasOnlyKeys(request.resource.data, [
           'uid',
@@ -133,12 +107,15 @@ service cloud.firestore {
         && request.resource.data.delta is int
         && request.resource.data.delta != 0
         && request.resource.data.reason in [
-          'task_approved',
+          'text_approved',
+          'photo_approved',
           'moderation_penalty',
+          'quiz_completed',
+          'gps_completed',
           'legacy_import',
           'manual_adjustment'
         ]
-        && request.resource.data.sourceType in ['submission', 'import', 'admin']
+        && request.resource.data.sourceType in ['submission', 'quiz', 'gps', 'text', 'photo', 'import', 'admin']
         && request.resource.data.sourceId is string
         && request.resource.data.idempotencyKey is string
         && request.resource.data.idempotencyKey.size() > 0
@@ -177,21 +154,7 @@ service cloud.firestore {
 
     match /v2/app/submissions/{submissionId} {
       allow read: if isModerator() || isSubmissionOwner(resource.data);
-      allow create: if isModerator()
-        || (isSubmissionOwner(request.resource.data) && isAllowedUserSubmissionPayload(request.resource.data));
-      allow update: if isModerator()
-        || (
-          isSubmissionOwner(resource.data)
-          && isSubmissionOwner(request.resource.data)
-          && isAllowedUserSubmissionPayload(request.resource.data)
-          && resource.data.status in ['draft', 'pending']
-          && request.resource.data.status in ['draft', 'pending']
-          && request.resource.data.taskId == resource.data.taskId
-          && request.resource.data.type == resource.data.type
-          && request.resource.data.createdAt == resource.data.createdAt
-        );
-      allow delete: if isModerator()
-        || (isSubmissionOwner(resource.data) && resource.data.status in ['draft', 'pending']);
+      allow create, update, delete: if isModerator();
     }
 
     match /v2/app/scoreEvents/{eventId} {
@@ -213,6 +176,10 @@ service cloud.firestore {
     match /v2/app/narrativeStateDev/{bundleId} {
       allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    match /v2/app/fcmRegistrations/{uid} {
+      allow read, write: if isOwner(uid);
     }
 
     // Legacy app namespace (currently deployed in production).

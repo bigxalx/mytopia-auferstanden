@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
@@ -8,20 +8,27 @@ import {
   fetchMissions,
   submitGpsCompletion,
   submitQuizCompletion,
+  submitTextMission,
+  submitPhotoMission,
   type MissionListItem,
 } from '@/src/features/tasks/data/missionRepository';
 import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
+import { TextRunner } from '@/src/features/tasks/components/TextRunner';
+import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
+import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 
 export function TaskDetailScreen() {
+  const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { canUseDevMode, user, selectedMode } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
+  const submissionStates = useMissionSubmissionStates(user?.id);
   const [mission, setMission] = useState<MissionListItem | null>(null);
-  const [quizQuestions, setQuizQuestions] = useState<Array<{ questionText: string; options: string[] }> | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<{ questionText: string; options: string[] }[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +73,40 @@ export function TaskDetailScreen() {
     return { earned: result.earned };
   }, [mission, selectedMode]);
 
+  const handleTextComplete = useCallback(async (text: string) => {
+    if (!mission) throw new Error('Mission not loaded.');
+    const result = await submitTextMission(mission._id, text, selectedMode);
+
+    if (result.action === 'submitted') {
+      Alert.alert('Erfolgreich', 'Dein Beitrag wurde eingereicht und wird geprüft.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    } else {
+      Alert.alert('Hinweis', 'Du hast diese Mission bereits eingereicht.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    }
+
+    return { action: result.action };
+  }, [mission, selectedMode, router]);
+
+  const handlePhotoComplete = useCallback(async (photoUri: string) => {
+    if (!mission) throw new Error('Mission not loaded.');
+    const result = await submitPhotoMission(mission._id, photoUri, selectedMode);
+
+    if (result.action === 'submitted') {
+      Alert.alert('Erfolgreich', 'Dein Foto wurde eingereicht und wird geprüft.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    } else {
+      Alert.alert('Hinweis', 'Du hast diese Mission bereits eingereicht.', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+    }
+
+    return { action: result.action };
+  }, [mission, selectedMode, router]);
+
   if (isLoading) {
     return (
       <Screen title="Mission" subtitle="Wird geladen…">
@@ -97,7 +138,7 @@ export function TaskDetailScreen() {
   }
 
   return (
-    <Screen title={mission.title} subtitle={`${mission.points} Punkte · ${mission.kind === 'quiz' ? '🧠 Quiz' : '📍 GPS'}`}>
+    <Screen title={mission.title} subtitle={`${mission.points} Punkte · ${mission.kind === 'quiz' ? '🧠 Quiz' : mission.kind === 'gps' ? '📍 GPS' : mission.kind === 'text' ? '📝 Text' : mission.kind === 'photo' ? '📸 Foto' : '❓'}`}>
       {mission.description ? (
         <SectionCard title="Beschreibung">
           <Text style={styles.body}>{mission.description}</Text>
@@ -106,7 +147,19 @@ export function TaskDetailScreen() {
 
       {completedMissions.includes(mission._id) ? (
         <SectionCard title="Abgeschlossen">
-          <Text style={styles.body}>Mission beendet.</Text>
+          <Text style={styles.body}>Diese Mission hast du bereits erfolgreich abgeschlossen.</Text>
+        </SectionCard>
+      ) : submissionStates[mission._id]?.status === 'pending' ? (
+        <SectionCard title="Wird überprüft">
+          <Text style={styles.body}>Dein Beitrag wurde eingereicht und wird gerade von uns geprüft. Sobald er freigegeben ist, erhältst du deine Punkte!</Text>
+        </SectionCard>
+      ) : submissionStates[mission._id]?.status === 'rejected' ? (
+        <SectionCard title="Nicht bestätigt">
+          <Text style={styles.body}>
+            {submissionStates[mission._id]?.moderatorNote
+              ? `Dein Beitrag wurde nicht bestätigt: ${submissionStates[mission._id]?.moderatorNote}`
+              : 'Dein Beitrag wurde geprüft, aber nicht bestätigt.'}
+          </Text>
         </SectionCard>
       ) : mission.kind === 'quiz' && quizQuestions ? (
         <QuizRunner
@@ -137,6 +190,15 @@ export function TaskDetailScreen() {
         <SectionCard title="GPS-Check-in">
           <Text style={styles.body}>GPS-Konfiguration fehlt für diese Mission.</Text>
         </SectionCard>
+      ) : mission.kind === 'text' ? (
+        <TextRunner
+          onComplete={handleTextComplete}
+        />
+      ) : mission.kind === 'photo' ? (
+        <PhotoRunner
+          missionId={mission._id}
+          onComplete={handlePhotoComplete}
+        />
       ) : null}
 
       {canUseDevMode ? (

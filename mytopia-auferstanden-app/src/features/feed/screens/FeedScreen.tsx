@@ -2,20 +2,20 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
   Platform,
   Pressable,
-  RefreshControl,
   StyleSheet,
   Text,
   type TextStyle,
   View,
   type ViewStyle,
   type ImageStyle,
+  Animated,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
@@ -44,20 +44,21 @@ const TEXT_DELAY_MIN_MS = 1500;
 const TEXT_DELAY_MAX_MS = 12000;
 const ATTACHMENT_ONLY_DELAY_MS = 3500;
 
-function debugFeed(message: string, payload?: Record<string, unknown>) {
-  // Debug logging disabled
-}
-
 export function FeedScreen() {
   const { selectedMode, user } = useSession();
-  const { markAsRead, pulse } = useNarrativeSignal();
+  const { markAsRead, pulse, refreshKey } = useNarrativeSignal();
 
   const requestVersionRef = useRef(0);
   const activeInitialLoadsRef = useRef(0);
   const activeRefreshLoadsRef = useRef(0);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const latestSignalTokenRef = useRef<string | null>(null);
+  const initialRefreshKeyRef = useRef(refreshKey);
+  const flashListRef = useRef<any>(null);
+  const isAtBottomRef = useRef(true);
+  const prevVisibleCountRef = useRef(0);
 
+  const navigation = useNavigation<any>();
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [bundles, setBundles] = useState<NarrativeBundleDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -67,6 +68,8 @@ export function FeedScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [showNewMessagesBadge, setShowNewMessagesBadge] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
 
   const loadFirstPage = useCallback(
     async (mode: 'initial' | 'refresh' | 'silent') => {
@@ -182,6 +185,50 @@ export function FeedScreen() {
     [clockMs, playbackMessages]
   );
 
+  // FCM push notification triggered refresh
+  useEffect(() => {
+    if (refreshKey === initialRefreshKeyRef.current) return;
+    if (!user) return;
+    void loadFirstPage('silent');
+  }, [refreshKey, loadFirstPage, user]);
+
+  // Handle new messages badge visibility
+  useEffect(() => {
+    if (visibleMessages.length > prevVisibleCountRef.current) {
+      if (!isAtBottomRef.current) {
+        setShowNewMessagesBadge(true);
+      }
+      prevVisibleCountRef.current = visibleMessages.length;
+    }
+  }, [visibleMessages.length]);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: showNewMessagesBadge ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [showNewMessagesBadge, fadeAnim]);
+
+  const scrollToBottom = useCallback(() => {
+    // scrollToEnd is the most reliable way to animate on Android
+    // and correctly accounts for ListFooterComponent and container padding.
+    if (visibleMessages.length > 0) {
+      flashListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [visibleMessages.length]);
+
+  // Scroll to bottom when tapping the active tab
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', (e: any) => {
+      if (navigation.isFocused()) {
+        e.preventDefault();
+        scrollToBottom();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, scrollToBottom]);
+
   const imageSources = useMemo(() => {
     return visibleMessages
       .filter((m) => m.message.attachment?._type === 'imageAttachment')
@@ -290,16 +337,41 @@ export function FeedScreen() {
   return (
     <View style={styles.safeArea}>
       <FlashList
+        ref={flashListRef}
         data={visibleMessages}
         renderItem={renderItem}
-        style={styles.scrollView}
+        style={{ ...styles.scrollView, flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         onRefresh={() => void loadFirstPage('refresh')}
         refreshing={isRefreshing}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        drawDistance={1000}
+        onScroll={(event) => {
+          const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+          const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+          isAtBottomRef.current = isCloseToBottom;
+          if (isCloseToBottom && showNewMessagesBadge) {
+            setShowNewMessagesBadge(false);
+          }
+        }}
       />
+
+      <Animated.View style={[styles.newMessagesContainer, { opacity: fadeAnim, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }]}>
+        <Pressable
+          style={styles.newMessagesButton}
+          onPress={() => {
+            scrollToBottom();
+            setShowNewMessagesBadge(false);
+          }}>
+          <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ transform: [{ rotate: '90deg' }] }}>
+            <Path d="M6 12H18M18 12L13 7M18 12L13 17" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+          <Text style={styles.newMessagesText}>Neue Nachrichten</Text>
+        </Pressable>
+      </Animated.View>
 
       <ImageView
         images={imageSources}
@@ -529,8 +601,11 @@ function buildPlaybackMessages(bundles: NarrativeBundleDto[]): PlaybackMessage[]
 
 function resolveMessageDelayMs(message: NarrativeMessageDto) {
   const textLength = message.text?.trim().length ?? 0;
-  if (textLength > 0) return Math.max(1500, Math.min(12000, textLength * TEXT_DELAY_FACTOR_MS));
-  return message.attachment ? 3500 : 1500;
+  if (textLength > 0) {
+    return Math.max(TEXT_DELAY_MIN_MS, Math.min(TEXT_DELAY_MAX_MS, textLength * TEXT_DELAY_FACTOR_MS));
+  }
+
+  return message.attachment ? ATTACHMENT_ONLY_DELAY_MS : TEXT_DELAY_MIN_MS;
 }
 
 function getBundleReleaseMs(bundle: NarrativeBundleDto) {
@@ -608,4 +683,32 @@ const styles = StyleSheet.create({
   loadMoreButton: { alignItems: 'center', backgroundColor: theme.colors.orange, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 } as ViewStyle,
   loadMoreButtonDisabled: { opacity: 0.7 } as ViewStyle,
   loadMoreLabel: { color: theme.colors.cardTextPrimary, fontSize: 14, fontWeight: '700' } as TextStyle,
+  newMessagesContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 100,
+  } as ViewStyle,
+  newMessagesButton: {
+    backgroundColor: theme.colors.orange,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  } as ViewStyle,
+  newMessagesText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: 'Nunito_700Bold',
+  } as TextStyle,
 });

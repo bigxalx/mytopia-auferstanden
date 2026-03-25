@@ -1,0 +1,112 @@
+import { useState } from 'react';
+import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
+import { theme } from '@/src/shared/ui/theme';
+
+type TextRunnerProps = {
+  onComplete: (text: string) => Promise<{ action: string }>;
+};
+
+export function TextRunner({ onComplete }: TextRunnerProps) {
+  const [text, setText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (!text.trim()) {
+      setError('Bitte gib einen Text ein.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await onComplete(text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Senden.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Dein Beitrag</Text>
+
+      <TextInput
+        style={styles.input}
+        multiline
+        numberOfLines={6}
+        placeholder="Schreibe hier deinen Text..."
+        placeholderTextColor={theme.colors.textSecondary}
+        value={text}
+        onChangeText={setText}
+        editable={!isSubmitting}
+      />
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <Pressable
+          disabled={isSubmitting || !text.trim()}
+          onPress={handleSubmit}
+          style={[styles.actionButton, styles.submitButton, (isSubmitting || !text.trim()) ? styles.actionButtonDisabled : null]}
+      >
+          <Text style={styles.actionButtonText}>
+              {isSubmitting ? 'Wird gesendet...' : 'Einreichen'}
+          </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  actionButton: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.cardSubtleBackground,
+      borderColor: theme.colors.cardBorder,
+      borderRadius: 10,
+      borderWidth: 1,
+      paddingVertical: 14,
+  },
+  actionButtonDisabled: {
+      opacity: 0.4,
+  },
+  actionButtonText: {
+      ...theme.typography.button,
+  },
+  submitButton: {
+      backgroundColor: theme.colors.orange,
+      borderColor: theme.colors.orange,
+  },
+  container: {
+    backgroundColor: theme.colors.background,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    marginTop: 16,
+  },
+  title: {
+    color: theme.colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+    borderRadius: 8,
+    color: theme.colors.textPrimary,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  errorText: {
+    color: theme.colors.errorText,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+});
