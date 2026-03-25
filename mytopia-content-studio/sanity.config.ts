@@ -1,6 +1,7 @@
 import { defineConfig } from 'sanity';
 import { structureTool } from 'sanity/structure';
 import { googleMapsInput } from '@sanity/google-maps-input';
+import { colorInput } from '@sanity/color-input';
 
 import { schemaTypes } from './schemas';
 
@@ -35,6 +36,7 @@ export default defineConfig({
       defaultZoom: 14,
       defaultLocation: { lat: 50.9847, lng: 12.4364 }, // Altenburg, Germany
     }),
+    colorInput(),
   ],
   schema: {
     types: schemaTypes,

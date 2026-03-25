@@ -408,7 +408,16 @@ function MessageBubble({
 
       <View style={styles.bubbleContainer}>
         <View style={styles.messageBubble}>
-          {showName && <Text style={styles.headline}>{message.actor.name}</Text>}
+          {showName && (
+            <Text
+              style={[
+                styles.headline,
+                message.actor.nameColor ? { color: message.actor.nameColor } : {},
+              ]}
+            >
+              {message.actor.name}
+            </Text>
+          )}
           {message.attachment && (
             <AttachmentView
               attachment={message.attachment}
@@ -425,7 +434,16 @@ function MessageBubble({
 
 function ActorAvatar({ actor }: { actor: { avatarUrl?: string; name: string } }) {
   if (actor.avatarUrl) {
-    return <Image source={{ uri: actor.avatarUrl }} style={styles.avatarImage} contentFit="cover" />;
+    return (
+      <Image
+        source={{ uri: actor.avatarUrl }}
+        style={styles.avatarImage}
+        contentFit="cover"
+        cachePolicy="disk"
+        transition={200}
+        placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+      />
+    );
   }
   return (
     <View style={styles.avatarFallback}>
@@ -448,7 +466,14 @@ function AttachmentView({
       const index = gallerySources.findIndex((s) => s.uri === attachment.url);
       return (
         <Pressable style={styles.attachmentBox} onPress={() => index >= 0 && onImagePress(index)}>
-          <Image source={{ uri: attachment.url }} style={styles.imageAttachment} contentFit="cover" />
+          <Image
+            source={{ uri: attachment.url }}
+            style={styles.imageAttachment}
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={200}
+            placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+          />
           {attachment.caption && <Text style={styles.attachmentCaption}>{attachment.caption}</Text>}
         </Pressable>
       );
@@ -465,7 +490,16 @@ function AttachmentView({
       return (
         <Link asChild href={`/tasks/${attachment.missionId}`}>
           <Pressable style={styles.orange}>
-            {attachment.imageUrl && <Image source={{ uri: attachment.imageUrl }} style={styles.missionCardImage} contentFit="cover" />}
+            {attachment.imageUrl && (
+              <Image
+                source={{ uri: attachment.imageUrl }}
+                style={styles.missionCardImage}
+                contentFit="cover"
+                cachePolicy="disk"
+                transition={200}
+                placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+              />
+            )}
             <View style={styles.missionCardContent}>
               <Text style={styles.missionTitle}>{attachment.title || attachment.missionTitle || 'Mission'}</Text>
               {description && <Text style={styles.missionExcerpt}>{description}</Text>}

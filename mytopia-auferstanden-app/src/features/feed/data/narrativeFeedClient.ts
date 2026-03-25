@@ -42,6 +42,7 @@ export type NarrativeMessageDto = {
   actor: {
     avatarUrl?: string;
     name: string;
+    nameColor?: string;
     role?: string;
   };
   attachment?: NarrativeAttachmentDto;
@@ -259,6 +260,9 @@ function normalizeActor(value: unknown): NarrativeMessageDto['actor'] | null {
       ? { avatarUrl: raw.avatarUrl }
       : {}),
     name,
+    ...(typeof raw.nameColor === 'string' && raw.nameColor.length > 0
+      ? { nameColor: raw.nameColor }
+      : {}),
     ...(typeof raw.role === 'string' && raw.role.length > 0 ? { role: raw.role } : {}),
   };
 }

@@ -65,7 +65,8 @@ const SANITY_BUNDLE_PROJECTION = `
   "scriptActor": scriptActor->{
     name,
     role,
-    "avatarUrl": avatar.asset->url
+    "avatarUrl": avatar.asset->url,
+    "nameColor": nameColor.hex
   },
   releaseAt,
   pushTitle,
@@ -76,7 +77,8 @@ const SANITY_BUNDLE_PROJECTION = `
     "actor": actor->{
       name,
       role,
-      "avatarUrl": avatar.asset->url
+      "avatarUrl": avatar.asset->url,
+      "nameColor": nameColor.hex
     },
     "attachment": attachment[0]{
       _type,
@@ -138,6 +140,7 @@ type MessageDto = {
   actor: {
     avatarUrl?: string;
     name: string;
+    nameColor?: string;
     role?: string;
   };
   attachment?: AttachmentDto;
@@ -152,6 +155,7 @@ type BundleDto = {
   scriptActor?: {
     avatarUrl?: string;
     name: string;
+    nameColor?: string;
     role?: string;
   };
   pushBody?: string;
@@ -1405,7 +1409,7 @@ async function getReleasedFeedBundles({
 
   return result.map((bundle) => ({
     ...bundle,
-    messages: normalizeBundleMessages(bundle),
+    messages: normalizeBundleMessages(bundle).map(applySanityImageTransforms),
   }));
 }
 
@@ -1435,6 +1439,33 @@ function normalizeBundleMessages(bundle: BundleDto): MessageDto[] {
       messageId: `script_${bundle._id}_${index + 1}`,
       text: chunk,
     }));
+}
+
+/**
+ * Append Sanity CDN image transforms to optimise bandwidth.
+ * Resizes images to max 800px width, 75% quality, auto-format.
+ * Only touches `cdn.sanity.io` URLs; leaves others unchanged.
+ */
+function applySanityImageTransforms(msg: MessageDto): MessageDto {
+  const transform = (url: string | undefined): string | undefined => {
+    if (!url || !url.includes('cdn.sanity.io')) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}w=800&q=75&auto=format`;
+  };
+
+  const actor = {
+    ...msg.actor,
+    avatarUrl: transform(msg.actor.avatarUrl),
+  };
+
+  let attachment = msg.attachment;
+  if (attachment) {
+    if (attachment._type === 'imageAttachment') {
+      attachment = { ...attachment, url: transform(attachment.url)! };
+    }
+  }
+
+  return { ...msg, actor, attachment };
 }
 
 async function sanityQuery<T>(

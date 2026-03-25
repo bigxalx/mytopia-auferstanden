@@ -147,18 +147,17 @@ export function TaskDetailScreen() {
 
       {completedMissions.includes(mission._id) ? (
         <SectionCard title="Abgeschlossen">
-          <Text style={styles.body}>Diese Mission hast du bereits erfolgreich abgeschlossen.</Text>
+          <Text style={styles.body}>Du hast diese Aufgabe erfolgreich abgeschlossen.</Text>
         </SectionCard>
       ) : submissionStates[mission._id]?.status === 'pending' ? (
         <SectionCard title="Wird überprüft">
           <Text style={styles.body}>Dein Beitrag wurde eingereicht und wird gerade von uns geprüft. Sobald er freigegeben ist, erhältst du deine Punkte!</Text>
         </SectionCard>
       ) : submissionStates[mission._id]?.status === 'rejected' ? (
-        <SectionCard title="Nicht bestätigt">
+        <SectionCard title="Abgeschlossen">
           <Text style={styles.body}>
-            {submissionStates[mission._id]?.moderatorNote
-              ? `Dein Beitrag wurde nicht bestätigt: ${submissionStates[mission._id]?.moderatorNote}`
-              : 'Dein Beitrag wurde geprüft, aber nicht bestätigt.'}
+            Du hast diese Aufgabe leider nicht erfolgreich abgeschlossen.
+            {submissionStates[mission._id]?.moderatorNote ? `\n\nHinweis: ${submissionStates[mission._id]?.moderatorNote}` : ''}
           </Text>
         </SectionCard>
       ) : mission.kind === 'quiz' && quizQuestions ? (
@@ -199,23 +198,6 @@ export function TaskDetailScreen() {
           missionId={mission._id}
           onComplete={handlePhotoComplete}
         />
-      ) : null}
-
-      {canUseDevMode ? (
-        <SectionCard title="Details">
-          <View style={styles.row}>
-            <Text style={styles.label}>Mission-ID</Text>
-            <Text style={styles.value}>{mission._id}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Art</Text>
-            <Text style={styles.value}>{mission.kind}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Punkte</Text>
-            <Text style={styles.value}>{mission.points}</Text>
-          </View>
-        </SectionCard>
       ) : null}
     </Screen>
   );

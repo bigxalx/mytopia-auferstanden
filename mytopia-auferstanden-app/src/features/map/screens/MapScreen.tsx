@@ -7,8 +7,11 @@ import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
+import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
+import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { SettingsBold } from '@/components/ui/SolarTabIcons';
 
 /** Returns true only when the gpsConfig has valid numeric lat/lng values. */
 function hasValidGpsConfig(m: MissionListItem): m is MissionListItem & {
@@ -37,12 +40,20 @@ const USER_REGION_DELTA = {
 };
 
 export function MapScreen() {
-    const { selectedMode } = useSession();
+    const { selectedMode, user } = useSession();
+    const completedMissions = useCompletedMissions(user?.id);
+    const submissionStates = useMissionSubmissionStates(user?.id);
     const mapRef = useRef<MapView | null>(null);
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [isRecentering, setIsRecentering] = useState(false);
-    const [missions, setMissions] = useState<MissionListItem[]>([]);
+    
+    // Legend / Popover states
+    const [showActive, setShowActive] = useState(true);
+    const [showDone, setShowDone] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    
+    const [missions, setMissions] = useState<(MissionListItem & { isDone: boolean })[]>([]);
 
     const loadCurrentLocation = async () => {
         const location = await Location.getCurrentPositionAsync({
@@ -70,19 +81,29 @@ export function MapScreen() {
         requestPermission();
     }, []);
 
-    // Fetch GPS missions for map markers
+    // Fetch and categorize all GPS missions
     useEffect(() => {
         async function load() {
             try {
                 const allMissions = await fetchMissions({ mode: selectedMode });
-                setMissions(allMissions.filter(hasValidGpsConfig));
+                const gpsMissions = allMissions.filter(hasValidGpsConfig).map(m => {
+                    const isCompleted = completedMissions.includes(m._id);
+                    const submissionState = submissionStates[m._id];
+                    const isPending = submissionState?.status === 'pending';
+                    return {
+                        ...m,
+                        isDone: isCompleted || isPending
+                    };
+                });
+
+                setMissions(gpsMissions);
             } catch {
                 // Silently fail — map still renders
             }
         }
 
         load();
-    }, [selectedMode]);
+    }, [selectedMode, completedMissions, submissionStates]);
 
     const region = userCoords
         ? { ...userCoords, ...USER_REGION_DELTA }
@@ -121,6 +142,8 @@ export function MapScreen() {
         );
     }
 
+    const visibleMissions = missions.filter(m => (m.isDone ? showDone : showActive));
+
     return (
         <Screen
             title="Karte"
@@ -149,7 +172,7 @@ export function MapScreen() {
                     ref={mapRef}
                     style={styles.map}
                 >
-                    {missions.map((mission) =>
+                    {visibleMissions.map((mission) =>
                         mission.gpsConfig ? (
                             <React.Fragment key={mission._id}>
                                 <Marker
@@ -157,33 +180,82 @@ export function MapScreen() {
                                         latitude: mission.gpsConfig.latitude,
                                         longitude: mission.gpsConfig.longitude,
                                     }}
-                                    pinColor={theme.colors.orange}
+                                    pinColor={mission.isDone ? theme.colors.blue : theme.colors.orange}
                                     title={mission.title}
-                                    description={`${mission.points} Punkte · Radius: ${mission.gpsConfig.radiusMeters}m`}
+                                    description={`${mission.isDone ? 'Erledigt' : 'Aktiv'} · ${mission.points} Punkte`}
                                 />
                                 <Circle
                                     center={{
                                         latitude: mission.gpsConfig.latitude,
                                         longitude: mission.gpsConfig.longitude,
                                     }}
-                                    fillColor={theme.colors.orangeSoft}
+                                    fillColor={mission.isDone ? theme.colors.blueAlpha : theme.colors.orangeAlpha}
                                     radius={mission.gpsConfig.radiusMeters}
-                                    strokeColor={theme.colors.orangeStroke}
-                                    strokeWidth={1.5}
+                                    strokeColor={mission.isDone ? theme.colors.blue : theme.colors.orange}
+                                    strokeWidth={1}
                                 />
                             </React.Fragment>
                         ) : null
                     )}
                 </MapView>
-                {permissionStatus === 'granted' ? (
-                    <Pressable
-                        accessibilityLabel="Eigenen Standort anzeigen"
-                        onPress={() => void handleRecenter()}
-                        style={({ pressed }) => [styles.recenterButton, pressed && styles.recenterButtonPressed]}
-                    >
-                        <LocateIcon color={theme.colors.cardTextHeading} size={28} />
-                    </Pressable>
-                ) : null}
+                
+                {/* Control Panel (Recenter + Legend Toggle) */}
+                <View style={styles.controlsLayer}>
+                    {permissionStatus === 'granted' && (
+                        <Pressable
+                            accessibilityLabel="Eigenen Standort anzeigen"
+                            onPress={() => void handleRecenter()}
+                            style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]}
+                        >
+                            <LocateIcon color={theme.colors.cardTextHeading} size={24} />
+                        </Pressable>
+                    )}
+
+                    <View style={styles.settingsAnchor}>
+                        <Pressable
+                            onPress={() => setIsSettingsOpen(!isSettingsOpen)}
+                            style={({ pressed }) => [
+                                styles.controlButton, 
+                                isSettingsOpen && styles.controlButtonActive,
+                                pressed && styles.controlButtonPressed
+                            ]}
+                        >
+                            <SettingsBold color={isSettingsOpen ? '#fff' : theme.colors.cardTextHeading} size={24} />
+                        </Pressable>
+
+                        {isSettingsOpen && (
+                            <View style={styles.popover}>
+                                <Pressable 
+                                    onPress={() => setShowActive(!showActive)}
+                                    style={styles.popoverRow}
+                                >
+                                    <View style={styles.checkSlot}>
+                                        {showActive && <CheckIcon size={14} color={theme.colors.orange} />}
+                                    </View>
+                                    <View style={[styles.dotIndicator, { backgroundColor: theme.colors.orange }]} />
+                                    <Text style={styles.popoverLabel}>
+                                        {missions.filter((m) => !m.isDone).length === 1 ? 'Aktuelle Mission' : 'Aktuelle Missionen'}
+                                    </Text>
+                                </Pressable>
+
+                                <View style={styles.popoverSeparator} />
+
+                                <Pressable 
+                                    onPress={() => setShowDone(!showDone)}
+                                    style={styles.popoverRow}
+                                >
+                                    <View style={styles.checkSlot}>
+                                        {showDone && <CheckIcon size={14} color={theme.colors.blue} />}
+                                    </View>
+                                    <View style={[styles.dotIndicator, { backgroundColor: theme.colors.blue }]} />
+                                    <Text style={styles.popoverLabel}>
+                                        {missions.filter((m) => m.isDone).length === 1 ? 'Abgeschlossene Mission' : 'Abgeschlossene Missionen'}
+                                    </Text>
+                                </Pressable>
+                            </View>
+                        )}
+                    </View>
+                </View>
             </View>
         </Screen>
     );
@@ -192,8 +264,15 @@ export function MapScreen() {
 function LocateIcon({ color, size }: { color: string; size: number }) {
     return (
         <Svg color={color} fill="none" height={size} viewBox="0 0 24 24" width={size}>
-            <Path fill-rule="evenodd" clip-rule="evenodd" d="M2 12C2 12.3853 2.31236 12.6977 2.69767 12.6977H4.59041C4.92078 16.2509 7.74914 19.0792 11.3023 19.4096V21.3023C11.3023 21.6876 11.6147 22 12 22C12.3853 22 12.6977 21.6876 12.6977 21.3023V19.4096C16.2509 19.0792 19.0792 16.2509 19.4096 12.6977H21.3023C21.6876 12.6977 22 12.3853 22 12C22 11.6147 21.6876 11.3023 21.3023 11.3023H19.4096C19.0792 7.74914 16.2509 4.92078 12.6977 4.59041V2.69767C12.6977 2.31236 12.3853 2 12 2C11.6147 2 11.3023 2.31236 11.3023 2.69767V4.59041C7.74914 4.92078 4.92078 7.74914 4.59041 11.3023H2.69767C2.31236 11.3023 2 11.6147 2 12ZM8.51163 12C8.51163 10.0734 10.0734 8.51163 12 8.51163C13.9266 8.51163 15.4884 10.0734 15.4884 12C15.4884 13.9266 13.9266 15.4884 12 15.4884C10.0734 15.4884 8.51163 13.9266 8.51163 12Z" fill="currentColor"></Path>
-            <Path d="M9.90698 12C9.90698 10.8441 10.8441 9.90698 12 9.90698C13.1559 9.90698 14.093 10.8441 14.093 12C14.093 13.1559 13.1559 14.093 12 14.093C10.8441 14.093 9.90698 13.1559 9.90698 12Z" fill="currentColor"></Path>
+            <Path fillRule="evenodd" clipRule="evenodd" d="M2 12C2 12.3853 2.31236 12.6977 2.69767 12.6977H4.59041C4.92078 16.2509 7.74914 19.0792 11.3023 19.4096V21.3023C11.3023 21.6876 11.6147 22 12 22C12.3853 22 12.6977 21.6876 12.6977 21.3023V19.4096C16.2509 19.0792 19.0792 16.2509 19.4096 12.6977H21.3023C21.6876 12.6977 22 12.3853 22 12C22 11.6147 21.6876 11.3023 21.3023 11.3023H19.4096C19.0792 7.74914 16.2509 4.92078 12.6977 4.59041V2.69767C12.6977 2.31236 12.3853 2 12 2C11.6147 2 11.3023 2.31236 11.3023 2.69767V4.59041C7.74914 4.92078 4.92078 7.74914 4.59041 11.3023H2.69767C2.31236 11.3023 2 11.6147 2 12ZM8.51163 12C8.51163 10.0734 10.0734 8.51163 12 8.51163C13.9266 8.51163 15.4884 10.0734 15.4884 12C15.4884 13.9266 13.9266 15.4884 12 15.4884C10.0734 15.4884 8.51163 13.9266 8.51163 12Z" fill="currentColor"></Path>
+        </Svg>
+    );
+}
+
+function CheckIcon({ color, size }: { color: string; size: number }) {
+    return (
+        <Svg color={color} fill="none" height={size} viewBox="0 0 24 24" width={size}>
+            <Path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
     );
 }
@@ -217,7 +296,14 @@ const styles = StyleSheet.create({
         flex: 1,
         position: 'relative',
     },
-    recenterButton: {
+    controlsLayer: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        gap: 12,
+        alignItems: 'flex-end',
+    },
+    controlButton: {
         alignItems: 'center',
         backgroundColor: 'rgba(237, 236, 224, 0.96)',
         borderColor: 'rgba(31, 41, 55, 0.14)',
@@ -225,19 +311,65 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         height: 48,
         justifyContent: 'center',
-        paddingHorizontal: 0,
-        paddingVertical: 0,
-        position: 'absolute',
-        right: 16,
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.18,
-        shadowRadius: 16,
-        top: 16,
         width: 48,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
-    recenterButtonPressed: {
-        opacity: 0.85,
+    controlButtonActive: {
+        backgroundColor: theme.colors.orange,
+        borderColor: theme.colors.orange,
+    },
+    controlButtonPressed: {
+        opacity: 0.8,
+    },
+    settingsAnchor: {
+        alignItems: 'flex-end',
+    },
+    popover: {
+        backgroundColor: 'rgba(237, 236, 224, 0.98)',
+        borderColor: 'rgba(31, 41, 55, 0.14)',
+        borderRadius: 12,
+        borderWidth: 1,
+        marginTop: 8,
+        padding: 4,
+        minWidth: 250,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    popoverRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+    },
+    popoverLabel: {
+        color: theme.colors.cardTextPrimary,
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 12,
+        flexShrink: 0,
+    },
+    popoverSeparator: {
+        backgroundColor: 'rgba(31, 41, 55, 0.08)',
+        height: 1,
+        marginHorizontal: 8,
+    },
+    checkSlot: {
+        width: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dotIndicator: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        marginLeft: 8,
     },
     settingsButton: {
         alignItems: 'center',

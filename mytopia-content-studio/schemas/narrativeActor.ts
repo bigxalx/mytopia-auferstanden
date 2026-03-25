@@ -25,6 +25,16 @@ export const narrativeActor = defineType({
       type: 'string',
       description: 'Optional: Trage eine interne Rollenbeschreibung ein.',
     }),
+    defineField({
+      name: 'nameColor',
+      title: 'Name-Farbe',
+      type: 'color',
+      description:
+        'Wähle eine Farbe für das Namens-Badge im Feed. Wenn leer, wird die Standard-Orange-Farbe verwendet.',
+      options: {
+        disableAlpha: true,
+      },
+    }),
   ],
   preview: {
     select: {
