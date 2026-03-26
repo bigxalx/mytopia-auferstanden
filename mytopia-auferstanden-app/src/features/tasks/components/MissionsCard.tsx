@@ -115,92 +115,98 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
   return (
     <SectionCard title="Missionen">
       <View style={styles.contentContainer}>
-        {/* Open missions */}
-        {openMissions.length > 0 && (
-          <View style={styles.section}>
-            {openMissions.map((mission) => (
-              <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
-                <Pressable style={styles.row}>
-                  <View style={styles.rowHeader}>
-                    <Text style={styles.kindBadge}>{KIND_EMOJI[mission.kind] ?? '❓'}</Text>
-                    <Text style={styles.rowTitle}>{mission.title}</Text>
-                  </View>
-                  <Text style={styles.rowMeta}>
-                    {KIND_LABEL[mission.kind] ?? mission.kind} · {mission.points} Punkte
-                    {mission.kind === 'quiz' && mission.questionCount ? ` · ${mission.questionCount} Fragen` : ''}
-                  </Text>
-                </Pressable>
-              </Link>
-            ))}
-          </View>
-        )}
+        <>
+          {/* Open missions */}
+          {openMissions.length > 0 && (
+            <View style={styles.section}>
+              {openMissions.map((mission) => (
+                <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                  <Pressable style={styles.row}>
+                    <View style={styles.rowHeader}>
+                      <Text style={styles.kindBadge}>{KIND_EMOJI[mission.kind] ?? '❓'}</Text>
+                      <Text style={styles.rowTitle}>{mission.title}</Text>
+                    </View>
+                    <Text style={styles.rowMeta}>
+                      {KIND_LABEL[mission.kind] ?? mission.kind} · {mission.points} Punkte
+                      {mission.kind === 'quiz' && mission.questionCount ? ` · ${mission.questionCount} Fragen` : ''}
+                    </Text>
+                  </Pressable>
+                </Link>
+              ))}
+            </View>
+          )}
 
-        {/* Pending missions section */}
-        {pendingMissions.length > 0 && (
-          <View style={[styles.section, styles.borderTop]}>
-             <Text style={styles.subHeader}>Eingereicht und in Prüfung</Text>
-             {pendingMissions.map((mission) => (
-              <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
-                <Pressable style={[styles.row, styles.rowPending]}>
-                  <View style={styles.rowHeader}>
-                    <Text style={styles.statusEmoji}>⏳</Text>
-                    <Text style={styles.rowTitle}>{mission.title}</Text>
-                  </View>
-                  <Text style={styles.rowMeta}>
-                    {mission.points} Punkte · Wird überprüft
-                  </Text>
-                </Pressable>
-              </Link>
-            ))}
-          </View>
-        )}
-
-        {/* Done missions section */}
-        {doneMissions.length > 0 && (
-          <View style={[styles.completedSection, styles.borderTop]}>
-            <Pressable
-              onPress={() => setCompletedExpanded((v) => !v)}
-              style={styles.accordionHeader}
-            >
-              <Text style={styles.accordionTitle}>
-                Abgeschlossen ({doneMissions.length})
-              </Text>
-              <Text style={styles.accordionChevron}>{completedExpanded ? '▲' : '▼'}</Text>
-            </Pressable>
-
-            {completedExpanded && (
-              <View style={styles.completedList}>
-                {doneMissions.map(({ mission, status }) => (
+          {/* Pending missions section */}
+          {pendingMissions.length > 0 && (
+            <View style={StyleSheet.flatten([styles.section, styles.borderTop])}>
+              <>
+                <Text style={styles.subHeader}>Eingereicht und in Prüfung</Text>
+                {pendingMissions.map((mission) => (
                   <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
-                    <Pressable
-                      style={[
-                        styles.row,
-                        styles.rowSmall,
-                        status === 'completed' ? styles.rowSuccess : styles.rowRejected,
-                      ]}
-                    >
+                    <Pressable style={StyleSheet.flatten([styles.row, styles.rowPending])}>
                       <View style={styles.rowHeader}>
-                        <Text style={styles.statusEmoji}>
-                          {status === 'completed' ? '✅' : '❌'}
-                        </Text>
-                        <Text style={[styles.rowTitle, styles.rowTitleDone]}>{mission.title}</Text>
+                        <Text style={styles.statusEmoji}>⏳</Text>
+                        <Text style={styles.rowTitle}>{mission.title}</Text>
                       </View>
                       <Text style={styles.rowMeta}>
-                         {mission.points} Punkte · {status === 'completed' ? 'Erfolgreich' : 'Nicht bestätigt'}
+                        {mission.points} Punkte · Wird überprüft
                       </Text>
                     </Pressable>
                   </Link>
                 ))}
-              </View>
-            )}
-          </View>
-        )}
+              </>
+            </View>
+          )}
 
-        {openMissions.length === 0 && pendingMissions.length === 0 && doneMissions.length > 0 && !completedExpanded && (
-          <View style={styles.allDoneContainer}>
-            <Text style={styles.body}>Alle aktuellen Missionen bearbeitet! 🎉</Text>
-          </View>
-        )}
+          {/* Done missions section */}
+          {doneMissions.length > 0 && (
+            <View style={StyleSheet.flatten([styles.completedSection, styles.borderTop])}>
+              <>
+                <Pressable
+                  onPress={() => setCompletedExpanded((v) => !v)}
+                  style={styles.accordionHeader}
+                >
+                  <Text style={styles.accordionTitle}>
+                    Abgeschlossen ({doneMissions.length})
+                  </Text>
+                  <Text style={styles.accordionChevron}>{completedExpanded ? '▲' : '▼'}</Text>
+                </Pressable>
+
+                {completedExpanded && (
+                  <View style={styles.completedList}>
+                    {doneMissions.map(({ mission, status }) => (
+                      <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                        <Pressable
+                          style={StyleSheet.flatten([
+                            styles.row,
+                            styles.rowSmall,
+                            status === 'completed' ? styles.rowSuccess : styles.rowRejected,
+                          ])}
+                        >
+                          <View style={styles.rowHeader}>
+                            <Text style={styles.statusEmoji}>
+                              {status === 'completed' ? '✅' : '❌'}
+                            </Text>
+                            <Text style={StyleSheet.flatten([styles.rowTitle, styles.rowTitleDone])}>{mission.title}</Text>
+                          </View>
+                          <Text style={styles.rowMeta}>
+                             {mission.points} Punkte · {status === 'completed' ? 'Erfolgreich' : 'Nicht bestätigt'}
+                          </Text>
+                        </Pressable>
+                      </Link>
+                    ))}
+                  </View>
+                )}
+              </>
+            </View>
+          )}
+
+          {openMissions.length === 0 && pendingMissions.length === 0 && doneMissions.length > 0 && !completedExpanded && (
+            <View style={styles.allDoneContainer}>
+              <Text style={styles.body}>Alle aktuellen Missionen bearbeitet! 🎉</Text>
+            </View>
+          )}
+        </>
       </View>
     </SectionCard>
   );

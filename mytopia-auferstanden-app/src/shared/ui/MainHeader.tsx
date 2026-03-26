@@ -14,7 +14,7 @@ export function MainHeader({ subtitle, title }: MainHeaderProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <GlassView colorScheme="dark" style={[styles.container, { paddingTop: insets.top }]}>
+    <GlassView colorScheme="dark" style={StyleSheet.flatten([styles.container, { paddingTop: insets.top }])}>
       <View style={styles.content}>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}

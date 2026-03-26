@@ -17,7 +17,7 @@ export function createNativeTabStackOptions({
     if (variant === 'overlay') {
       return {
         title,
-        headerBlurEffect: 'systemThinMaterialDark' as const,
+        headerBlurEffect: 'systemThickMaterialDark' as const,
         headerLargeTitle: largeTitle,
         headerLargeTitleShadowVisible: false,
         headerLargeTitleStyle: {

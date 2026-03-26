@@ -6,7 +6,6 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
 import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-import { ChatLineBold, UserBold, MapBold } from '@/components/ui/SolarTabIcons';
 
 export default function TabLayout() {
   return (
@@ -48,6 +47,7 @@ function TabLayoutInner() {
           indicatorColor="#3b83f646"
           // disableIndicator={true}
           rippleColor="transparent"
+          // disableTransparentOnScrollEdge={true}
           badgeBackgroundColor={theme.colors.blue}
           badgeTextColor={theme.colors.textPrimary}
           iconColor={{

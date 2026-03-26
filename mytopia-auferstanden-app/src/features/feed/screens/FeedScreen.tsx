@@ -153,7 +153,7 @@ export function FeedScreen() {
     useCallback(() => {
       if (user) {
         // Feed viewed, mark newest narrative as read to clear icon badge
-        markAsRead().catch(() => {});
+        markAsRead().catch(() => { });
         void loadFirstPage('silent');
       }
     }, [loadFirstPage, markAsRead, user])
@@ -161,7 +161,7 @@ export function FeedScreen() {
 
   useEffect(() => {
     if (!user || (!pulse && latestSignalTokenRef.current === null)) return;
-    
+
     // Default to the first pulse as the starting point so we catch unread
     // updates happening later. Or if the token changed over our remembered token.
     if (pulse?.token && pulse.token !== latestSignalTokenRef.current) {
@@ -320,39 +320,34 @@ export function FeedScreen() {
   const ListHeader = useMemo(() => {
     return (
       <View>
-        {selectedMode === 'dev' && (
-          <View style={styles.devModeContainer}>
-            <Text style={styles.modeBadge}>DEV MODE</Text>
-          </View>
-        )}
 
         {errorMessage && (
-          <View style={[styles.errorBanner, { marginBottom: 14 }]}>
+          <View style={StyleSheet.flatten([styles.errorBanner, { marginBottom: 14 }])}>
             <Text style={styles.errorText}>{errorMessage}</Text>
           </View>
         )}
 
         {isLoadingInitial && (
-          <View style={[styles.stateBox, { marginBottom: 14 }]}>
+          <View style={StyleSheet.flatten([styles.stateBox, { marginBottom: 14 }])}>
             <ActivityIndicator size="large" color={theme.colors.orange} />
             <Text style={styles.stateText}>Loading narrative feed...</Text>
           </View>
         )}
 
         {!isLoadingInitial && visibleMessages.length === 0 && (
-          <View style={[styles.stateBox, { marginBottom: 14 }]}>
+          <View style={StyleSheet.flatten([styles.stateBox, { marginBottom: 14 }])}>
             <Text style={styles.stateText}>No released narrative messages yet.</Text>
           </View>
         )}
       </View>
     );
-  }, [selectedMode, errorMessage, isLoadingInitial, visibleMessages.length]);
+  }, [errorMessage, isLoadingInitial, visibleMessages.length]);
 
   const ListFooter = useMemo(() => {
     if (!nextCursor) return <View style={{ height: 40 }} />;
     return (
       <Pressable
-        style={[styles.loadMoreButton, isLoadingMore && styles.loadMoreButtonDisabled, { marginTop: 24, marginBottom: 40 }]}
+        style={StyleSheet.flatten([styles.loadMoreButton, isLoadingMore && styles.loadMoreButtonDisabled, { marginTop: 24, marginBottom: 40 }])}
         disabled={isLoadingMore}
         onPress={() => void loadMore()}>
         <Text style={styles.loadMoreLabel}>{isLoadingMore ? 'Loading...' : 'Load older messages'}</Text>
@@ -394,7 +389,7 @@ export function FeedScreen() {
         }}
       />
 
-      <Animated.View style={[styles.newMessagesContainer, { opacity: fadeAnim, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }]}>
+      <Animated.View style={StyleSheet.flatten([styles.newMessagesContainer, { opacity: fadeAnim, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }])}>
         <Pressable
           style={styles.newMessagesButton}
           onPress={() => {
@@ -434,7 +429,7 @@ function MessageBubble({
   containerStyle?: ViewStyle;
 }) {
   return (
-    <View style={[styles.messageRow, containerStyle]}>
+    <View style={StyleSheet.flatten([styles.messageRow, containerStyle])}>
       {showAvatar && (
         <View style={styles.avatarColumn}>
           <ActorAvatar actor={message.actor} />
@@ -445,10 +440,10 @@ function MessageBubble({
         <View style={styles.messageBubble}>
           {showName && (
             <Text
-              style={[
+              style={StyleSheet.flatten([
                 styles.headline,
                 message.actor.nameColor ? { color: message.actor.nameColor } : {},
-              ]}
+              ])}
             >
               {message.actor.name}
             </Text>
@@ -573,7 +568,7 @@ function VideoAttachmentView({ attachment }: { attachment: Extract<NarrativeAtta
 
   return (
     <Pressable style={styles.attachmentBox} onPress={handlePress}>
-      <View style={[styles.videoPlaceholder, { aspectRatio, height: undefined }]}>
+      <View style={StyleSheet.flatten([styles.videoPlaceholder, { aspectRatio, height: undefined }])}>
         <VideoView
           ref={videoViewRef}
           player={player}
@@ -684,30 +679,18 @@ function getBundleReleaseMs(bundle: NarrativeBundleDto) {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' } as ViewStyle,
-  header: { 
-    backgroundColor: theme.colors.headerBackground, 
-    borderBottomColor: theme.colors.headerBorder, 
-    borderBottomWidth: 1, 
-    paddingHorizontal: 20, 
-    paddingVertical: 18, 
-    alignItems: 'center', 
-    gap: 6 
+  header: {
+    backgroundColor: theme.colors.headerBackground,
+    borderBottomColor: theme.colors.headerBorder,
+    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
+    gap: 6
   } as ViewStyle,
   headerTitle: theme.typography.title,
   scrollView: { backgroundColor: theme.colors.background } as ViewStyle,
   scrollContent: { padding: 20, paddingBottom: 34 } as ViewStyle,
-  devModeContainer: { alignItems: 'center', marginBottom: 4, marginTop: -4 } as ViewStyle,
-  modeBadge: { 
-    backgroundColor: theme.colors.orange, 
-    borderRadius: 999, 
-    color: theme.colors.cardTextPrimary, 
-    fontSize: 11, 
-    fontWeight: '800', 
-    marginTop: 10, 
-    paddingHorizontal: 10, 
-    paddingVertical: 4, 
-    textTransform: 'uppercase' 
-  } as TextStyle,
   errorBanner: {
     backgroundColor: theme.colors.errorSurface,
     borderColor: theme.colors.errorBorder,
@@ -716,12 +699,12 @@ const styles = StyleSheet.create({
     padding: 12,
   } as ViewStyle,
   errorText: { color: theme.colors.errorText, fontSize: 13, lineHeight: 18 } as TextStyle,
-  stateBox: { 
-    alignItems: 'center', 
-    backgroundColor: theme.colors.headerBackground, 
-    borderRadius: 12, 
-    gap: 8, 
-    padding: 20 
+  stateBox: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.headerBackground,
+    borderRadius: 12,
+    gap: 8,
+    padding: 20
   } as ViewStyle,
   stateText: { color: theme.colors.textSecondary, fontSize: 14 } as TextStyle,
   messageRow: { flexDirection: 'row', alignItems: 'flex-start', position: 'relative' } as ViewStyle,

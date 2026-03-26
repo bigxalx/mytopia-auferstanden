@@ -43,18 +43,18 @@ export function Screen({
     </View>
   ) : null;
 
-  const containerStyle = [styles.container, backgroundColor ? { backgroundColor } : null];
+  const containerStyle = StyleSheet.flatten([styles.container, backgroundColor ? { backgroundColor } : null]);
   const bgStyle = backgroundColor ? { backgroundColor } : null;
 
   if (!scrollable) {
     const content = (
-      <View style={[
+      <View style={StyleSheet.flatten([
         styles.fillContent, 
         { paddingBottom: bottomPadding },
         noPadding && styles.noPadding, 
         centerContent && { justifyContent: 'center' },
         bgStyle
-      ]}>
+      ])}>
         {children}
       </View>
     );
@@ -74,13 +74,13 @@ export function Screen({
   const scrollContent = (
     <ScrollView 
       contentInsetAdjustmentBehavior="automatic"
-      style={[styles.scrollView, bgStyle]}
-      contentContainerStyle={[
+      style={StyleSheet.flatten([styles.scrollView, bgStyle])}
+      contentContainerStyle={StyleSheet.flatten([
         styles.content, 
         { paddingBottom: bottomPadding },
         noPadding && styles.noPadding,
         centerContent && { flexGrow: 1, justifyContent: 'center' }
-      ]} 
+      ])} 
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
     >
