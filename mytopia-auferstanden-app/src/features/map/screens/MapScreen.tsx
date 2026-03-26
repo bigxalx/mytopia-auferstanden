@@ -1,5 +1,7 @@
+import { useHeaderHeight } from '@react-navigation/elements';
+import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import React, { useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Circle, Marker } from 'react-native-maps';
 import Svg, { Path } from 'react-native-svg';
@@ -39,10 +41,16 @@ const USER_REGION_DELTA = {
     longitudeDelta: 0.03,
 };
 
+const GLASS_EFFECT_ENABLED =
+    Platform.OS === 'ios' &&
+    isGlassEffectAPIAvailable() &&
+    isLiquidGlassAvailable();
+
 export function MapScreen() {
     const { selectedMode, user } = useSession();
     const completedMissions = useCompletedMissions(user?.id);
     const submissionStates = useMissionSubmissionStates(user?.id);
+    const headerHeight = useHeaderHeight();
     const mapRef = useRef<MapView | null>(null);
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -143,6 +151,7 @@ export function MapScreen() {
     }
 
     const visibleMissions = missions.filter(m => (m.isDone ? showDone : showActive));
+    const controlsTop = Platform.OS === 'ios' ? headerHeight + 12 : 16;
 
     return (
         <Screen
@@ -200,31 +209,26 @@ export function MapScreen() {
                 </MapView>
                 
                 {/* Control Panel (Recenter + Legend Toggle) */}
-                <View style={styles.controlsLayer}>
+                <View style={[styles.controlsLayer, { top: controlsTop }]}>
                     {permissionStatus === 'granted' && (
-                        <Pressable
+                        <MapControlButton
                             accessibilityLabel="Eigenen Standort anzeigen"
                             onPress={() => void handleRecenter()}
-                            style={({ pressed }) => [styles.controlButton, pressed && styles.controlButtonPressed]}
                         >
                             <LocateIcon color={theme.colors.cardTextHeading} size={24} />
-                        </Pressable>
+                        </MapControlButton>
                     )}
 
                     <View style={styles.settingsAnchor}>
-                        <Pressable
+                        <MapControlButton
+                            active={isSettingsOpen}
                             onPress={() => setIsSettingsOpen(!isSettingsOpen)}
-                            style={({ pressed }) => [
-                                styles.controlButton, 
-                                isSettingsOpen && styles.controlButtonActive,
-                                pressed && styles.controlButtonPressed
-                            ]}
                         >
                             <SettingsBold color={isSettingsOpen ? '#fff' : theme.colors.cardTextHeading} size={24} />
-                        </Pressable>
+                        </MapControlButton>
 
                         {isSettingsOpen && (
-                            <View style={styles.popover}>
+                            <MapPopoverSurface>
                                 <Pressable 
                                     onPress={() => setShowActive(!showActive)}
                                     style={styles.popoverRow}
@@ -240,7 +244,7 @@ export function MapScreen() {
 
                                 <View style={styles.popoverSeparator} />
 
-                                <Pressable 
+                                <Pressable
                                     onPress={() => setShowDone(!showDone)}
                                     style={styles.popoverRow}
                                 >
@@ -252,13 +256,75 @@ export function MapScreen() {
                                         {missions.filter((m) => m.isDone).length === 1 ? 'Abgeschlossene Mission' : 'Abgeschlossene Missionen'}
                                     </Text>
                                 </Pressable>
-                            </View>
+                            </MapPopoverSurface>
                         )}
                     </View>
                 </View>
             </View>
         </Screen>
     );
+}
+
+function MapControlButton({
+    accessibilityLabel,
+    active = false,
+    children,
+    onPress,
+}: {
+    accessibilityLabel?: string;
+    active?: boolean;
+    children: React.ReactNode;
+    onPress: () => void;
+}) {
+    return (
+        <Pressable
+            accessibilityLabel={accessibilityLabel}
+            onPress={onPress}
+            style={({ pressed }) => [pressed && styles.controlButtonPressed]}
+        >
+            {GLASS_EFFECT_ENABLED ? (
+                <GlassView
+                    colorScheme="light"
+                    glassEffectStyle="clear"
+                    style={[
+                        styles.controlButtonSurface,
+                        styles.controlButtonGlass,
+                        active && styles.controlButtonGlassActive,
+                    ]}
+                    tintColor={active ? 'rgba(249, 115, 22, 0.2)' : 'rgba(237, 236, 224, 0.12)'}
+                >
+                    {children}
+                </GlassView>
+            ) : (
+                <View
+                    style={[
+                        styles.controlButtonSurface,
+                        styles.controlButtonFallback,
+                        active && styles.controlButtonActive,
+                    ]}
+                >
+                    {children}
+                </View>
+            )}
+        </Pressable>
+    );
+}
+
+function MapPopoverSurface({ children }: { children: React.ReactNode }) {
+    if (GLASS_EFFECT_ENABLED) {
+        return (
+            <GlassView
+                colorScheme="light"
+                glassEffectStyle="clear"
+                style={[styles.popoverSurface, styles.popoverGlass]}
+                tintColor="rgba(237, 236, 224, 0.12)"
+            >
+                {children}
+            </GlassView>
+        );
+    }
+
+    return <View style={[styles.popoverSurface, styles.popoverFallback]}>{children}</View>;
 }
 
 function LocateIcon({ color, size }: { color: string; size: number }) {
@@ -298,56 +364,70 @@ const styles = StyleSheet.create({
     },
     controlsLayer: {
         position: 'absolute',
-        top: 16,
         right: 16,
         gap: 12,
         alignItems: 'flex-end',
     },
-    controlButton: {
+    controlButtonSurface: {
         alignItems: 'center',
-        backgroundColor: 'rgba(237, 236, 224, 0.96)',
-        borderColor: 'rgba(31, 41, 55, 0.14)',
         borderRadius: 999,
         borderWidth: 1,
         height: 48,
         justifyContent: 'center',
+        overflow: 'hidden',
         width: 48,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 3,
-    },
+    } as ViewStyle,
+    controlButtonFallback: {
+        backgroundColor: 'rgba(237, 236, 224, 0.96)',
+        borderColor: 'rgba(31, 41, 55, 0.14)',
+    } as ViewStyle,
+    controlButtonGlass: {
+        borderColor: 'rgba(255, 255, 255, 0.18)',
+    } as ViewStyle,
     controlButtonActive: {
         backgroundColor: theme.colors.orange,
         borderColor: theme.colors.orange,
-    },
+    } as ViewStyle,
+    controlButtonGlassActive: {
+        borderColor: 'rgba(249, 115, 22, 0.48)',
+    } as ViewStyle,
     controlButtonPressed: {
         opacity: 0.8,
-    },
+    } as ViewStyle,
     settingsAnchor: {
         alignItems: 'flex-end',
-    },
-    popover: {
-        backgroundColor: 'rgba(237, 236, 224, 0.98)',
-        borderColor: 'rgba(31, 41, 55, 0.14)',
+    } as ViewStyle,
+    popoverSurface: {
         borderRadius: 12,
         borderWidth: 1,
         marginTop: 8,
-        padding: 4,
         minWidth: 250,
+        overflow: 'hidden',
+        padding: 4,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.15,
         shadowRadius: 20,
         elevation: 10,
-    },
+    } as ViewStyle,
+    popoverFallback: {
+        backgroundColor: 'rgba(237, 236, 224, 0.98)',
+        borderColor: 'rgba(31, 41, 55, 0.14)',
+    } as ViewStyle,
+    popoverGlass: {
+        borderColor: 'rgba(255, 255, 255, 0.18)',
+    } as ViewStyle,
     popoverRow: {
         alignItems: 'center',
         flexDirection: 'row',
         paddingHorizontal: 12,
         paddingVertical: 12,
-    },
+    } as ViewStyle,
     popoverLabel: {
         color: theme.colors.cardTextPrimary,
         fontSize: 14,

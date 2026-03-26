@@ -40,7 +40,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "de.theateraltenburggera.mytopia",
       "permissions": [
@@ -86,6 +85,8 @@
       ],
       "expo-updates",
       "expo-video",
+      "expo-font",
+      "expo-web-browser",
       [
         "expo-location",
         {

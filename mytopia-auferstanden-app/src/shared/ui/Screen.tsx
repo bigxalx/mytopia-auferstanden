@@ -47,46 +47,62 @@ export function Screen({
   const bgStyle = backgroundColor ? { backgroundColor } : null;
 
   if (!scrollable) {
+    const content = (
+      <View style={[
+        styles.fillContent, 
+        { paddingBottom: bottomPadding },
+        noPadding && styles.noPadding, 
+        centerContent && { justifyContent: 'center' },
+        bgStyle
+      ]}>
+        {children}
+      </View>
+    );
+
+    if (!headerShown) {
+      return content;
+    }
+
     return (
       <View style={containerStyle}>
         {header}
-        <View style={[
-          styles.fillContent, 
-          { paddingBottom: bottomPadding },
-          noPadding && styles.noPadding, 
-          centerContent && { justifyContent: 'center' },
-          bgStyle
-
-        ]}>
-          {children}
-        </View>
+        {content}
       </View>
     );
+  }
+
+  const scrollContent = (
+    <ScrollView 
+      contentInsetAdjustmentBehavior="automatic"
+      style={[styles.scrollView, bgStyle]}
+      contentContainerStyle={[
+        styles.content, 
+        { paddingBottom: bottomPadding },
+        noPadding && styles.noPadding,
+        centerContent && { flexGrow: 1, justifyContent: 'center' }
+      ]} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={refreshControl}
+    >
+      {children}
+    </ScrollView>
+  );
+
+  if (!headerShown) {
+    return scrollContent;
   }
 
   return (
     <View style={containerStyle}>
       {header}
-      <ScrollView 
-        style={[styles.scrollView, bgStyle]}
-        contentContainerStyle={[
-          styles.content, 
-          { paddingBottom: bottomPadding },
-          noPadding && styles.noPadding,
-          centerContent && { flexGrow: 1, justifyContent: 'center' }
-        ]} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={refreshControl}
-      >
-        {children}
-      </ScrollView>
+      {scrollContent}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.headerBackground,
+    backgroundColor: 'transparent',
     flex: 1,
   } as ViewStyle,
   content: {
@@ -94,7 +110,7 @@ const styles = StyleSheet.create({
     padding: 20,
   } as ViewStyle,
   fillContent: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'transparent',
     flex: 1,
     gap: 16,
     padding: 20,

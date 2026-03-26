@@ -1,31 +1,32 @@
-import { BottomTabHeaderProps } from '@react-navigation/bottom-tabs';
-import { getHeaderTitle } from '@react-navigation/elements';
 import React from 'react';
 import { StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { GlassView } from 'expo-glass-effect';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { theme } from './theme';
 
-export function MainHeader({ options, route }: BottomTabHeaderProps) {
+type MainHeaderProps = {
+  subtitle?: string;
+  title: string;
+};
+
+export function MainHeader({ subtitle, title }: MainHeaderProps) {
   const insets = useSafeAreaInsets();
-  const title = getHeaderTitle(options, route.name);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <GlassView colorScheme="dark" style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.content}>
-        <Text
-          style={styles.title}
-        >
-          {title}
-        </Text>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
-    </View>
+    </GlassView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.headerBackground,
-    borderBottomColor: theme.colors.headerBorder,
+    backgroundColor: 'transparent',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     borderBottomWidth: 1,
   } as ViewStyle,
   content: {
@@ -39,5 +40,9 @@ const styles = StyleSheet.create({
     ...(theme.typography.title as object),
     width: '100%',
   } as TextStyle,
+  subtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+  } as TextStyle,
 });
-

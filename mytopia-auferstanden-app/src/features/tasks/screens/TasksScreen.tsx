@@ -73,7 +73,7 @@ export function TasksScreen() {
   }
 
   return (
-    <Screen title="Missionen" subtitle="Schließe Missionen ab, um Punkte zu sammeln.">
+    <Screen title="Missionen" subtitle="Schließe Missionen ab, um Punkte zu sammeln." headerShown={false}>
       {isLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={theme.colors.orange} />
@@ -266,4 +266,3 @@ const styles = StyleSheet.create({
     color: theme.colors.cardTextMuted,
   },
 });
-

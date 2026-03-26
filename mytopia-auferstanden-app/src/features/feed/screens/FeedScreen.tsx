@@ -55,6 +55,7 @@ export function FeedScreen() {
   const latestSignalTokenRef = useRef<string | null>(null);
   const initialRefreshKeyRef = useRef(refreshKey);
   const flashListRef = useRef<any>(null);
+  const listMetricsRef = useRef({ contentHeight: 0, viewportHeight: 0 });
   const isAtBottomRef = useRef(true);
   const prevVisibleCountRef = useRef(0);
 
@@ -211,18 +212,43 @@ export function FeedScreen() {
   }, [showNewMessagesBadge, fadeAnim]);
 
   const scrollToBottom = useCallback(() => {
-    // scrollToEnd is the most reliable way to animate on Android
-    // and correctly accounts for ListFooterComponent and container padding.
-    if (visibleMessages.length > 0) {
-      flashListRef.current?.scrollToEnd({ animated: true });
+    if (visibleMessages.length === 0) {
+      return;
     }
+
+    requestAnimationFrame(() => {
+      const list = flashListRef.current;
+      const nativeScrollRef = list?.getNativeScrollRef?.();
+
+      if (nativeScrollRef && typeof nativeScrollRef.scrollToEnd === 'function') {
+        nativeScrollRef.scrollToEnd({ animated: true });
+        setTimeout(() => {
+          nativeScrollRef.scrollToEnd({ animated: false });
+        }, 260);
+        return;
+      }
+
+      list?.scrollToOffset?.({
+        animated: true,
+        offset: Number.MAX_SAFE_INTEGER,
+        skipFirstItemOffset: false,
+      });
+    });
   }, [visibleMessages.length]);
 
   // Scroll to bottom when tapping the active tab
   useEffect(() => {
-    const unsubscribe = navigation.addListener('tabPress', (e: any) => {
-      if (navigation.isFocused()) {
-        e.preventDefault();
+    const parentNavigation = navigation.getParent();
+    if (!parentNavigation) {
+      return;
+    }
+
+    const unsubscribe = parentNavigation.addListener('tabPress', (e: any) => {
+      const feedTabKey = parentNavigation
+        .getState()
+        .routes.find((route: any) => route.name === 'feed')?.key;
+
+      if (e.target === feedTabKey && navigation.isFocused()) {
         scrollToBottom();
       }
     });
@@ -335,13 +361,20 @@ export function FeedScreen() {
   }, [nextCursor, isLoadingMore, loadMore]);
 
   return (
-    <View style={styles.safeArea}>
+    <>
       <FlashList
+        contentInsetAdjustmentBehavior="automatic"
         ref={flashListRef}
         data={visibleMessages}
         renderItem={renderItem}
         style={{ ...styles.scrollView, flex: 1 }}
         contentContainerStyle={styles.scrollContent}
+        onContentSizeChange={(_, height) => {
+          listMetricsRef.current.contentHeight = height;
+        }}
+        onLayout={(event) => {
+          listMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
+        }}
         onRefresh={() => void loadFirstPage('refresh')}
         refreshing={isRefreshing}
         ListHeaderComponent={ListHeader}
@@ -351,6 +384,8 @@ export function FeedScreen() {
         drawDistance={1000}
         onScroll={(event) => {
           const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+          listMetricsRef.current.contentHeight = contentSize.height;
+          listMetricsRef.current.viewportHeight = layoutMeasurement.height;
           const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
           isAtBottomRef.current = isCloseToBottom;
           if (isCloseToBottom && showNewMessagesBadge) {
@@ -379,7 +414,7 @@ export function FeedScreen() {
         visible={viewerVisible}
         onRequestClose={() => setViewerVisible(false)}
       />
-    </View>
+    </>
   );
 }
 
@@ -648,7 +683,7 @@ function getBundleReleaseMs(bundle: NarrativeBundleDto) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: theme.colors.headerBackground } as ViewStyle,
+  safeArea: { flex: 1, backgroundColor: 'transparent' } as ViewStyle,
   header: { 
     backgroundColor: theme.colors.headerBackground, 
     borderBottomColor: theme.colors.headerBorder, 

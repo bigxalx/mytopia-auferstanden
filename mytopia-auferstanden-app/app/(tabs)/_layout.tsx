@@ -1,16 +1,12 @@
-import { Tabs, Redirect } from 'expo-router';
+import { Redirect } from 'expo-router';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { ChatLineBold, MapBold, UserBold } from '@/components/ui/SolarTabIcons';
 import { useSession } from '@/src/core/session/SessionContext';
-import { MainHeader } from '@/src/shared/ui/MainHeader';
 import { theme } from '@/src/shared/ui/theme';
 import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-
-const renderHeader = (props: any) => <MainHeader {...props} />;
+import { ChatLineBold, UserBold, MapBold } from '@/components/ui/SolarTabIcons';
 
 export default function TabLayout() {
   return (
@@ -21,27 +17,12 @@ export default function TabLayout() {
 }
 
 function TabLayoutInner() {
-  const insets = useSafeAreaInsets();
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
   const { unreadCount } = useNarrativeSignal();
 
   if (!isHydrated) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.headerBackground, paddingTop: insets.top }}>
-        <View style={{
-          backgroundColor: theme.colors.headerBackground,
-          borderBottomColor: theme.colors.headerBorder,
-          borderBottomWidth: 1,
-          paddingHorizontal: 20,
-          paddingVertical: 18,
-          alignItems: 'center',
-          gap: 6,
-        }}>
-          <Text style={{ 
-            ...theme.typography.title,
-            color: 'transparent' 
-          }}>Loading</Text>
-        </View>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.orange} />
         </View>
@@ -57,64 +38,96 @@ function TabLayoutInner() {
     return <Redirect href="../welcome-back" />;
   }
 
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: theme.colors.textPrimary,
-        tabBarInactiveTintColor: theme.colors.textSecondary,
-        headerShown: true,
-        header: renderHeader,
-        tabBarButton: HapticTab,
-        tabBarStyle: {
-          backgroundColor: theme.colors.headerBackground,
-          borderTopColor: theme.colors.headerBorder,
-        },
-        tabBarLabelStyle: {
-          fontFamily: theme.typography.title.fontFamily,
-          fontWeight: '700',
-        },
-      }}>
 
-      <Tabs.Screen
-        name="feed"
-        options={{
-          title: 'Notfallkanal',
-          tabBarIcon: ({ color }) => <ChatLineBold size={28} color={color} />,
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profil',
-          tabBarIcon: ({ color }) => <UserBold size={28} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="map"
-        options={{
-          title: 'Karte',
-          headerShown: true,
-          tabBarIcon: ({ color }) => <MapBold size={28} color={color} />,
-        }}
-      />
-      {/* Hidden routes that must exist as files but aren't shown as tabs */}
-      <Tabs.Screen name="index" options={{ href: null, headerShown: false }} />
-      <Tabs.Screen 
-        name="tasks" 
-        options={{ 
-          href: null,
-          title: 'Missionen'
-        }} 
-      />
-    </Tabs>
+  return (
+    <View style={styles.container}>
+      <View style={styles.tabsContainer}>
+        <NativeTabs
+          backgroundColor={Platform.OS === 'android' ? theme.colors.background : undefined}
+          blurEffect="systemThickMaterialDark"
+          indicatorColor="#3b83f646"
+          // disableIndicator={true}
+          rippleColor="transparent"
+          badgeBackgroundColor={theme.colors.blue}
+          badgeTextColor={theme.colors.textPrimary}
+          iconColor={{
+            default: Platform.OS === 'android' ? theme.colors.textSecondary : '#8E8E93',
+            selected: theme.colors.blue,
+          }}
+          labelStyle={
+            Platform.OS === 'android'
+              ? {
+                default: {
+                  color: 'rgba(238, 242, 239, 0.8)',
+                  fontFamily: theme.typography.title.fontFamily,
+                  fontWeight: '400',
+
+                },
+                selected: {
+                  color: "#c3daffff",
+                  fontFamily: 'NunitoSans_700Bold',
+                },
+              }
+              : {
+                fontFamily: theme.typography.title.fontFamily,
+                fontWeight: '700',
+              }
+          }
+        >
+          <NativeTabs.Trigger
+            name="feed"
+            disableScrollToTop={true}
+          >
+            <NativeTabs.Trigger.Label>Notfallkanal</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
+              src={require('../../assets/icons/tabs/feed.png')}
+              renderingMode="template"
+              selectedColor={theme.colors.blue}
+            />
+            {unreadCount > 0 && (
+              <NativeTabs.Trigger.Badge selectedBackgroundColor={theme.colors.blue}>
+                {String(unreadCount)}
+              </NativeTabs.Trigger.Badge>
+            )}
+          </NativeTabs.Trigger>
+
+          <NativeTabs.Trigger name="profile">
+            <NativeTabs.Trigger.Label>Profil</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
+              src={require('../../assets/icons/tabs/profile.png')}
+              renderingMode="template"
+            // selectedColor={theme.colors.blue}
+            />
+          </NativeTabs.Trigger>
+
+          <NativeTabs.Trigger name="map">
+            <NativeTabs.Trigger.Label>Karte</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
+              src={require('../../assets/icons/tabs/map.png')}
+              renderingMode="template"
+              selectedColor={theme.colors.blue}
+            />
+          </NativeTabs.Trigger>
+
+          <NativeTabs.Trigger name="index" hidden />
+          <NativeTabs.Trigger name="tasks" hidden />
+        </NativeTabs>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    backgroundColor: theme.colors.background,
+    flex: 1,
+  },
   loadingContainer: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
+  },
+  tabsContainer: {
+    flex: 1,
   },
 });
