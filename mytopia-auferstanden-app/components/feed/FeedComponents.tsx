@@ -1,7 +1,24 @@
-import React from 'react';
-import { Image, StyleSheet, Text, View, type ViewStyle, type TextStyle, Pressable } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Pressable,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+  type TextStyle,
+  type ImageStyle,
+} from 'react-native';
+import { Image } from 'expo-image';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { Link } from 'expo-router';
+import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
-import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
+import {
+  type NarrativeAttachmentDto,
+  type NarrativeMessageDto,
+} from '@/src/features/feed/data/narrativeFeedClient';
 
 export function MessageBubble({
   message,
@@ -18,125 +35,402 @@ export function MessageBubble({
   onImagePress: (idx: number) => void;
   containerStyle?: ViewStyle;
 }) {
-  const isImage = message.attachment?._type === 'imageAttachment';
-  const imageUrl = isImage ? (message.attachment as any).url : null;
-
   return (
-    <View style={[styles.bubbleContainer, containerStyle]}>
-      <View style={styles.avatarContainer}>
-        {showAvatar && message.actor.avatarUrl ? (
-          <Image source={{ uri: message.actor.avatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder} />
-        )}
+    <View style={[styles.messageRow, containerStyle]}>
+      <View style={styles.avatarColumn}>
+        {showAvatar && <ActorAvatar actor={message.actor} />}
       </View>
-      <View style={styles.contentContainer}>
-        {showName && (
-          <Text style={styles.actorName}>{message.actor.name}</Text>
-        )}
-        <View style={styles.bubble}>
-          {message.text && (
-            <Text style={styles.messageText}>{message.text}</Text>
-          )}
-          {imageUrl && (
-            <Pressable
-              onPress={() => {
-                const idx = gallerySources.findIndex(s => s.uri === imageUrl);
-                if (idx !== -1) onImagePress(idx);
-              }}
-              style={styles.imagePressable}
+      <View style={styles.bubbleContainer}>
+        <View style={styles.messageBubble}>
+          {showName && (
+            <Text
+              style={[
+                styles.headline,
+                message.actor.nameColor ? { color: message.actor.nameColor } : {},
+              ]}
             >
-              <Image source={{ uri: imageUrl }} style={styles.attachmentImage} />
-            </Pressable>
+              {message.actor.name}
+            </Text>
           )}
+          {message.attachment && (
+            <AttachmentView
+              attachment={message.attachment}
+              gallerySources={gallerySources}
+              onImagePress={onImagePress}
+            />
+          )}
+          {message.text && <Text style={styles.messageText}>{message.text}</Text>}
         </View>
       </View>
     </View>
   );
 }
 
-// Keep FeedRow as a fallback for the old feed style if needed
-export function FeedRow({ item }: { item: any }) {
-  // Simplistic implementation as a fallback
+function ActorAvatar({ actor }: { actor: { avatarUrl?: string; name: string } }) {
+  if (actor.avatarUrl) {
+    return (
+      <Image
+        source={{ uri: actor.avatarUrl }}
+        style={styles.avatarImage}
+        contentFit="cover"
+        cachePolicy="disk"
+        transition={200}
+        placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+      />
+    );
+  }
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowTitle}>{item.title}</Text>
-      <Text style={styles.rowDesc}>{item.description}</Text>
+    <View style={styles.avatarFallback}>
+      <Text style={styles.avatarFallbackLabel}>
+        {actor.name.slice(0, 1).toUpperCase()}
+      </Text>
     </View>
   );
 }
 
+function AttachmentView({
+  attachment,
+  gallerySources,
+  onImagePress,
+}: {
+  attachment: NarrativeAttachmentDto;
+  gallerySources: { uri: string }[];
+  onImagePress: (idx: number) => void;
+}) {
+  switch (attachment._type) {
+    case 'imageAttachment': {
+      const index = gallerySources.findIndex((s) => s.uri === attachment.url);
+      return (
+        <Pressable style={styles.attachmentBox} onPress={() => index >= 0 && onImagePress(index)}>
+          <Image
+            source={{ uri: attachment.url }}
+            style={styles.imageAttachment}
+            contentFit="cover"
+            cachePolicy="disk"
+            transition={200}
+            placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+          />
+          {attachment.caption && <Text style={styles.attachmentCaption}>{attachment.caption}</Text>}
+        </Pressable>
+      );
+    }
+    case 'videoAttachment':
+      return <VideoAttachmentView attachment={attachment} />;
+    case 'audioAttachment':
+      return <AudioAttachmentView attachment={attachment} />;
+    case 'missionAttachment': {
+      const description =
+        attachment.excerpt ||
+        [
+          attachment.missionKind
+            ? attachment.missionKind === 'quiz'
+              ? '🧠 Quiz'
+              : '📍 GPS'
+            : null,
+          attachment.missionPoints ? `${attachment.missionPoints} Punkte` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+      return (
+        <Link asChild href={`/tasks/${attachment.missionId}`}>
+          <Pressable style={styles.orange}>
+            {attachment.imageUrl && (
+              <Image
+                source={{ uri: attachment.imageUrl }}
+                style={styles.missionCardImage}
+                contentFit="cover"
+                cachePolicy="disk"
+                transition={200}
+                placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+              />
+            )}
+            <View style={styles.missionCardContent}>
+              <Text style={styles.missionTitle}>
+                {attachment.title || attachment.missionTitle || 'Mission'}
+              </Text>
+              {description ? <Text style={styles.missionExcerpt}>{description}</Text> : null}
+            </View>
+          </Pressable>
+        </Link>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Video — uses expo-video (useVideoPlayer + VideoView)
+// ---------------------------------------------------------------------------
+
+function VideoAttachmentView({
+  attachment,
+}: {
+  attachment: Extract<NarrativeAttachmentDto, { _type: 'videoAttachment' }>;
+}) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState(16 / 9);
+  const player = useVideoPlayer(attachment.url, (p) => {
+    p.muted = false;
+    p.loop = false;
+    p.staysActiveInBackground = false;
+  });
+  const videoViewRef = useRef<VideoView>(null);
+
+  useEffect(() => {
+    const subscription = player.addListener('videoTrackChange', (payload) => {
+      if (payload.videoTrack?.size) {
+        setAspectRatio(payload.videoTrack.size.width / payload.videoTrack.size.height);
+      }
+    });
+    return () => subscription.remove();
+  }, [player]);
+
+  const handlePress = () => {
+    player.play();
+    videoViewRef.current?.enterFullscreen();
+  };
+
+  return (
+    <Pressable style={styles.attachmentBox} onPress={handlePress}>
+      <View style={[styles.videoPlaceholder, { aspectRatio, height: undefined }]}>
+        <VideoView
+          ref={videoViewRef}
+          player={player}
+          style={StyleSheet.absoluteFill}
+          contentFit={isFullscreen ? 'contain' : 'cover'}
+          nativeControls={isFullscreen}
+          onFullscreenEnter={() => setIsFullscreen(true)}
+          onFullscreenExit={() => {
+            setIsFullscreen(false);
+            player.pause();
+          }}
+        />
+        <View style={styles.videoOverlay}>
+          <View style={styles.playIconCircle}>
+            <Svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M18.8906 12.846C18.5371 14.189 16.8667 15.1381 13.5257 17.0361C10.296 18.8709 8.6812 19.7884 7.37983 19.4196C6.8418 19.2671 6.35159 18.9776 5.95624 18.5787C5 17.6139 5 15.7426 5 12C5 8.2574 5 6.3861 5.95624 5.42129C6.35159 5.02241 6.8418 4.73289 7.37983 4.58043C8.6812 4.21165 10.296 5.12907 13.5257 6.96387C16.8667 8.86193 18.5371 9.81096 18.8906 11.154C19.0365 11.7084 19.0365 12.2916 18.8906 12.846Z"
+                fill="white"
+              />
+            </Svg>
+          </View>
+        </View>
+      </View>
+      {attachment.title && <Text style={styles.attachmentCaption}>{attachment.title}</Text>}
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Audio — uses expo-audio (useAudioPlayer + useAudioPlayerStatus)
+// ---------------------------------------------------------------------------
+
+function AudioAttachmentView({
+  attachment,
+}: {
+  attachment: Extract<NarrativeAttachmentDto, { _type: 'audioAttachment' }>;
+}) {
+  const audioPlayer = useAudioPlayer({ uri: attachment.url });
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
+  const [isPreparingPlayback, setIsPreparingPlayback] = useState(false);
+  const [playbackWarning, setPlaybackWarning] = useState<string | null>(null);
+  const playbackAttemptAtRef = useRef<number | null>(null);
+
+  const isLikelyProblematicAndroidFormat =
+    Platform.OS === 'android' &&
+    (attachment.extension?.toLowerCase() === 'm4a' ||
+      attachment.mimeType?.toLowerCase() === 'audio/x-m4a' ||
+      attachment.url.toLowerCase().includes('.m4a'));
+
+  useEffect(() => {
+    if (!audioStatus.playing && !audioStatus.isBuffering && playbackAttemptAtRef.current) {
+      const timer = setTimeout(() => {
+        if (!audioStatus.playing && !audioStatus.isBuffering) {
+          setPlaybackWarning(
+            isLikelyProblematicAndroidFormat ? 'Format issues detected.' : 'Audio did not start.',
+          );
+        }
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [audioStatus.playing, audioStatus.isBuffering, isLikelyProblematicAndroidFormat]);
+
+  const onTogglePlayback = async () => {
+    if (isPreparingPlayback) return;
+    if (audioStatus.playing) {
+      audioPlayer.pause();
+      return;
+    }
+    try {
+      playbackAttemptAtRef.current = Date.now();
+      setIsPreparingPlayback(true);
+      await setAudioModeAsync({ playsInSilentMode: true });
+      if (audioStatus.didJustFinish) await audioPlayer.seekTo(0);
+      audioPlayer.play();
+    } catch {
+      /* soft fail */
+    } finally {
+      setIsPreparingPlayback(false);
+    }
+  };
+
+  const label =
+    isPreparingPlayback || audioStatus.isBuffering
+      ? '...'
+      : audioStatus.playing
+        ? 'Pause'
+        : 'Play';
+
+  return (
+    <View style={styles.attachmentBox}>
+      <View style={styles.audioHeader}>
+        <Text style={styles.audioTitle}>{attachment.title || 'Audio'}</Text>
+        <Pressable style={styles.orange} onPress={() => void onTogglePlayback()}>
+          <Text style={styles.audioButtonLabel}>{label}</Text>
+        </Pressable>
+      </View>
+      {playbackWarning && <Text style={styles.attachmentCaption}>{playbackWarning}</Text>}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
-  bubbleContainer: {
+  messageRow: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    marginVertical: 2,
+    alignItems: 'flex-start',
+    position: 'relative',
   } as ViewStyle,
-  avatarContainer: {
-    width: 40,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 2,
+  avatarColumn: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: 48,
   } as ViewStyle,
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.colors.cardSubtleBackground,
-  },
-  avatarPlaceholder: {
-    width: 32,
-    height: 32,
-  },
-  contentContainer: {
+  bubbleContainer: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 60,
   } as ViewStyle,
-  actorName: {
-    color: theme.colors.cardTextSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 4,
-    marginLeft: 4,
-  } as TextStyle,
-  bubble: {
+  messageBubble: {
     backgroundColor: theme.colors.beige,
-    borderColor: theme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignSelf: 'flex-start',
-    maxWidth: '85%',
+    borderRadius: 10,
+    flex: 1,
+    padding: 10,
+    gap: 8,
   } as ViewStyle,
+  headline: {
+    color: theme.colors.charcoal,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13,
+  } as TextStyle,
   messageText: {
     color: theme.colors.cardTextPrimary,
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
   } as TextStyle,
-  imagePressable: {
-    marginTop: 8,
+  avatarImage: {
+    borderRadius: 24,
+    height: 48,
+    width: 48,
+  } as ImageStyle,
+  avatarFallback: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.avatarFallback,
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
   } as ViewStyle,
-  attachmentImage: {
-    width: 200,
-    height: 150,
-    borderRadius: 12,
+  avatarFallbackLabel: {
+    color: theme.colors.avatarFallbackText,
+    fontSize: 18,
+    fontWeight: '700',
+  } as TextStyle,
+  attachmentBox: {
     backgroundColor: theme.colors.cardSubtleBackground,
-  },
-  row: {
-    padding: 16,
-    backgroundColor: theme.colors.beige,
-    marginBottom: 8,
-    borderRadius: 12,
+    borderRadius: 14,
+    overflow: 'hidden',
   } as ViewStyle,
-  rowTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.textPrimary,
-  } as TextStyle,
-  rowDesc: {
+  attachmentCaption: {
+    color: theme.colors.cardTextSecondary,
     fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  } as TextStyle,
+  imageAttachment: {
+    height: 220,
+    width: '100%',
+  } as ImageStyle,
+  videoPlaceholder: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.mediaSurface,
+    height: 200,
+    justifyContent: 'center',
+    width: '100%',
+    overflow: 'hidden',
+  } as ViewStyle,
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.overlaySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as ViewStyle,
+  playIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.colors.overlayStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.overlayBorder,
+  } as ViewStyle,
+  orange: {
+    backgroundColor: theme.colors.orange,
+    borderRadius: 10,
+    padding: 5,
+  } as ViewStyle,
+  audioHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 12,
+  } as ViewStyle,
+  audioTitle: {
+    color: theme.colors.cardTextPrimary,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    marginRight: 12,
+  } as TextStyle,
+  audioButtonLabel: {
+    color: theme.colors.cardTextPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+  } as TextStyle,
+  missionCardImage: {
+    borderRadius: 6,
+    height: 140,
+    width: '100%',
+  } as ImageStyle,
+  missionCardContent: {
+    paddingHorizontal: 4,
+    paddingBottom: 2,
+  } as ViewStyle,
+  missionTitle: {
+    color: theme.colors.cardTextPrimary,
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15,
+  } as TextStyle,
+  missionExcerpt: {
+    color: theme.colors.cardTextSecondary,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 12,
+    marginTop: 2,
   } as TextStyle,
 });

@@ -14,6 +14,7 @@ import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
+import { darkMapStyle } from '@/src/shared/ui/darkMapStyle';
 import {
     CheckIcon,
     hasValidGpsConfig,
@@ -181,6 +182,8 @@ export default function MapScreen() {
                     showsMyLocationButton={false}
                     ref={mapRef}
                     style={styles.map}
+                    customMapStyle={darkMapStyle}
+                    userInterfaceStyle="dark"
                 >
                     {visibleMissions.map((mission) =>
                         mission.gpsConfig ? (
