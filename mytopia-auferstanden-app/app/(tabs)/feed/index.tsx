@@ -23,23 +23,15 @@ import { useSession } from '@/src/core/session/SessionContext';
 import {
   fetchNarrativeFeedPage,
   type NarrativeBundleDto,
-  type NarrativeMessageDto,
 } from '@/src/features/feed/data/narrativeFeedClient';
 import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-import { MessageBubble } from '@/components/feed/FeedComponents';
-
-type PlaybackMessage = {
-  bundleId: string;
-  bundleTitle: string;
-  key: string;
-  message: NarrativeMessageDto;
-  revealAtMs: number;
-};
-
-const TEXT_DELAY_FACTOR_MS = 45;
-const TEXT_DELAY_MIN_MS = 1500;
-const TEXT_DELAY_MAX_MS = 12000;
-const ATTACHMENT_ONLY_DELAY_MS = 3500;
+import { MessageBubble } from '@/components/feed/MessageBubble';
+import {
+  buildPlaybackMessages,
+  getBundleReleaseMs,
+  resolveMessageDelayMs,
+  type PlaybackMessage,
+} from '@/src/features/feed/utils/playback';
 
 export default function FeedScreen() {
   const { selectedMode, user } = useSession();
@@ -370,6 +362,8 @@ export default function FeedScreen() {
         ref={flashListRef}
         data={visibleMessages}
         renderItem={renderItem}
+        keyExtractor={(item) => item.key}
+        estimatedItemSize={120}
         style={{ ...styles.scrollView, flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         onContentSizeChange={(_, height) => {
@@ -419,33 +413,6 @@ export default function FeedScreen() {
       />
     </>
   );
-}
-
-function buildPlaybackMessages(bundles: NarrativeBundleDto[]): PlaybackMessage[] {
-  const sorted = [...bundles].sort((a, b) => getBundleReleaseMs(a) - getBundleReleaseMs(b));
-  const items: PlaybackMessage[] = [];
-  for (const bundle of sorted) {
-    let cursorMs = getBundleReleaseMs(bundle);
-    for (const msg of bundle.messages) {
-      cursorMs += resolveMessageDelayMs(msg);
-      items.push({ bundleId: bundle._id, bundleTitle: bundle.title, key: `${bundle._id}:${msg.messageId}`, message: msg, revealAtMs: cursorMs });
-    }
-  }
-  return items;
-}
-
-function resolveMessageDelayMs(message: NarrativeMessageDto) {
-  const textLength = message.text?.trim().length ?? 0;
-  if (textLength > 0) {
-    return Math.max(TEXT_DELAY_MIN_MS, Math.min(TEXT_DELAY_MAX_MS, textLength * TEXT_DELAY_FACTOR_MS));
-  }
-
-  return message.attachment ? ATTACHMENT_ONLY_DELAY_MS : TEXT_DELAY_MIN_MS;
-}
-
-function getBundleReleaseMs(bundle: NarrativeBundleDto) {
-  const parsed = Date.parse(bundle.releaseAt);
-  return Number.isFinite(parsed) ? parsed : Date.now();
 }
 
 const styles = StyleSheet.create({
