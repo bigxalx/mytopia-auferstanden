@@ -29,7 +29,7 @@ export function MessageBubble({
       )}
 
       <View style={styles.bubbleContainer}>
-        <View style={styles.messageBubble}>
+        <View style={[styles.messageBubble, showAvatar && styles.lastInGroup]}>
           {showName && (
             <Text
               style={[
@@ -55,37 +55,40 @@ export function MessageBubble({
 }
 
 const styles = StyleSheet.create({
-  messageRow: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    position: 'relative' 
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    position: 'relative'
   } as ViewStyle,
-  avatarColumn: { 
-    position: 'absolute', 
-    left: 0, 
-    bottom: 0, 
-    width: 48 
+  avatarColumn: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: 48
   } as ViewStyle,
-  bubbleContainer: { 
-    flex: 1, 
-    marginLeft: 60 
+  bubbleContainer: {
+    flex: 1,
+    marginLeft: 60
   } as ViewStyle,
-  messageBubble: { 
-    backgroundColor: theme.colors.beige, 
-    borderRadius: 10, 
-    flex: 1, 
-    padding: 10, 
-    gap: 8 
+  messageBubble: {
+    backgroundColor: theme.colors.beige,
+    borderRadius: 10,
+    flex: 1,
+    padding: 8,
+    gap: 8
   } as ViewStyle,
-  headline: { 
-    color: theme.colors.charcoal, 
-    fontFamily: 'NunitoSans_700Bold', 
-    fontSize: 13 
+  lastInGroup: {
+    borderBottomLeftRadius: 0,
+  } as ViewStyle,
+  headline: {
+    color: theme.colors.charcoal,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13
   } as TextStyle,
-  messageText: { 
-    color: theme.colors.cardTextPrimary, 
-    fontFamily: 'NunitoSans_400Regular', 
-    fontSize: 12, 
-    lineHeight: 18 
+  messageText: {
+    color: theme.colors.cardTextPrimary,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 12,
+    lineHeight: 18
   } as TextStyle,
 });
