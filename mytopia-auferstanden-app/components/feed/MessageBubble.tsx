@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   messageBubble: {
     backgroundColor: theme.colors.beige,
-    borderRadius: 10,
+    borderRadius: 12,
     flex: 1,
     padding: 8,
     gap: 8
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   messageText: {
     color: theme.colors.cardTextPrimary,
     fontFamily: 'NunitoSans_400Regular',
-    fontSize: 12,
-    lineHeight: 18
+    fontSize: 13,
+    lineHeight: 20
   } as TextStyle,
 });
