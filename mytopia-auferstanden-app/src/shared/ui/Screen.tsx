@@ -21,12 +21,12 @@ type ScreenProps = PropsWithChildren<{
   refreshControl?: React.ReactElement<any>;
 }>;
 
-export function Screen({ 
-  children, 
-  noPadding = false, 
+export function Screen({
+  children,
+  noPadding = false,
   bottomInset = true,
-  scrollable = true, 
-  subtitle, 
+  scrollable = true,
+  subtitle,
   title,
   headerShown = true,
   centerContent = false,
@@ -35,7 +35,7 @@ export function Screen({
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const bottomPadding = bottomInset ? Math.max(insets.bottom, 20) : 0;
-  
+
   const header = headerShown ? (
     <View style={[styles.header, { paddingTop: insets.top }]}>
       <Text style={styles.title}>{title}</Text>
@@ -49,9 +49,9 @@ export function Screen({
   if (!scrollable) {
     const content = (
       <View style={StyleSheet.flatten([
-        styles.fillContent, 
+        styles.fillContent,
         { paddingBottom: bottomPadding },
-        noPadding && styles.noPadding, 
+        noPadding && styles.noPadding,
         centerContent && { justifyContent: 'center' },
         bgStyle
       ])}>
@@ -72,15 +72,15 @@ export function Screen({
   }
 
   const scrollContent = (
-    <ScrollView 
+    <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={StyleSheet.flatten([styles.scrollView, bgStyle])}
       contentContainerStyle={StyleSheet.flatten([
-        styles.content, 
+        styles.content,
         { paddingBottom: bottomPadding },
         noPadding && styles.noPadding,
         centerContent && { flexGrow: 1, justifyContent: 'center' }
-      ])} 
+      ])}
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
     >
@@ -102,7 +102,7 @@ export function Screen({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'transparent',
+    backgroundColor: theme.colors.background,
     flex: 1,
   } as ViewStyle,
   content: {
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     padding: 20,
   } as ViewStyle,
   fillContent: {
-    backgroundColor: 'transparent',
+    backgroundColor: theme.colors.background,
     flex: 1,
     gap: 16,
     padding: 20,

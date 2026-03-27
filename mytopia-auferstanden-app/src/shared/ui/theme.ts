@@ -1,4 +1,5 @@
 import { TextStyle } from 'react-native';
+import { DarkTheme } from '@react-navigation/native';
 
 const colors = {
   background: '#252b30',
@@ -78,4 +79,24 @@ export const theme = {
       textTransform: 'uppercase',
     } as TextStyle
   }
+};
+
+/**
+ * Custom React Navigation theme that extends DarkTheme but uses the app's
+ * actual background colour. This prevents the near-black rgb(1,1,1) flash
+ * that DarkTheme would show between tab switches before screen content renders.
+ */
+export const AppNavigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    // Navigator uses this as the screen container background — must match
+    // the app background so there is no colour mismatch during transitions.
+    background: colors.background,
+    // Used for headers and the tab bar surface.
+    card: colors.background,
+    // Keep text readable against our background.
+    text: colors.textPrimary,
+    border: colors.headerBorder,
+  },
 };

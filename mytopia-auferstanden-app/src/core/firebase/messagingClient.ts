@@ -1,17 +1,41 @@
-import { 
+// Firebase messaging is lazily required below to prevent the "Native module RNFBAppModule not found" 
+// error from crashing the entire app when running in Expo Go or similar environments
+// without a custom development build.
+
+import { PermissionsAndroid, Platform } from 'react-native';
+import { env } from '@/src/config/env';
+import { type AppMode } from '@/src/core/session/appMode';
+
+/** Lazy-loader for Firebase Messaging */
+const getFirebaseMessaging = () => {
+  try {
+    return require('@react-native-firebase/messaging');
+  } catch {
+    return null;
+  }
+};
+
+const messaging = getFirebaseMessaging();
+
+const { 
   getMessaging, 
   getToken, 
   onMessage,
-  subscribeToTopic as firebaseSubscribeToTopic, 
-  unsubscribeFromTopic as firebaseUnsubscribeFromTopic,
-  requestPermission as firebaseRequestPermission,
+  subscribeToTopic: firebaseSubscribeToTopic, 
+  unsubscribeFromTopic: firebaseUnsubscribeFromTopic,
+  requestPermission: firebaseRequestPermission,
   setBackgroundMessageHandler,
   AuthorizationStatus
-} from '@react-native-firebase/messaging';
-import { PermissionsAndroid, Platform } from 'react-native';
-
-import { env } from '@/src/config/env';
-import { type AppMode } from '@/src/core/session/appMode';
+} = messaging || {
+  getMessaging: () => null,
+  getToken: async () => null,
+  onMessage: () => () => {},
+  subscribeToTopic: async () => {},
+  unsubscribeFromTopic: async () => {},
+  requestPermission: async () => 0,
+  setBackgroundMessageHandler: () => {},
+  AuthorizationStatus: { AUTHORIZED: 1, PROVISIONAL: 2, DENIED: 0, NOT_DETERMINED: -1 }
+};
 
 const DEFAULT_NARRATIVE_TOPIC = 'narrative-global-v1';
 
@@ -150,7 +174,7 @@ export function subscribeToForegroundNarrativeMessages(
 ) {
   try {
     const instance = getMessaging();
-    return onMessage(instance, (remoteMessage) => {
+    return onMessage(instance, (remoteMessage: any) => {
       const data = (remoteMessage.data ?? {}) as Record<string, string>;
       if (data.eventType === 'release' || data.bundleId) {
         callback({

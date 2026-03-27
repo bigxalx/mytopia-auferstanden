@@ -1,8 +1,22 @@
-import {
+/** Lazy-loader for Firebase Crashlytics */
+import AsyncStorage from '@react-native-async-storage/async-storage';
+const getFirebaseCrashlytics = () => {
+  try {
+    return require('@react-native-firebase/crashlytics');
+  } catch {
+    return null;
+  }
+};
+
+const crashlytics = getFirebaseCrashlytics();
+
+const {
   getCrashlytics,
   setCrashlyticsCollectionEnabled,
-} from '@react-native-firebase/crashlytics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} = crashlytics || {
+  getCrashlytics: () => null,
+  setCrashlyticsCollectionEnabled: async () => {},
+};
 
 const PRIVACY_CONSENT_KEY = 'mytopia_telemetry_consent';
 

@@ -1,13 +1,32 @@
-import { 
+/** Lazy-loader for Firebase Firestore */
+import { env } from '@/src/config/env';
+import { LegacySummary, V2_COLLECTION, V2UserDoc } from '@/src/core/firestore/schema';
+
+const getFirebaseFirestore = () => {
+  try {
+    return require('@react-native-firebase/firestore');
+  } catch {
+    return null;
+  }
+};
+
+const firestore = getFirebaseFirestore();
+
+const { 
   getFirestore, 
   doc, 
   getDoc, 
   setDoc,
-  type FirebaseFirestoreTypes
-} from '@react-native-firebase/firestore';
+} = firestore || {
+  getFirestore: () => null,
+  doc: () => null,
+  getDoc: async () => ({ exists: () => false, data: () => ({}) }),
+  setDoc: async () => {},
+};
 
-import { env } from '@/src/config/env';
-import { LegacySummary, V2_COLLECTION, V2UserDoc } from '@/src/core/firestore/schema';
+export declare namespace FirebaseFirestoreTypes {
+  type DocumentReference = any;
+}
 
 export type SessionProfile = {
   displayName: string;

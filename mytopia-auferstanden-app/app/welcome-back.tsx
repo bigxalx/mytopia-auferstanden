@@ -1,18 +1,83 @@
-import { Redirect } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
-import { WelcomeBackScreen } from '@/src/features/auth/screens/WelcomeBackScreen';
+import { Screen } from '@/src/shared/ui/Screen';
+import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { theme } from '@/src/shared/ui/theme';
 
-export default function WelcomeBackRoute() {
-  const { shouldShowWelcomeBack, user } = useSession();
+export default function WelcomeBackScreen() {
+  const router = useRouter();
+  const { dismissWelcomeBack, user } = useSession();
 
-  if (!user) {
-    return <Redirect href="/(auth)/sign-in" />;
+  if (!user || !user.legacySummary) {
+    return null;
   }
 
-  if (!shouldShowWelcomeBack || !user.legacySummary) {
-    return <Redirect href="/(tabs)/feed" />;
+  const rankText = user.legacySummary.rankSnapshot > 0 ? `#${user.legacySummary.rankSnapshot}` : 'n/a';
+
+  function continueToFeed() {
+    dismissWelcomeBack();
+    router.replace('/(tabs)/feed');
   }
 
-  return <WelcomeBackScreen />;
+  return (
+    <Screen title="Willkommen zurück bei Mytopia">
+      <SectionCard
+        title="Frühere Zusammenfassung"
+        description="Diese Übersicht dient der Kontinuität und hat keinen Einfluss auf die Rangliste der neuen Saison."
+      >
+        <View style={styles.row}>
+          <Text style={styles.label}>Frühere Gesamtpunktzahl</Text>
+          <Text style={styles.value}>{user.legacySummary.totalPoints}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.label}>Früherer Rang</Text>
+          <Text style={styles.value}>{rankText}</Text>
+        </View>
+      </SectionCard>
+
+      <SectionCard title="Wie es weitergeht">
+        <Text style={styles.body}>
+          Deine alte Punktzahl wird nur als Referenz gespeichert. Alle Wettbewerbe in dieser App basieren auf den neuen v2-Saisondaten.
+        </Text>
+        <Pressable accessibilityRole="button" onPress={continueToFeed} style={styles.button}>
+          <Text style={styles.buttonText}>Weiter zum Feed</Text>
+        </Pressable>
+      </SectionCard>
+    </Screen>
+  );
 }
+
+const styles = StyleSheet.create({
+  body: {
+    color: theme.colors.cardTextSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  button: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.orange,
+    borderRadius: 10,
+    marginTop: 6,
+    paddingVertical: 12,
+  },
+  buttonText: theme.typography.button,
+  label: {
+    color: theme.colors.cardTextSecondary,
+    flex: 1,
+    fontSize: 13,
+  },
+  row: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  value: {
+    color: theme.colors.cardTextPrimary,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+});

@@ -2,7 +2,7 @@
   "expo": {
     "name": "mytopia-auferstanden-app",
     "slug": "mytopia-auferstanden-app",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -12,14 +12,15 @@
         "expo-channel-name": "production"
       }
     },
+    "backgroundColor": "#252b30",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mytopiaauferstandenapp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "28",
+      "buildNumber": "29",
       "appleTeamId": "2YM33HYFWJ",
       "bundleIdentifier": "de.theateraltenburggera.mytopia",
       "infoPlist": {
@@ -33,7 +34,7 @@
       }
     },
     "android": {
-      "versionCode": 14,
+      "versionCode": 15,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

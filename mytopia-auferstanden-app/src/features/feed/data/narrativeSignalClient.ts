@@ -1,7 +1,32 @@
-import { getFirestore, collection, query, orderBy, limit, onSnapshot } from '@react-native-firebase/firestore';
-
+/** Lazy-loader for Firebase Firestore */
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
 import { type AppMode } from '@/src/core/session/appMode';
+
+const getFirebaseFirestore = () => {
+  try {
+    return require('@react-native-firebase/firestore');
+  } catch {
+    return null;
+  }
+};
+
+const firestore = getFirebaseFirestore();
+
+const { 
+  getFirestore, 
+  collection, 
+  query, 
+  orderBy, 
+  limit, 
+  onSnapshot 
+} = firestore || {
+  getFirestore: () => null,
+  collection: () => null,
+  query: () => null,
+  orderBy: () => null,
+  limit: () => null,
+  onSnapshot: () => () => {},
+};
 
 export type NarrativeStatePulse = {
   bundleId: string;
@@ -30,7 +55,7 @@ export function subscribeNarrativeSignal({
 
     return onSnapshot(
       q,
-      (querySnapshot) => {
+      (querySnapshot: any) => {
         if (querySnapshot.empty) {
           listener(null);
           return;
@@ -61,7 +86,7 @@ export function subscribeNarrativeSignal({
 
         listener(pulse);
       },
-      (error) => {
+      (error: any) => {
         console.warn('[feed] Failed to subscribe to narrative state.', error);
         listener(null);
       }

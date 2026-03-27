@@ -1,13 +1,35 @@
-import {
+/** Lazy-loader for Firebase Auth */
+const getFirebaseAuth = () => {
+  try {
+    return require('@react-native-firebase/auth');
+  } catch {
+    return null;
+  }
+};
+
+const auth = getFirebaseAuth();
+
+const {
   getAuth,
   onAuthStateChanged,
-  signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
-  createUserWithEmailAndPassword as firebaseCreateUserWithEmailAndPassword,
-  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
-  sendEmailVerification as firebaseSendEmailVerification,
-  signOut as firebaseSignOut,
-  type FirebaseAuthTypes,
-} from '@react-native-firebase/auth';
+  signInWithEmailAndPassword: firebaseSignInWithEmailAndPassword,
+  createUserWithEmailAndPassword: firebaseCreateUserWithEmailAndPassword,
+  sendPasswordResetEmail: firebaseSendPasswordResetEmail,
+  sendEmailVerification: firebaseSendEmailVerification,
+  signOut: firebaseSignOut,
+} = auth || {
+  getAuth: () => ({ currentUser: null }),
+  onAuthStateChanged: () => () => {},
+  signInWithEmailAndPassword: async () => {},
+  createUserWithEmailAndPassword: async () => {},
+  sendPasswordResetEmail: async () => {},
+  sendEmailVerification: async () => {},
+  signOut: async () => {},
+};
+
+export declare namespace FirebaseAuthTypes {
+  type User = any;
+}
 
 export type AuthFlowErrorCode =
   | 'email-not-verified'
@@ -153,4 +175,3 @@ function isNoDefaultFirebaseAppError(error: unknown) {
   const message = (error as { message?: unknown }).message;
   return typeof message === 'string' && message.includes("No Firebase App '[DEFAULT]'") || (error as { code?: string }).code === 'auth/no-default-app';
 }
-
