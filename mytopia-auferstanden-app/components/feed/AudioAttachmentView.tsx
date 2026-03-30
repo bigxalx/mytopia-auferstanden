@@ -17,14 +17,11 @@ export function AudioAttachmentView({
   const [isBuffering, setIsBuffering] = useState(false);
 
   useEffect(() => {
-    const playingSub = player.addListener('playingChange', (payload) => {
-      setIsPlaying(payload.isPlaying);
-    });
-    const statusSub = player.addListener('statusChange', (status) => {
-      setIsBuffering(status === 'loading');
+    const statusSub = player.addListener('playbackStatusUpdate', (status) => {
+      setIsPlaying(status.playing);
+      setIsBuffering(status.isBuffering);
     });
     return () => {
-      playingSub.remove();
       statusSub.remove();
     };
   }, [player]);

@@ -1,18 +1,24 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useHeaderHeight } from '@react-navigation/elements';
 import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
   Pressable,
+  SectionList,
+  type SectionListData,
+  type SectionListRenderItemInfo,
   StyleSheet,
   Text,
   type TextStyle,
   View,
   type ViewStyle,
+  type ViewToken,
   Animated,
+  LayoutAnimation,
   Platform,
+  UIManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -20,7 +26,6 @@ import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ImageView from 'react-native-image-viewing';
-import { FlashList } from '@shopify/flash-list';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 
 import { useSession } from '@/src/core/session/SessionContext';
@@ -39,16 +44,31 @@ const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
 const SCROLL_TO_END_BOTTOM_GAP = 108;
 const STICKY_DATE_HIDE_DELAY_MS = 700;
+const FEED_CACHE_VERSION = 1;
+const FEED_CACHE_LIMIT = 80;
+const OLDER_MESSAGES_THRESHOLD_PX = 140;
 const IS_GLASS_EFFECT_ENABLED =
   Platform.OS === 'ios' &&
   isGlassEffectAPIAvailable() &&
   isLiquidGlassAvailable();
 
+type FeedSection = {
+  data: PlaybackMessage[];
+  key: string;
+  title: string;
+};
+
+type FeedCachePayload = {
+  bundles: NarrativeBundleDto[];
+  nextCursor: string | null;
+  savedAt: number;
+  version: number;
+};
+
 export default function FeedScreen() {
   const { selectedMode, user } = useSession();
   const { markAsRead, pulse, refreshKey } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
 
   const requestVersionRef = useRef(0);
   const activeInitialLoadsRef = useRef(0);
@@ -56,12 +76,14 @@ export default function FeedScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const latestSignalTokenRef = useRef<string | null>(null);
   const initialRefreshKeyRef = useRef(refreshKey);
-  const flashListRef = useRef<any>(null);
+  const sectionListRef = useRef<any>(null);
   const listMetricsRef = useRef({ contentHeight: 0, viewportHeight: 0, currentOffsetY: 0 });
   const isAtBottomRef = useRef(true);
   const prevVisibleCountRef = useRef(0);
   const didInitialBottomScrollRef = useRef(false);
   const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrependAdjustmentRef = useRef<null | { previousContentHeight: number; previousOffsetY: number }>(null);
+  const didHydrateCacheRef = useRef(false);
 
   const navigation = useNavigation<any>();
   const [clockMs, setClockMs] = useState(() => Date.now());
@@ -76,10 +98,72 @@ export default function FeedScreen() {
   const [showNewMessagesBadge, setShowNewMessagesBadge] = useState(false);
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(false);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const [stickyDateLabel, setStickyDateLabel] = useState<string | null>(null);
-  const [fadeAnim] = useState(new Animated.Value(0));
+  const [activeSectionTitle, setActiveSectionTitle] = useState<string | null>(null);
+  const newMessagesOpacity = useRef(new Animated.Value(0)).current;
+  const scrollToEndOpacity = useRef(new Animated.Value(0)).current;
+  const scrollToEndIconOpacity = useRef(new Animated.Value(0)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+
+  // Viewability config for tracking the current sticky header title
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 0,
+    minimumViewTime: 0,
+  }).current;
+
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: Array<ViewToken<PlaybackMessage>> }) => {
+      // The first item in the list is the one currently at the top of the viewport
+      if (viewableItems.length > 0) {
+        const firstItem = viewableItems[0];
+        // SectionListData is passed through the item structure in FlashList/SectionList usually but
+        // for SectionList, we can find the section from the item's key or index if needed.
+        // Actually, for SectionList, it's easier to check the rendering or just find by index.
+        // Since each section has a TITLE, we look for the section title of the first viewable item.
+        // For simplicity, we can rely on the section structure.
+        const firstViewableSectionTitle = firstItem.section?.title || null;
+        if (firstViewableSectionTitle !== activeSectionTitle) {
+          setActiveSectionTitle(firstViewableSectionTitle);
+        }
+      }
+    },
+    [activeSectionTitle]
+  );
 
   const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP);
+  const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
+
+  const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);
+  const visibleMessages = useMemo(
+    () => playbackMessages.filter((item) => item.revealAtMs <= clockMs),
+    [clockMs, playbackMessages]
+  );
+
+  const sections = useMemo<FeedSection[]>(() => {
+    const grouped = new Map<string, FeedSection>();
+
+    for (const item of visibleMessages) {
+      const key = getDayKey(item.revealAtMs);
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.data.push(item);
+        continue;
+      }
+
+      grouped.set(key, {
+        data: [item],
+        key,
+        title: formatDayLabel(item.revealAtMs),
+      });
+    }
+
+    return Array.from(grouped.values());
+  }, [visibleMessages]);
+
+  const imageSources = useMemo(() => {
+    return visibleMessages
+      .filter((m) => m.message.attachment?._type === 'imageAttachment')
+      .map((m) => ({ uri: (m.message.attachment as any).url }));
+  }, [visibleMessages]);
 
   const loadFirstPage = useCallback(
     async (mode: 'initial' | 'refresh' | 'silent') => {
@@ -102,8 +186,8 @@ export default function FeedScreen() {
         const page = await fetchNarrativeFeedPage({ limit: 20, mode: selectedMode });
         if (requestVersion !== requestVersionRef.current) return;
 
-        setBundles(page.bundles);
-        setNextCursor(page.nextCursor);
+        setBundles((current) => mergeFreshBundles(current, page.bundles));
+        setNextCursor((current) => current ?? page.nextCursor);
         setClockMs(Date.now());
       } catch (error) {
         if (requestVersion !== requestVersionRef.current) return;
@@ -125,6 +209,11 @@ export default function FeedScreen() {
   const loadMore = useCallback(async () => {
     if (!user || !nextCursor || isLoadingMore) return;
 
+    pendingPrependAdjustmentRef.current = {
+      previousContentHeight: listMetricsRef.current.contentHeight,
+      previousOffsetY: listMetricsRef.current.currentOffsetY,
+    };
+
     setIsLoadingMore(true);
     try {
       const page = await fetchNarrativeFeedPage({
@@ -132,18 +221,63 @@ export default function FeedScreen() {
         limit: 20,
         mode: selectedMode,
       });
-      setBundles((current) => [...current, ...page.bundles]);
+      setBundles((current) => mergeOlderBundles(current, page.bundles));
       setNextCursor(page.nextCursor);
       setClockMs(Date.now());
     } catch (error) {
+      pendingPrependAdjustmentRef.current = null;
       setErrorMessage(error instanceof Error ? error.message : 'Failed to load more feed items.');
     } finally {
       setIsLoadingMore(false);
     }
   }, [isLoadingMore, nextCursor, selectedMode, user]);
 
+  const scrollToOffset = useCallback((offset: number, animated: boolean) => {
+    const list = sectionListRef.current;
+    const targetOffset = Math.max(0, offset);
+
+    list?.scrollToLocation?.({
+      animated,
+      itemIndex: 0,
+      sectionIndex: 0,
+      viewOffset: -targetOffset,
+      viewPosition: 0,
+    });
+
+    list?.getScrollResponder?.()?.scrollTo?.({ x: 0, y: targetOffset, animated });
+  }, []);
+
+  const scrollToEnd = useCallback((options?: { animated?: boolean; allowCorrection?: boolean }) => {
+    if (visibleMessages.length === 0) {
+      return;
+    }
+
+    const animated = options?.animated ?? true;
+    const allowCorrection = options?.allowCorrection ?? Platform.OS !== 'ios';
+    const { contentHeight, viewportHeight } = listMetricsRef.current;
+    const targetOffset = Math.max(0, contentHeight - viewportHeight);
+
+    requestAnimationFrame(() => {
+      sectionListRef.current?.getScrollResponder?.()?.scrollTo?.({
+        x: 0,
+        y: targetOffset,
+        animated,
+      });
+
+      if (allowCorrection) {
+        setTimeout(() => {
+          sectionListRef.current?.getScrollResponder?.()?.scrollTo?.({
+            x: 0,
+            y: targetOffset,
+            animated: false,
+          });
+        }, animated ? 320 : 0);
+      }
+    });
+  }, [visibleMessages.length]);
+
   useEffect(() => {
-    if (!user) {
+    if (!user || !cacheKey) {
       setBundles([]);
       setNextCursor(null);
       setErrorMessage(null);
@@ -152,18 +286,67 @@ export default function FeedScreen() {
       setIsLoadingMore(false);
       activeInitialLoadsRef.current = 0;
       activeRefreshLoadsRef.current = 0;
+      didHydrateCacheRef.current = false;
       return;
     }
+
     latestSignalTokenRef.current = null;
     didInitialBottomScrollRef.current = false;
-    void loadFirstPage('initial');
-  }, [loadFirstPage, selectedMode, user]);
+    didHydrateCacheRef.current = false;
+
+    let isCancelled = false;
+
+    AsyncStorage.getItem(cacheKey)
+      .then((raw) => {
+        if (isCancelled || !raw) {
+          return;
+        }
+
+        const parsed = JSON.parse(raw) as FeedCachePayload;
+        if (
+          parsed.version !== FEED_CACHE_VERSION ||
+          !Array.isArray(parsed.bundles)
+        ) {
+          return;
+        }
+
+        didHydrateCacheRef.current = true;
+        setBundles(parsed.bundles);
+        setNextCursor(typeof parsed.nextCursor === 'string' ? parsed.nextCursor : null);
+        setClockMs(Date.now());
+        setIsLoadingInitial(false);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!isCancelled) {
+          void loadFirstPage(didHydrateCacheRef.current ? 'silent' : 'initial');
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [cacheKey, loadFirstPage, selectedMode, user]);
+
+  useEffect(() => {
+    if (!cacheKey || bundles.length === 0) {
+      return;
+    }
+
+    const payload: FeedCachePayload = {
+      bundles: bundles.slice(-FEED_CACHE_LIMIT),
+      nextCursor,
+      savedAt: Date.now(),
+      version: FEED_CACHE_VERSION,
+    };
+
+    AsyncStorage.setItem(cacheKey, JSON.stringify(payload)).catch(() => {});
+  }, [bundles, cacheKey, nextCursor]);
 
   useFocusEffect(
     useCallback(() => {
       if (user) {
-        // Feed viewed, mark newest narrative as read to clear icon badge
-        markAsRead().catch(() => { });
+        markAsRead().catch(() => {});
         void loadFirstPage('silent');
       }
     }, [loadFirstPage, markAsRead, user])
@@ -172,8 +355,6 @@ export default function FeedScreen() {
   useEffect(() => {
     if (!user || (!pulse && latestSignalTokenRef.current === null)) return;
 
-    // Default to the first pulse as the starting point so we catch unread
-    // updates happening later. Or if the token changed over our remembered token.
     if (pulse?.token && pulse.token !== latestSignalTokenRef.current) {
       latestSignalTokenRef.current = pulse.token;
       void loadFirstPage('silent');
@@ -190,55 +371,12 @@ export default function FeedScreen() {
     return () => subscription.remove();
   }, [loadFirstPage, user]);
 
-  const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);
-  const visibleMessages = useMemo(
-    () => playbackMessages.filter((item) => item.revealAtMs <= clockMs),
-    [clockMs, playbackMessages]
-  );
-
-  // FCM push notification triggered refresh
   useEffect(() => {
     if (refreshKey === initialRefreshKeyRef.current) return;
     if (!user) return;
     void loadFirstPage('silent');
   }, [refreshKey, loadFirstPage, user]);
 
-  const scrollToEnd = useCallback((options?: { animated?: boolean; allowCorrection?: boolean }) => {
-    if (visibleMessages.length === 0) {
-      return;
-    }
-
-    const animated = options?.animated ?? true;
-    const allowCorrection = options?.allowCorrection ?? Platform.OS !== 'ios';
-
-    const performScroll = (shouldAnimate: boolean) => {
-      const list = flashListRef.current;
-      const nativeScrollRef = list?.getNativeScrollRef?.();
-      const { contentHeight, viewportHeight } = listMetricsRef.current;
-      const targetOffset = Math.max(0, contentHeight - viewportHeight);
-
-      if (nativeScrollRef && typeof nativeScrollRef.scrollTo === 'function') {
-        nativeScrollRef.scrollTo({ x: 0, y: targetOffset, animated: shouldAnimate });
-        return;
-      }
-
-      list?.scrollToOffset?.({
-        animated: shouldAnimate,
-        offset: targetOffset,
-        skipFirstItemOffset: false,
-      });
-    };
-
-    requestAnimationFrame(() => {
-      performScroll(animated);
-
-      if (allowCorrection) {
-        setTimeout(() => performScroll(false), animated ? 320 : 0);
-      }
-    });
-  }, [visibleMessages.length]);
-
-  // Handle new messages badge visibility
   useEffect(() => {
     if (visibleMessages.length > prevVisibleCountRef.current) {
       if (!isAtBottomRef.current) {
@@ -265,13 +403,32 @@ export default function FeedScreen() {
     }
   }, [isLoadingInitial, scrollToEnd, visibleMessages.length]);
 
+
   useEffect(() => {
-    Animated.timing(fadeAnim, {
+    Animated.timing(newMessagesOpacity, {
       toValue: showNewMessagesBadge ? 1 : 0,
-      duration: 300,
+      duration: 220,
       useNativeDriver: true,
     }).start();
-  }, [showNewMessagesBadge, fadeAnim]);
+  }, [showNewMessagesBadge, newMessagesOpacity]);
+
+  useEffect(() => {
+    Animated.timing(scrollToEndOpacity, {
+      toValue: showScrollToEndButton ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [showScrollToEndButton, scrollToEndOpacity]);
+
+  useEffect(() => {
+    Animated.timing(scrollToEndIconOpacity, {
+      toValue: showScrollToEndButton ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [showScrollToEndButton, scrollToEndIconOpacity]);
+
+
 
   useEffect(() => {
     return () => {
@@ -281,7 +438,21 @@ export default function FeedScreen() {
     };
   }, []);
 
-  // Scroll to bottom when tapping the active tab
+  useEffect(() => {
+    const now = Date.now();
+    let nextRevealAtMs = Number.POSITIVE_INFINITY;
+    for (const item of playbackMessages) {
+      if (item.revealAtMs > now && item.revealAtMs < nextRevealAtMs) {
+        nextRevealAtMs = item.revealAtMs;
+      }
+    }
+    if (!Number.isFinite(nextRevealAtMs)) return;
+
+    const timeoutMs = Math.max(25, nextRevealAtMs - now + 25);
+    const timer = setTimeout(() => setClockMs(Date.now()), timeoutMs);
+    return () => clearTimeout(timer);
+  }, [playbackMessages, clockMs]);
+
   useEffect(() => {
     const parentNavigation = navigation.getParent();
     if (!parentNavigation) {
@@ -300,47 +471,52 @@ export default function FeedScreen() {
     return unsubscribe;
   }, [navigation, scrollToEnd]);
 
-  const imageSources = useMemo(() => {
-    return visibleMessages
-      .filter((m) => m.message.attachment?._type === 'imageAttachment')
-      .map((m) => ({ uri: (m.message.attachment as any).url }));
-  }, [visibleMessages]);
-
-  useEffect(() => {
-    const now = Date.now();
-    let nextRevealAtMs = Number.POSITIVE_INFINITY;
-    for (const item of playbackMessages) {
-      if (item.revealAtMs > now && item.revealAtMs < nextRevealAtMs) {
-        nextRevealAtMs = item.revealAtMs;
-      }
-    }
-    if (!Number.isFinite(nextRevealAtMs)) return;
-
-    const timeoutMs = Math.max(25, nextRevealAtMs - now + 25);
-    const timer = setTimeout(() => setClockMs(Date.now()), timeoutMs);
-    return () => clearTimeout(timer);
-  }, [playbackMessages, clockMs]);
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: SectionListData<PlaybackMessage, FeedSection> }) => {
+      const isCurrentlySticky =
+        isUserScrolling && section.title === activeSectionTitle;
+      return (
+        <Animated.View
+          style={[
+            styles.daySeparatorWrap,
+            { opacity: isCurrentlySticky ? headerOpacity : 1 },
+          ]}
+        >
+          <View
+            style={[
+              styles.daySeparatorLine,
+              isCurrentlySticky && styles.daySeparatorLineHidden,
+            ]}
+          />
+          <View style={styles.daySeparatorPill}>
+            <Text style={styles.daySeparatorText}>{section.title}</Text>
+          </View>
+          <View
+            style={[
+              styles.daySeparatorLine,
+              isCurrentlySticky && styles.daySeparatorLineHidden,
+            ]}
+          />
+        </Animated.View>
+      );
+    },
+    [headerOpacity, activeSectionTitle, isUserScrolling]
+  );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: PlaybackMessage; index: number }) => {
-      const nextItem = visibleMessages[index + 1];
+    ({ item, index, section }: SectionListRenderItemInfo<PlaybackMessage, FeedSection>) => {
+      const nextItem = section.data[index + 1];
       const showAvatar =
         !nextItem ||
         nextItem.message.actor.name !== item.message.actor.name;
 
-      const prevItem = visibleMessages[index - 1];
+      const prevItem = section.data[index - 1];
       const isNewActor = !prevItem || prevItem.message.actor.name !== item.message.actor.name;
       const isNewBundle = prevItem && prevItem.bundleId !== item.bundleId;
-      const currentDayKey = getDayKey(item.revealAtMs);
-      const prevDayKey = prevItem ? getDayKey(prevItem.revealAtMs) : null;
-      const showDaySeparator = !prevDayKey || prevDayKey !== currentDayKey;
-
       const showName = isNewActor;
 
       let marginTop = 0;
-      if (showDaySeparator) {
-        marginTop = 0;
-      } else if (prevItem) {
+      if (prevItem) {
         if (isNewActor) {
           marginTop = 36;
         } else if (isNewBundle) {
@@ -351,34 +527,21 @@ export default function FeedScreen() {
       }
 
       return (
-        <View>
-          {showDaySeparator ? (
-            <View style={styles.daySeparatorWrap}>
-              <View style={styles.daySeparatorLine} />
-              <View style={styles.daySeparatorPill}>
-                <Text style={styles.daySeparatorText}>{formatDayLabel(item.revealAtMs)}</Text>
-              </View>
-              <View style={styles.daySeparatorLine} />
-            </View>
-          ) : null}
-          <MessageBubble
-            message={item.message}
-            showAvatar={showAvatar}
-            showName={showName}
-            gallerySources={imageSources}
-            onImagePress={(idx) => {
-              setViewerIndex(idx);
-              setViewerVisible(true);
-            }}
-            containerStyle={{ marginTop }}
-          />
-        </View>
+        <MessageBubble
+          message={item.message}
+          showAvatar={showAvatar}
+          showName={showName}
+          gallerySources={imageSources}
+          onImagePress={(idx) => {
+            setViewerIndex(idx);
+            setViewerVisible(true);
+          }}
+          containerStyle={{ marginTop }}
+        />
       );
     },
-    [imageSources, visibleMessages]
+    [imageSources]
   );
-
-  const stickyDateTop = Math.max(headerHeight + 8, insets.top + 8);
 
   const ListHeader = useMemo(() => {
     return (
@@ -396,6 +559,13 @@ export default function FeedScreen() {
           </View>
         )}
 
+        {!isLoadingInitial && isLoadingMore && (
+          <View style={StyleSheet.flatten([styles.loadingOlderBox, { marginBottom: 14 }])}>
+            <ActivityIndicator size="small" color={theme.colors.orange} />
+            <Text style={styles.loadingOlderText}>Ältere Nachrichten werden geladen…</Text>
+          </View>
+        )}
+
         {!isLoadingInitial && visibleMessages.length === 0 && (
           <View style={StyleSheet.flatten([styles.stateBox, { marginBottom: 14 }])}>
             <Text style={styles.stateText}>No released narrative messages yet.</Text>
@@ -403,21 +573,11 @@ export default function FeedScreen() {
         )}
       </View>
     );
-  }, [errorMessage, isLoadingInitial, visibleMessages.length]);
+  }, [errorMessage, isLoadingInitial, isLoadingMore, visibleMessages.length]);
 
   const ListFooter = useMemo(() => {
-    if (!nextCursor) return <View style={{ height: bottomSpacerHeight }} />;
-    return (
-      <View style={{ paddingTop: 24, paddingBottom: bottomSpacerHeight }}>
-        <Pressable
-          style={StyleSheet.flatten([styles.loadMoreButton, isLoadingMore && styles.loadMoreButtonDisabled])}
-          disabled={isLoadingMore}
-          onPress={() => void loadMore()}>
-          <Text style={styles.loadMoreLabel}>{isLoadingMore ? 'Loading...' : 'Load older messages'}</Text>
-        </Pressable>
-      </View>
-    );
-  }, [bottomSpacerHeight, nextCursor, isLoadingMore, loadMore]);
+    return <View style={{ height: bottomSpacerHeight }} />;
+  }, [bottomSpacerHeight]);
 
   return (
     <>
@@ -433,16 +593,25 @@ export default function FeedScreen() {
             ) : null,
         }}
       />
-      <FlashList
+      <SectionList
         contentInsetAdjustmentBehavior="automatic"
-        ref={flashListRef}
-        data={visibleMessages}
+        ref={sectionListRef}
+        sections={sections}
         renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
         keyExtractor={(item) => item.key}
         style={{ ...styles.scrollView, flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         onContentSizeChange={(_, height) => {
+          const pendingAdjustment = pendingPrependAdjustmentRef.current;
           listMetricsRef.current.contentHeight = height;
+
+          if (pendingAdjustment) {
+            pendingPrependAdjustmentRef.current = null;
+            const delta = height - pendingAdjustment.previousContentHeight;
+            scrollToOffset(pendingAdjustment.previousOffsetY + delta, false);
+            return;
+          }
 
           if (
             !didInitialBottomScrollRef.current &&
@@ -461,40 +630,80 @@ export default function FeedScreen() {
         refreshing={isRefreshing}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        drawDistance={1000}
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={11}
+        stickySectionHeadersEnabled={true}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         onScrollBeginDrag={() => {
           if (stickyDateHideTimeoutRef.current) {
             clearTimeout(stickyDateHideTimeoutRef.current);
           }
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setIsUserScrolling(true);
+          Animated.timing(headerOpacity, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }).start();
         }}
         onMomentumScrollBegin={() => {
           if (stickyDateHideTimeoutRef.current) {
             clearTimeout(stickyDateHideTimeoutRef.current);
           }
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setIsUserScrolling(true);
+          Animated.timing(headerOpacity, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }).start();
         }}
         onScrollEndDrag={() => {
           if (stickyDateHideTimeoutRef.current) {
             clearTimeout(stickyDateHideTimeoutRef.current);
           }
           stickyDateHideTimeoutRef.current = setTimeout(() => {
-            setIsUserScrolling(false);
+            Animated.timing(headerOpacity, {
+              toValue: 0,
+              duration: 350,
+              useNativeDriver: true,
+            }).start(() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsUserScrolling(false);
+            });
           }, STICKY_DATE_HIDE_DELAY_MS);
         }}
         onMomentumScrollEnd={() => {
           if (stickyDateHideTimeoutRef.current) {
             clearTimeout(stickyDateHideTimeoutRef.current);
           }
-          setIsUserScrolling(false);
+          stickyDateHideTimeoutRef.current = setTimeout(() => {
+            Animated.timing(headerOpacity, {
+              toValue: 0,
+              duration: 350,
+              useNativeDriver: true,
+            }).start(() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setIsUserScrolling(false);
+            });
+          }, STICKY_DATE_HIDE_DELAY_MS);
         }}
         onScroll={(event) => {
           const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
           listMetricsRef.current.contentHeight = contentSize.height;
           listMetricsRef.current.viewportHeight = layoutMeasurement.height;
           listMetricsRef.current.currentOffsetY = contentOffset.y;
+
+          if (
+            contentOffset.y <= OLDER_MESSAGES_THRESHOLD_PX &&
+            nextCursor &&
+            !isLoadingMore &&
+            !isLoadingInitial
+          ) {
+            void loadMore();
+          }
 
           const distanceFromBottom = Math.max(
             0,
@@ -505,49 +714,13 @@ export default function FeedScreen() {
           isAtBottomRef.current = isCloseToBottom;
           setShowScrollToEndButton(distanceFromBottom > SCROLL_TO_END_SHOW_THRESHOLD_PX);
 
-          const topVisibleMessage = visibleMessages.find((message) => {
-            const separatorOffset = getSeparatorOffsetY(visibleMessages, message.key);
-            return separatorOffset <= contentOffset.y + 8;
-          });
-
-          if (topVisibleMessage) {
-            setStickyDateLabel(formatDayLabel(topVisibleMessage.revealAtMs));
-          } else if (visibleMessages[0]) {
-            setStickyDateLabel(formatDayLabel(visibleMessages[0].revealAtMs));
-          }
-
           if (isCloseToBottom && showNewMessagesBadge) {
             setShowNewMessagesBadge(false);
           }
         }}
       />
 
-      {isUserScrolling && stickyDateLabel ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.stickyDateOverlay,
-            { top: stickyDateTop },
-          ]}
-        >
-          {IS_GLASS_EFFECT_ENABLED ? (
-            <GlassView
-              colorScheme="light"
-              glassEffectStyle="clear"
-              style={[styles.stickyDatePill, styles.stickyDatePillGlass]}
-              tintColor="rgba(237, 236, 224, 0.14)"
-            >
-              <Text style={styles.stickyDateText}>{stickyDateLabel}</Text>
-            </GlassView>
-          ) : (
-            <View style={[styles.stickyDatePill, styles.stickyDatePillFallback]}>
-              <Text style={styles.stickyDateText}>{stickyDateLabel}</Text>
-            </View>
-          )}
-        </View>
-      ) : null}
-
-      <Animated.View style={StyleSheet.flatten([styles.newMessagesContainer, { opacity: fadeAnim, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }])}>
+      <Animated.View style={StyleSheet.flatten([styles.newMessagesContainer, { opacity: newMessagesOpacity, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }])}>
         <Pressable
           style={styles.newMessagesButton}
           onPress={() => {
@@ -559,38 +732,50 @@ export default function FeedScreen() {
         </Pressable>
       </Animated.View>
 
-      {showScrollToEndButton ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.scrollToEndButtonWrap,
-            { bottom: Math.max(insets.bottom + 16, 24) },
-          ]}
+      <Animated.View
+        pointerEvents={showScrollToEndButton ? 'box-none' : 'none'}
+        style={[
+          styles.scrollToEndButtonWrap,
+          {
+            bottom: Math.max(insets.bottom + 16, 24),
+            opacity: IS_GLASS_EFFECT_ENABLED ? 1 : scrollToEndOpacity,
+          },
+        ]}
+      >
+        <Pressable
+          accessibilityLabel="Zum Ende scrollen"
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          onPress={() => {
+            scrollToEnd();
+          }}
+          style={({ pressed }) => [styles.scrollToEndPressable, pressed && styles.scrollToEndPressed]}
         >
-          <Pressable
-            accessibilityLabel="Zum Ende scrollen"
-            onPress={() => {
-              scrollToEnd();
-            }}
-            style={({ pressed }) => [styles.scrollToEndPressable, pressed && styles.scrollToEndPressed]}
-          >
-            {IS_GLASS_EFFECT_ENABLED ? (
-              <GlassView
-                colorScheme="light"
-                glassEffectStyle="clear"
-                style={[styles.scrollToEndButton, styles.scrollToEndButtonGlass]}
-                tintColor="rgba(237, 236, 224, 0.14)"
-              >
+          {IS_GLASS_EFFECT_ENABLED ? (
+            <GlassView
+              colorScheme="light"
+              glassEffectStyle={{
+                style: showScrollToEndButton ? 'regular' : 'none',
+                animate: true,
+                animationDuration: 0.22,
+              }}
+              style={[
+                styles.scrollToEndButton,
+                styles.scrollToEndButtonGlass,
+                !showScrollToEndButton && styles.scrollToEndButtonHidden,
+              ]}
+              tintColor="rgba(237, 236, 224, 0.14)"
+            >
+              <Animated.View style={{ opacity: scrollToEndIconOpacity }}>
                 <FeedDownArrowIcon color={theme.colors.cardTextHeading} size={30} variant={SCROLL_TO_END_ICON_VARIANT} />
-              </GlassView>
-            ) : (
-              <View style={[styles.scrollToEndButton, styles.scrollToEndButtonFallback]}>
-                <FeedDownArrowIcon color={theme.colors.cardTextHeading} size={30} variant={SCROLL_TO_END_ICON_VARIANT} />
-              </View>
-            )}
-          </Pressable>
-        </View>
-      ) : null}
+              </Animated.View>
+            </GlassView>
+          ) : (
+            <View style={[styles.scrollToEndButton, styles.scrollToEndButtonFallback]}>
+              <FeedDownArrowIcon color={theme.colors.cardTextHeading} size={30} variant={SCROLL_TO_END_ICON_VARIANT} />
+            </View>
+          )}
+        </Pressable>
+      </Animated.View>
 
       <ImageView
         images={imageSources}
@@ -621,15 +806,19 @@ const styles = StyleSheet.create({
     padding: 20
   } as ViewStyle,
   stateText: { color: theme.colors.textSecondary, fontSize: 14 } as TextStyle,
-  loadMoreButton: {
+  loadingOlderBox: {
     alignItems: 'center',
-    backgroundColor: theme.colors.orange,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 8,
   } as ViewStyle,
-  loadMoreButtonDisabled: { opacity: 0.7 } as ViewStyle,
-  loadMoreLabel: { color: theme.colors.cardTextPrimary, fontSize: 14, fontWeight: '700' } as TextStyle,
+  loadingOlderText: {
+    color: theme.colors.textSecondary,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 12,
+    textTransform: 'uppercase',
+  } as TextStyle,
   daySeparatorWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -642,8 +831,11 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   } as ViewStyle,
+  daySeparatorLineHidden: {
+    backgroundColor: 'transparent',
+  } as ViewStyle,
   daySeparatorPill: {
-    backgroundColor: 'rgba(237, 236, 224, 0.12)',
+    backgroundColor: '#3D4344',
     borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 999,
     borderWidth: 1,
@@ -652,33 +844,6 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   daySeparatorText: {
     color: 'rgba(238, 242, 239, 0.88)',
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 12,
-    letterSpacing: 0.2,
-  } as TextStyle,
-  stickyDateOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 120,
-  } as ViewStyle,
-  stickyDatePill: {
-    borderRadius: 999,
-    borderWidth: 1,
-    overflow: 'hidden',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  } as ViewStyle,
-  stickyDatePillFallback: {
-    backgroundColor: 'rgba(37, 43, 48, 0.62)',
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  } as ViewStyle,
-  stickyDatePillGlass: {
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-  } as ViewStyle,
-  stickyDateText: {
-    color: 'rgba(238, 242, 239, 0.9)',
     fontFamily: 'NunitoSans_700Bold',
     fontSize: 12,
     letterSpacing: 0.2,
@@ -735,11 +900,17 @@ const styles = StyleSheet.create({
     elevation: 10,
   } as ViewStyle,
   scrollToEndButtonFallback: {
-    backgroundColor: 'rgba(237, 236, 224, 0.74)',
-    borderColor: 'rgba(255, 255, 255, 0.14)',
+    backgroundColor: 'rgba(237, 236, 224, 0.82)',
+    borderColor: 'rgba(255, 255, 255, 0.18)',
   } as ViewStyle,
   scrollToEndButtonGlass: {
     borderColor: 'rgba(255, 255, 255, 0.18)',
+  } as ViewStyle,
+  scrollToEndButtonHidden: {
+    borderColor: 'transparent',
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
   } as ViewStyle,
   modeBadge: {
     color: theme.colors.orange,
@@ -773,31 +944,36 @@ function formatDayLabel(timestampMs: number) {
   return `${weekday}, ${numericDate}`;
 }
 
-function getSeparatorOffsetY(messages: PlaybackMessage[], messageKey: string) {
-  const messageIndex = messages.findIndex((message) => message.key === messageKey);
-  if (messageIndex <= 0) {
-    return 0;
+function mergeFreshBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
+  const merged = new Map<string, NarrativeBundleDto>();
+
+  for (const bundle of incoming) {
+    merged.set(bundle._id, bundle);
   }
 
-  let offset = 0;
-
-  for (let index = 0; index <= messageIndex; index += 1) {
-    const message = messages[index];
-    const previousMessage = index > 0 ? messages[index - 1] : null;
-    const currentDayKey = getDayKey(message.revealAtMs);
-    const previousDayKey = previousMessage ? getDayKey(previousMessage.revealAtMs) : null;
-    const showDaySeparator = !previousDayKey || previousDayKey !== currentDayKey;
-
-    if (showDaySeparator) {
-      offset += 58;
-    }
-
-    if (index < messageIndex) {
-      offset += 136;
+  for (const bundle of current) {
+    if (!merged.has(bundle._id)) {
+      merged.set(bundle._id, bundle);
     }
   }
 
-  return offset;
+  return Array.from(merged.values());
+}
+
+function mergeOlderBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
+  const merged = new Map<string, NarrativeBundleDto>();
+
+  for (const bundle of current) {
+    merged.set(bundle._id, bundle);
+  }
+
+  for (const bundle of incoming) {
+    if (!merged.has(bundle._id)) {
+      merged.set(bundle._id, bundle);
+    }
+  }
+
+  return Array.from(merged.values());
 }
 
 function FeedDownArrowIcon({
