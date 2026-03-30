@@ -30,7 +30,7 @@ export function MissionAttachmentView({
         )}
         <View style={styles.missionCardContent}>
           <Text style={styles.missionTitle}>
-            {attachment.title || attachment.missionTitle || 'Mission'}
+            {(attachment.title || attachment.missionTitle || 'Mission').toUpperCase()}
           </Text>
           {description && <Text style={styles.missionExcerpt}>{description}</Text>}
         </View>
@@ -40,29 +40,29 @@ export function MissionAttachmentView({
 }
 
 const styles = StyleSheet.create({
-  orange: { 
-    backgroundColor: theme.colors.orange, 
-    borderRadius: 10, 
-    padding: 5 
+  orange: {
+    backgroundColor: theme.colors.orange,
+    borderRadius: 10,
+    padding: 5
   } as ViewStyle,
-  missionCardImage: { 
-    borderRadius: 6, 
-    height: 140, 
-    width: '100%' 
+  missionCardImage: {
+    borderRadius: 6,
+    height: 140,
+    width: '100%'
   } as ImageStyle,
-  missionCardContent: { 
-    paddingHorizontal: 4, 
-    paddingBottom: 2 
+  missionCardContent: {
+    paddingHorizontal: 4,
+    paddingBottom: 2
   } as ViewStyle,
-  missionTitle: { 
-    color: theme.colors.cardTextPrimary, 
-    fontFamily: 'Nunito_700Bold', 
-    fontSize: 15 
+  missionTitle: {
+    color: theme.colors.cardTextPrimary,
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15
   } as TextStyle,
-  missionExcerpt: { 
-    color: theme.colors.cardTextSecondary, 
-    fontFamily: 'NunitoSans_400Regular', 
-    fontSize: 12, 
-    marginTop: 2 
+  missionExcerpt: {
+    color: theme.colors.cardTextSecondary,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 12,
+    marginTop: 2
   } as TextStyle,
 });
