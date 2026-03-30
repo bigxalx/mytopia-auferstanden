@@ -105,6 +105,7 @@ const SANITY_BUNDLE_PROJECTION = `
         "missionTitle": mission->title,
         "missionKind": mission->kind,
         "missionPoints": mission->points,
+        "imageUrl": mission->image.asset->url,
         title,
         excerpt
       }
@@ -129,6 +130,7 @@ type AttachmentDto =
   | {
     _type: 'missionAttachment';
     excerpt?: string;
+    imageUrl?: string;
     missionId: string;
     missionKind?: string;
     missionPoints?: number;
@@ -1500,6 +1502,8 @@ function applySanityImageTransforms(msg: MessageDto): MessageDto {
   if (attachment) {
     if (attachment._type === 'imageAttachment') {
       attachment = { ...attachment, url: transform(attachment.url)! };
+    } else if (attachment._type === 'missionAttachment' && attachment.imageUrl) {
+      attachment = { ...attachment, imageUrl: transform(attachment.imageUrl)! };
     }
   }
 

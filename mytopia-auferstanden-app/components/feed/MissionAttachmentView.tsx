@@ -52,6 +52,7 @@ const styles = StyleSheet.create({
   } as ImageStyle,
   missionCardContent: {
     paddingHorizontal: 4,
+    paddingTop: 4,
     paddingBottom: 2
   } as ViewStyle,
   missionTitle: {
