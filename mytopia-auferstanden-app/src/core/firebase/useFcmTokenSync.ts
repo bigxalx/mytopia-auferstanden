@@ -1,17 +1,7 @@
 import { useEffect } from 'react';
 import { getFCMToken } from '@/src/core/firebase/messagingClient';
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
-
-/** Lazy-loader for Firebase Firestore */
-const getFirebaseFirestore = () => {
-  try {
-    return require('@react-native-firebase/firestore');
-  } catch {
-    return null;
-  }
-};
-
-const firestore = getFirebaseFirestore();
+import * as firestore from '@react-native-firebase/firestore';
 
 const {
   getFirestore,

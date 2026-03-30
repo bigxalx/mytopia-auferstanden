@@ -10,7 +10,6 @@ export function AudioAttachmentView({
   attachment: Extract<NarrativeAttachmentDto, { _type: 'audioAttachment' }> 
 }) {
   const player = useAudioPlayer(attachment.url);
-  const [playbackWarning, setPlaybackWarning] = useState<string | null>(null);
 
   // Sync basic state for the UI label
   const [isPlaying, setIsPlaying] = useState(false);
@@ -46,7 +45,6 @@ export function AudioAttachmentView({
           <Text style={styles.audioButtonLabel}>{label}</Text>
         </Pressable>
       </View>
-      {playbackWarning && <Text style={styles.attachmentCaption}>{playbackWarning}</Text>}
     </View>
   );
 }

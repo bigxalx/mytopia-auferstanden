@@ -17,6 +17,7 @@ interface NarrativeSignalContextValue {
   markAsRead: () => Promise<void>;
   pulse: NarrativeStatePulse | null;
   refreshKey: number;
+  lastSeenTime: number;
 }
 
 const NarrativeSignalContext = createContext<NarrativeSignalContextValue>({
@@ -25,6 +26,7 @@ const NarrativeSignalContext = createContext<NarrativeSignalContextValue>({
   markAsRead: async () => {},
   pulse: null,
   refreshKey: 0,
+  lastSeenTime: 0,
 });
 
 export const useNarrativeSignal = () => useContext(NarrativeSignalContext);
@@ -151,6 +153,7 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
       markAsRead,
       pulse,
       refreshKey,
+      lastSeenTime,
     }}>
       {children}
     </NarrativeSignalContext.Provider>

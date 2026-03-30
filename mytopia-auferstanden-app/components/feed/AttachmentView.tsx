@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { StyleSheet, Text, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { theme } from '@/src/shared/ui/theme';
 import { VideoAttachmentView } from './VideoAttachmentView';

@@ -1,16 +1,7 @@
 /** Lazy-loader for Firebase Firestore */
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
 import { type AppMode } from '@/src/core/session/appMode';
-
-const getFirebaseFirestore = () => {
-  try {
-    return require('@react-native-firebase/firestore');
-  } catch {
-    return null;
-  }
-};
-
-const firestore = getFirebaseFirestore();
+import * as firestore from '@react-native-firebase/firestore';
 
 const { 
   getFirestore, 

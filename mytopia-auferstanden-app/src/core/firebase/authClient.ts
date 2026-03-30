@@ -1,13 +1,5 @@
 /** Lazy-loader for Firebase Auth */
-const getFirebaseAuth = () => {
-  try {
-    return require('@react-native-firebase/auth');
-  } catch {
-    return null;
-  }
-};
-
-const auth = getFirebaseAuth();
+import * as auth from '@react-native-firebase/auth';
 
 const {
   getAuth,

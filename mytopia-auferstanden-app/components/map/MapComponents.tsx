@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';

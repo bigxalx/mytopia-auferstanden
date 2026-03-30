@@ -1,14 +1,6 @@
 /** Lazy-loader for Firebase Crashlytics */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-const getFirebaseCrashlytics = () => {
-  try {
-    return require('@react-native-firebase/crashlytics');
-  } catch {
-    return null;
-  }
-};
-
-const crashlytics = getFirebaseCrashlytics();
+import * as crashlytics from '@react-native-firebase/crashlytics';
 
 const {
   getCrashlytics,

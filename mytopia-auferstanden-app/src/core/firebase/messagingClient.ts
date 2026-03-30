@@ -1,21 +1,7 @@
-// Firebase messaging is lazily required below to prevent the "Native module RNFBAppModule not found" 
-// error from crashing the entire app when running in Expo Go or similar environments
-// without a custom development build.
-
 import { PermissionsAndroid, Platform } from 'react-native';
 import { env } from '@/src/config/env';
 import { type AppMode } from '@/src/core/session/appMode';
-
-/** Lazy-loader for Firebase Messaging */
-const getFirebaseMessaging = () => {
-  try {
-    return require('@react-native-firebase/messaging');
-  } catch {
-    return null;
-  }
-};
-
-const messaging = getFirebaseMessaging();
+import * as messaging from '@react-native-firebase/messaging';
 
 const { 
   getMessaging, 

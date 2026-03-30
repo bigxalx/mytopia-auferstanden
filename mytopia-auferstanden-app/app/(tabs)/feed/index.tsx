@@ -18,7 +18,6 @@ import {
   Animated,
   LayoutAnimation,
   Platform,
-  UIManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -67,7 +66,7 @@ type FeedCachePayload = {
 
 export default function FeedScreen() {
   const { selectedMode, user } = useSession();
-  const { markAsRead, pulse, refreshKey } = useNarrativeSignal();
+  const { lastSeenTime, markAsRead, pulse, refreshKey } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
 
   const requestVersionRef = useRef(0);
@@ -80,7 +79,7 @@ export default function FeedScreen() {
   const listMetricsRef = useRef({ contentHeight: 0, viewportHeight: 0, currentOffsetY: 0 });
   const isAtBottomRef = useRef(true);
   const prevVisibleCountRef = useRef(0);
-  const didInitialBottomScrollRef = useRef(false);
+  const didInitialScrollRef = useRef(false);
   const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPrependAdjustmentRef = useRef<null | { previousContentHeight: number; previousOffsetY: number }>(null);
   const didHydrateCacheRef = useRef(false);
@@ -111,7 +110,7 @@ export default function FeedScreen() {
   }).current;
 
   const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: Array<ViewToken<PlaybackMessage>> }) => {
+    ({ viewableItems }: { viewableItems: ViewToken<PlaybackMessage>[] }) => {
       // The first item in the list is the one currently at the top of the viewport
       if (viewableItems.length > 0) {
         const firstItem = viewableItems[0];
@@ -291,7 +290,7 @@ export default function FeedScreen() {
     }
 
     latestSignalTokenRef.current = null;
-    didInitialBottomScrollRef.current = false;
+    didInitialScrollRef.current = false;
     didHydrateCacheRef.current = false;
 
     let isCancelled = false;
@@ -346,10 +345,9 @@ export default function FeedScreen() {
   useFocusEffect(
     useCallback(() => {
       if (user) {
-        markAsRead().catch(() => {});
         void loadFirstPage('silent');
       }
-    }, [loadFirstPage, markAsRead, user])
+    }, [loadFirstPage, user])
   );
 
   useEffect(() => {
@@ -379,9 +377,9 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (visibleMessages.length > prevVisibleCountRef.current) {
-      if (!isAtBottomRef.current) {
+      if (!isAtBottomRef.current && didInitialScrollRef.current) {
         setShowNewMessagesBadge(true);
-      } else if (prevVisibleCountRef.current > 0) {
+      } else if (prevVisibleCountRef.current > 0 && didInitialScrollRef.current) {
         requestAnimationFrame(() => {
           scrollToEnd();
         });
@@ -392,16 +390,54 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (
-      !didInitialBottomScrollRef.current &&
+      !didInitialScrollRef.current &&
       !isLoadingInitial &&
       visibleMessages.length > 0
     ) {
-      didInitialBottomScrollRef.current = true;
-      requestAnimationFrame(() => {
-        scrollToEnd({ animated: false, allowCorrection: true });
-      });
+      didInitialScrollRef.current = true;
+      
+      // Find first unread message
+      const firstUnreadIndex = visibleMessages.findIndex(
+        (msg) => msg.revealAtMs > lastSeenTime
+      );
+      
+      if (firstUnreadIndex === -1) {
+        // No unread messages, scroll to bottom
+        requestAnimationFrame(() => {
+          scrollToEnd({ animated: false, allowCorrection: true });
+        });
+      } else {
+        // Has unread messages, scroll to first unread and show badge
+        const unreadMessage = visibleMessages[firstUnreadIndex];
+        const sectionIndex = sections.findIndex((section) =>
+          section.data.some((msg) => msg.key === unreadMessage.key)
+        );
+        
+        if (sectionIndex !== -1) {
+          const section = sections[sectionIndex];
+          const itemIndex = section.data.findIndex(
+            (msg) => msg.key === unreadMessage.key
+          );
+          
+          requestAnimationFrame(() => {
+            sectionListRef.current?.scrollToLocation?.({
+              animated: false,
+              itemIndex: Math.max(0, itemIndex),
+              sectionIndex,
+              viewOffset: 100,
+              viewPosition: 0,
+            });
+            setShowNewMessagesBadge(true);
+          });
+        } else {
+          // Fallback to bottom if section not found
+          requestAnimationFrame(() => {
+            scrollToEnd({ animated: false, allowCorrection: true });
+          });
+        }
+      }
     }
-  }, [isLoadingInitial, scrollToEnd, visibleMessages.length]);
+  }, [isLoadingInitial, lastSeenTime, scrollToEnd, sections, visibleMessages]);
 
 
   useEffect(() => {
@@ -614,7 +650,7 @@ export default function FeedScreen() {
           }
 
           if (
-            !didInitialBottomScrollRef.current &&
+            !didInitialScrollRef.current &&
             !isLoadingInitial &&
             visibleMessages.length > 0
           ) {
@@ -716,6 +752,8 @@ export default function FeedScreen() {
 
           if (isCloseToBottom && showNewMessagesBadge) {
             setShowNewMessagesBadge(false);
+            // Mark as read when user scrolls to bottom
+            void markAsRead();
           }
         }}
       />

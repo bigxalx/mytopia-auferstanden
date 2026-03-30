@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { theme } from '@/src/shared/ui/theme';

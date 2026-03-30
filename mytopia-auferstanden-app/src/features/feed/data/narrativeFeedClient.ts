@@ -2,16 +2,9 @@
 import { env, hasConfiguredFeedApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
 import { type AppMode } from '@/src/core/session/appMode';
-const getFirebaseAuth = () => {
-  try {
-    return require('@react-native-firebase/auth');
-  } catch {
-    return null;
-  }
-};
+import * as authUtils from '@react-native-firebase/auth';
 
-const authUtils = getFirebaseAuth();
-const { getIdToken } = authUtils || { getIdToken: async () => '' };
+const { getIdToken } = authUtils;
 
 const FEED_REQUEST_TIMEOUT_MS = 15000;
 

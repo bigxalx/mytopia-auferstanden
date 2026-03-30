@@ -29,18 +29,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { subscribeAuthState, type FirebaseAuthTypes } from '@/src/core/firebase/authClient';
 import { syncSessionProfile } from '@/src/core/firebase/legacySummaryClient';
 import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
+import * as authUtils from '@react-native-firebase/auth';
 
-/** Lazy-loader for Firebase Auth utils */
-const getFirebaseAuth = () => {
-  try {
-    return require('@react-native-firebase/auth');
-  } catch {
-    return null;
-  }
-};
-
-const authUtils = getFirebaseAuth();
-const { getIdTokenResult } = authUtils || { getIdTokenResult: async () => ({ claims: {} }) };
+const { getIdTokenResult } = authUtils;
 
 const TAG = `[session:${Platform.OS}]`;
 const MODE_STORAGE_KEY_PREFIX = 'mytopia:narrativeMode:v1';
