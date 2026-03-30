@@ -80,6 +80,8 @@ export default function FeedScreen() {
   const isAtBottomRef = useRef(true);
   const prevVisibleCountRef = useRef(0);
   const didInitialScrollRef = useRef(false);
+  // Track whether list has been positioned to prevent visual jump on mount
+  const isPositionedRef = useRef(false);
   const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPrependAdjustmentRef = useRef<null | { previousContentHeight: number; previousOffsetY: number }>(null);
   const didHydrateCacheRef = useRef(false);
@@ -98,6 +100,8 @@ export default function FeedScreen() {
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(false);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [activeSectionTitle, setActiveSectionTitle] = useState<string | null>(null);
+  // Controls list visibility - hidden until scroll position is calculated to prevent jump
+  const [isPositioned, setIsPositioned] = useState(false);
   const newMessagesOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndIconOpacity = useRef(new Animated.Value(0)).current;
@@ -291,7 +295,9 @@ export default function FeedScreen() {
 
     latestSignalTokenRef.current = null;
     didInitialScrollRef.current = false;
+    isPositionedRef.current = false;
     didHydrateCacheRef.current = false;
+    setIsPositioned(false);
 
     let isCancelled = false;
 
@@ -388,56 +394,18 @@ export default function FeedScreen() {
     }
   }, [scrollToEnd, visibleMessages.length]);
 
+  // Mark that initial scroll is needed, but don't execute yet - wait for metrics
   useEffect(() => {
     if (
       !didInitialScrollRef.current &&
       !isLoadingInitial &&
-      visibleMessages.length > 0
+      visibleMessages.length > 0 &&
+      !isPositionedRef.current
     ) {
       didInitialScrollRef.current = true;
-      
-      // Find first unread message
-      const firstUnreadIndex = visibleMessages.findIndex(
-        (msg) => msg.revealAtMs > lastSeenTime
-      );
-      
-      if (firstUnreadIndex === -1) {
-        // No unread messages, scroll to bottom
-        requestAnimationFrame(() => {
-          scrollToEnd({ animated: false, allowCorrection: true });
-        });
-      } else {
-        // Has unread messages, scroll to first unread and show badge
-        const unreadMessage = visibleMessages[firstUnreadIndex];
-        const sectionIndex = sections.findIndex((section) =>
-          section.data.some((msg) => msg.key === unreadMessage.key)
-        );
-        
-        if (sectionIndex !== -1) {
-          const section = sections[sectionIndex];
-          const itemIndex = section.data.findIndex(
-            (msg) => msg.key === unreadMessage.key
-          );
-          
-          requestAnimationFrame(() => {
-            sectionListRef.current?.scrollToLocation?.({
-              animated: false,
-              itemIndex: Math.max(0, itemIndex),
-              sectionIndex,
-              viewOffset: 100,
-              viewPosition: 0,
-            });
-            setShowNewMessagesBadge(true);
-          });
-        } else {
-          // Fallback to bottom if section not found
-          requestAnimationFrame(() => {
-            scrollToEnd({ animated: false, allowCorrection: true });
-          });
-        }
-      }
+      // Actual scroll happens in onContentSizeChange when metrics are ready
     }
-  }, [isLoadingInitial, lastSeenTime, scrollToEnd, sections, visibleMessages]);
+  }, [isLoadingInitial, visibleMessages.length]);
 
 
   useEffect(() => {
@@ -636,12 +604,13 @@ export default function FeedScreen() {
         renderItem={renderItem}
         renderSectionHeader={renderSectionHeader}
         keyExtractor={(item) => item.key}
-        style={{ ...styles.scrollView, flex: 1 }}
+        style={[styles.scrollView, { flex: 1, opacity: isPositioned ? 1 : 0 }]}
         contentContainerStyle={styles.scrollContent}
         onContentSizeChange={(_, height) => {
           const pendingAdjustment = pendingPrependAdjustmentRef.current;
           listMetricsRef.current.contentHeight = height;
 
+          // Handle prepend adjustment when loading older messages
           if (pendingAdjustment) {
             pendingPrependAdjustmentRef.current = null;
             const delta = height - pendingAdjustment.previousContentHeight;
@@ -649,14 +618,58 @@ export default function FeedScreen() {
             return;
           }
 
+          // Handle initial scroll positioning - wait for both height and viewport to be measured
           if (
-            !didInitialScrollRef.current &&
-            !isLoadingInitial &&
-            visibleMessages.length > 0
+            didInitialScrollRef.current &&
+            !isPositionedRef.current &&
+            height > 0 &&
+            listMetricsRef.current.viewportHeight > 0
           ) {
-            requestAnimationFrame(() => {
-              scrollToEnd({ animated: false, allowCorrection: true });
-            });
+            isPositionedRef.current = true;
+
+            // Scroll to last read position: bottom if all read, or first unread message
+            const firstUnreadIndex = visibleMessages.findIndex(
+              (msg) => msg.revealAtMs > lastSeenTime
+            );
+
+            if (firstUnreadIndex === -1) {
+              // No unread messages, scroll to bottom
+              requestAnimationFrame(() => {
+                scrollToEnd({ animated: false, allowCorrection: true });
+                setTimeout(() => setIsPositioned(true), 50);
+              });
+            } else {
+              // Has unread messages, scroll to first unread and show badge
+              const unreadMessage = visibleMessages[firstUnreadIndex];
+              const sectionIndex = sections.findIndex((section) =>
+                section.data.some((msg) => msg.key === unreadMessage.key)
+              );
+
+              if (sectionIndex !== -1) {
+                const section = sections[sectionIndex];
+                const itemIndex = section.data.findIndex(
+                  (msg) => msg.key === unreadMessage.key
+                );
+
+                requestAnimationFrame(() => {
+                  sectionListRef.current?.scrollToLocation?.({
+                    animated: false,
+                    itemIndex: Math.max(0, itemIndex),
+                    sectionIndex,
+                    viewOffset: 100,
+                    viewPosition: 0,
+                  });
+                  setShowNewMessagesBadge(true);
+                  setTimeout(() => setIsPositioned(true), 50);
+                });
+              } else {
+                // Fallback to bottom if section not found
+                requestAnimationFrame(() => {
+                  scrollToEnd({ animated: false, allowCorrection: true });
+                  setTimeout(() => setIsPositioned(true), 50);
+                });
+              }
+            }
           }
         }}
         onLayout={(event) => {
@@ -757,6 +770,13 @@ export default function FeedScreen() {
           }
         }}
       />
+
+      {/* Spinner overlay shown while list is being positioned to prevent visual jump */}
+      {!isPositioned && (
+        <View style={styles.positioningOverlay}>
+          <ActivityIndicator size="large" color={theme.colors.orange} />
+        </View>
+      )}
 
       <Animated.View style={StyleSheet.flatten([styles.newMessagesContainer, { opacity: newMessagesOpacity, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }])}>
         <Pressable
@@ -959,6 +979,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     textTransform: 'uppercase',
   } as TextStyle,
+  positioningOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  } as ViewStyle,
 });
 
 function getDayKey(timestampMs: number) {

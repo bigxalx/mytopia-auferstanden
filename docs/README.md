@@ -23,6 +23,11 @@ Background reference:
   - Studio: [`../mytopia-content-studio/README.md`](../mytopia-content-studio/README.md)
   - Functions: [`../mytopia-functions/README.md`](../mytopia-functions/README.md)
 
+## Feed UX Notes
+
+- Notfallkanal feed implements scroll-to-last-read: opens at bottom if all read, or scrolls to first unread message with "Neue Nachrichten" badge.
+- Uses opacity + spinner overlay during initial positioning to prevent visual jump on app start.
+
 ## Immediate Actions
 
 1. Review in-progress and due-soon Linear issues for the `MYT` team.

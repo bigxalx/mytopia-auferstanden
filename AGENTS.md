@@ -18,6 +18,11 @@
 - **Always use `bunx`** instead of `npx` for one-off script execution.
 - Never use `npm`, `npx`, `yarn`, or `pnpm` in this repository.
 
+## Feed Screen Behavior
+
+- Notfallkanal feed uses scroll-to-last-read positioning: scrolls to bottom if all messages read, or to first unread message with badge.
+- List renders hidden with spinner overlay until positioned to prevent visual jump on app start.
+
 ## Docs Sync Rule
 
 - `docs/tasks.md` is a local snapshot only and can lag behind Linear.
