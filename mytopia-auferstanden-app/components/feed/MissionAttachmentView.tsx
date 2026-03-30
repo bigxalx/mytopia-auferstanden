@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     fontSize: 15
   } as TextStyle,
   missionExcerpt: {
-    color: theme.colors.cardTextSecondary,
+    color: theme.colors.cardTextPrimary,
     fontFamily: 'NunitoSans_400Regular',
     fontSize: 12,
     marginTop: 2
