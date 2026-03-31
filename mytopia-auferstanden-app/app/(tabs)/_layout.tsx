@@ -56,20 +56,20 @@ function TabLayoutInner() {
         labelStyle={
           Platform.OS === 'android'
             ? {
-                default: {
-                  color: 'rgba(238, 242, 239, 0.8)',
-                  fontFamily: theme.typography.title.fontFamily,
-                  fontWeight: '400',
-                },
-                selected: {
-                  color: '#c3daffff',
-                  fontFamily: 'NunitoSans_700Bold',
-                },
-              }
-            : {
+              default: {
+                color: 'rgba(238, 242, 239, 0.8)',
                 fontFamily: theme.typography.title.fontFamily,
-                fontWeight: '700',
-              }
+                fontWeight: '400',
+              },
+              selected: {
+                color: '#c3daffff',
+                fontFamily: 'NunitoSans_700Bold',
+              },
+            }
+            : {
+              fontFamily: theme.typography.title.fontFamily,
+              fontWeight: '700',
+            }
         }
       >
         <NativeTabs.Trigger

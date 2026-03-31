@@ -1,9 +1,26 @@
 import React from 'react';
 import { StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
+
+const TAIL_WIDTH = 20;
+const TAIL_HEIGHT = 12;
+
+function BubbleTail() {
+  return (
+    <View style={styles.tailWrap}>
+      <Svg width={TAIL_WIDTH} height={TAIL_HEIGHT} viewBox="0 0 20 12">
+        <Path
+          d="M18 0 C14 0 14 12 0 12 C10 12 6 0 6 0 Z"
+          fill={theme.colors.beige}
+        />
+      </Svg>
+    </View>
+  );
+}
 
 export function MessageBubble({
   message,
@@ -21,7 +38,7 @@ export function MessageBubble({
   containerStyle?: ViewStyle;
 }) {
   return (
-    <View style={[styles.messageRow, containerStyle]}>
+    <View style={[styles.messageRow, containerStyle, showAvatar && { paddingBottom: 24 }]}>
       {showAvatar && (
         <View style={styles.avatarColumn}>
           <ActorAvatar actor={message.actor} />
@@ -49,6 +66,7 @@ export function MessageBubble({
           )}
           {message.text && <Text style={styles.messageText}>{message.text}</Text>}
         </View>
+        {showAvatar && <BubbleTail />}
       </View>
     </View>
   );
@@ -64,7 +82,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     bottom: 0,
-    width: 48
+    width: 48,
   } as ViewStyle,
   bubbleContainer: {
     flex: 1,
@@ -77,8 +95,13 @@ const styles = StyleSheet.create({
     padding: 8,
     gap: 8
   } as ViewStyle,
-  lastInGroup: {
-    borderBottomLeftRadius: 0,
+  lastInGroup: {} as ViewStyle,
+  tailWrap: {
+    position: 'absolute',
+    bottom: -TAIL_HEIGHT + 1,
+    left: 6,
+    width: TAIL_WIDTH,
+    height: TAIL_HEIGHT,
   } as ViewStyle,
   headline: {
     color: theme.colors.charcoal,

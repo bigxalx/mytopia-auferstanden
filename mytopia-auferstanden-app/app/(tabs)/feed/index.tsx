@@ -683,6 +683,24 @@ export default function FeedScreen() {
         maxToRenderPerBatch={10}
         windowSize={11}
         stickySectionHeadersEnabled={true}
+        onScrollToIndexFailed={(info) => {
+          // The target index hasn't been rendered yet. Scroll as close as
+          // possible, then retry once the item has been laid out.
+          const list = sectionListRef.current;
+          list?.getScrollResponder?.()?.scrollTo?.({
+            y: info.averageItemLength * info.index,
+            animated: false,
+          });
+          setTimeout(() => {
+            list?.scrollToLocation?.({
+              animated: false,
+              itemIndex: info.index,
+              sectionIndex: 0,
+              viewOffset: 100,
+              viewPosition: 0,
+            });
+          }, 100);
+        }}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         onScrollBeginDrag={() => {
