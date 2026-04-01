@@ -37,7 +37,8 @@
   2. Commit and push from `mytopia-website/` to its origin (to trigger the standalone CI/CD production deployment).
   3. Update and commit the `mytopia-website/` gitlink in the outer monorepo optionally to keep the main repo in sync with the current deployment version.
 
-## Audio Waveforms (@simform_solutions/react-native-audio-waveform)
+## Audio Waveforms (expo-audio & react-native-audio-analyzer)
 
-- **Native Path Parsing:** To render properly across native systems, the component's `path` prop must receive an absolute file path WITHOUT the `file://` prefix (`localPath.replace('file://', '')`). Additionally, sanitize queried URLs to ensure clean file extensions (.mp3/.m4a) during cache download, otherwise the native player will fail.
-- **State Lifecycle:** The library's `onChangeWaveformLoadState(state)` provides `true` whilst analyzing peaks, and `false` when finished. Use an `isLoading` conceptual state instead of `isEmpty` or `isLoaded` to avoid inversed loading spinners.
+- **Native Path Parsing:** To extract amplitude data via `react-native-audio-analyzer` (`computeAmplitude`), the path must be an absolute file path WITHOUT the `file://` prefix. Always format and cache downloaded audio with valid extensions.
+- **Waveform UI Rendering:** Implement waveforms using flat SVG components (e.g. mapping simple `<Rect>` elements and calculating sub-pixel `barW` and `gapW`). Avoid using `<ClipPath>` for playback progress tracking, as React Native SVG struggles to dynamically invalidate standard SVG nodes masked inside ClipPaths natively on Android.
+- **Playback Animation Smoothness:** Pass `{ updateInterval: 50 }` to `useAudioPlayer` from `expo-audio` to lock progress rendering to ~20FPS or better for buttery smooth waveform sweeps.

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   LayoutChangeEvent,
 } from 'react-native';
-import Svg, { Path, Rect, Defs, ClipPath, G } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { computeAmplitude } from 'react-native-audio-analyzer';
@@ -37,8 +37,6 @@ const PauseIcon = () => (
 // ─── Waveform Bars ───────────────────────────────────────────────────────────
 
 const BAR_COUNT = 48;
-const BAR_WIDTH = 3;
-const BAR_GAP = 2;
 const WAVEFORM_HEIGHT = 32;
 const MIN_BAR_HEIGHT = 2;
 
@@ -55,57 +53,46 @@ function WaveformBars({ amplitudes, progress, containerWidth }: WaveformBarsProp
   const maxAmp = Math.max(...amplitudes, 0.001);
   const normalized = amplitudes.map((a) => a / maxAmp);
 
-  // Calculate actual bar width to fill the container
+  // Option A: Flexible proportional scaling to fit EXACTLY in the container
   const totalBars = normalized.length;
-  const totalGaps = (totalBars - 1) * BAR_GAP;
-  const availableWidth = containerWidth - totalGaps;
-  const barW = Math.max(2, availableWidth / totalBars);
-  const totalWidth = totalBars * barW + totalGaps;
+  const GAP_RATIO = 2 / 3; // Gap is 2/3 the width of a bar
+  const totalUnits = totalBars + (totalBars - 1) * GAP_RATIO;
+  
+  let barW = containerWidth / totalUnits;
+  let gapW = barW * GAP_RATIO;
+
+  // Safety cap to prevent bars from looking distorted on tablets or very wide screens
+  const MAX_BAR_WIDTH = 3;
+  if (barW > MAX_BAR_WIDTH) {
+    barW = MAX_BAR_WIDTH;
+    gapW = MAX_BAR_WIDTH * GAP_RATIO;
+  }
+
+  const totalWidth = totalBars * barW + (totalBars - 1) * gapW;
 
   return (
     <Svg width={totalWidth} height={WAVEFORM_HEIGHT}>
-      {/* Background bars (muted) */}
       {normalized.map((amp, i) => {
         const h = Math.max(MIN_BAR_HEIGHT, amp * WAVEFORM_HEIGHT);
-        const x = i * (barW + BAR_GAP);
+        const x = i * (barW + gapW);
         const y = (WAVEFORM_HEIGHT - h) / 2;
+        
+        // A bar is dark if it has been played past
+        const barProgress = i / totalBars;
+        const isFilled = progress >= barProgress;
+
         return (
           <Rect
-            key={`bg-${i}`}
+            key={i}
             x={x}
             y={y}
             width={barW}
             height={h}
             rx={barW / 2}
-            fill="rgba(0,0,0,0.15)"
+            fill={isFilled ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.15)"}
           />
         );
       })}
-
-      {/* Progress overlay (darker bars, clipped by progress) */}
-      <Defs>
-        <ClipPath id="progress-clip">
-          <Rect x={0} y={0} width={totalWidth * progress} height={WAVEFORM_HEIGHT} />
-        </ClipPath>
-      </Defs>
-      <G clipPath="url(#progress-clip)">
-        {normalized.map((amp, i) => {
-          const h = Math.max(MIN_BAR_HEIGHT, amp * WAVEFORM_HEIGHT);
-          const x = i * (barW + BAR_GAP);
-          const y = (WAVEFORM_HEIGHT - h) / 2;
-          return (
-            <Rect
-              key={`fg-${i}`}
-              x={x}
-              y={y}
-              width={barW}
-              height={h}
-              rx={barW / 2}
-              fill="rgba(0,0,0,0.55)"
-            />
-          );
-        })}
-      </G>
     </Svg>
   );
 }
@@ -184,7 +171,7 @@ export function AudioAttachmentView({
 
   // ── Audio Player (expo-audio) ───────────────────────────────────────────
 
-  const player = useAudioPlayer(localPath ?? undefined);
+  const player = useAudioPlayer(localPath ?? undefined, { updateInterval: 50 });
   const status = useAudioPlayerStatus(player);
 
   const isPlaying = status.playing;
@@ -255,9 +242,9 @@ export function AudioAttachmentView({
             )}
           </View>
 
-          {!isLoading && status.duration > 0 && (
-            <Text style={styles.durationText}>{timeLabel}</Text>
-          )}
+          <Text style={[styles.durationText, (isLoading || status.duration === 0) && { opacity: 0 }]}>
+            {timeLabel}
+          </Text>
         </View>
       </View>
     </View>
@@ -322,6 +309,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: WAVEFORM_HEIGHT,
     justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   } as ViewStyle,
   placeholderWave: {
     height: 2,
