@@ -11,6 +11,13 @@ const REQUEST_TIMEOUT_MS = 15000;
 
 export type MissionKind = 'quiz' | 'gps' | 'text' | 'photo';
 
+export const MISSION_KIND_METADATA: Record<MissionKind, { emoji: string; label: string }> = {
+    quiz: { emoji: '🧠', label: 'Quiz' },
+    gps: { emoji: '📍', label: 'GPS' },
+    text: { emoji: '📝', label: 'Text' },
+    photo: { emoji: '📸', label: 'Foto' },
+};
+
 export type MissionListItem = {
     _id: string;
     active: boolean;

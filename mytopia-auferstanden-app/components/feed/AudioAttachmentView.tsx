@@ -1,10 +1,22 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Pressable, type ViewStyle, type TextStyle, ActivityIndicator } from 'react-native';
-import { Waveform, type IWaveformRef, PlayerState } from '@simform_solutions/react-native-audio-waveform';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+  type ViewStyle,
+  type TextStyle,
+  ActivityIndicator,
+  LayoutChangeEvent,
+} from 'react-native';
+import Svg, { Path, Rect, Defs, ClipPath, G } from 'react-native-svg';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
-import Svg, { Path, Rect } from 'react-native-svg';
+import { computeAmplitude } from 'react-native-audio-analyzer';
 import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
+
+// ─── Icons ───────────────────────────────────────────────────────────────────
 
 const PlayIcon = () => (
   <Svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -22,62 +34,188 @@ const PauseIcon = () => (
   </Svg>
 );
 
+// ─── Waveform Bars ───────────────────────────────────────────────────────────
+
+const BAR_COUNT = 48;
+const BAR_WIDTH = 3;
+const BAR_GAP = 2;
+const WAVEFORM_HEIGHT = 32;
+const MIN_BAR_HEIGHT = 2;
+
+interface WaveformBarsProps {
+  amplitudes: number[];
+  progress: number; // 0..1
+  containerWidth: number;
+}
+
+function WaveformBars({ amplitudes, progress, containerWidth }: WaveformBarsProps) {
+  if (amplitudes.length === 0 || containerWidth === 0) return null;
+
+  // Normalize amplitudes to 0..1 range
+  const maxAmp = Math.max(...amplitudes, 0.001);
+  const normalized = amplitudes.map((a) => a / maxAmp);
+
+  // Calculate actual bar width to fill the container
+  const totalBars = normalized.length;
+  const totalGaps = (totalBars - 1) * BAR_GAP;
+  const availableWidth = containerWidth - totalGaps;
+  const barW = Math.max(2, availableWidth / totalBars);
+  const totalWidth = totalBars * barW + totalGaps;
+
+  return (
+    <Svg width={totalWidth} height={WAVEFORM_HEIGHT}>
+      {/* Background bars (muted) */}
+      {normalized.map((amp, i) => {
+        const h = Math.max(MIN_BAR_HEIGHT, amp * WAVEFORM_HEIGHT);
+        const x = i * (barW + BAR_GAP);
+        const y = (WAVEFORM_HEIGHT - h) / 2;
+        return (
+          <Rect
+            key={`bg-${i}`}
+            x={x}
+            y={y}
+            width={barW}
+            height={h}
+            rx={barW / 2}
+            fill="rgba(0,0,0,0.15)"
+          />
+        );
+      })}
+
+      {/* Progress overlay (darker bars, clipped by progress) */}
+      <Defs>
+        <ClipPath id="progress-clip">
+          <Rect x={0} y={0} width={totalWidth * progress} height={WAVEFORM_HEIGHT} />
+        </ClipPath>
+      </Defs>
+      <G clipPath="url(#progress-clip)">
+        {normalized.map((amp, i) => {
+          const h = Math.max(MIN_BAR_HEIGHT, amp * WAVEFORM_HEIGHT);
+          const x = i * (barW + BAR_GAP);
+          const y = (WAVEFORM_HEIGHT - h) / 2;
+          return (
+            <Rect
+              key={`fg-${i}`}
+              x={x}
+              y={y}
+              width={barW}
+              height={h}
+              rx={barW / 2}
+              fill="rgba(0,0,0,0.55)"
+            />
+          );
+        })}
+      </G>
+    </Svg>
+  );
+}
+
+// ─── Duration Formatter ──────────────────────────────────────────────────────
+
+function formatDuration(seconds: number): string {
+  if (!isFinite(seconds) || seconds <= 0) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+
 export function AudioAttachmentView({
-  attachment
+  attachment,
 }: {
-  attachment: Extract<NarrativeAttachmentDto, { _type: 'audioAttachment' }>
+  attachment: Extract<NarrativeAttachmentDto, { _type: 'audioAttachment' }>;
 }) {
-  const waveformRef = useRef<IWaveformRef>(null);
-  const [playerState, setPlayerState] = useState(PlayerState.stopped);
-  const [isWaveformLoading, setIsWaveformLoading] = useState(true);
+  const [amplitudes, setAmplitudes] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [localPath, setLocalPath] = useState<string | null>(null);
 
-  /**
-   * Standard Fix: Download the file locally before passing to the waveform library.
-   * This ensures the native decoder can access the file data for peak extraction.
-   */
+  // ── Download & Analyze ──────────────────────────────────────────────────
+
   useEffect(() => {
     let isActive = true;
-    const downloadAudio = async () => {
+
+    const prepareAudio = async () => {
       try {
+        // Build a stable cache filename from URL
         const cleanUrl = attachment.url.split('?')[0];
-        const filename = cleanUrl.split('/').pop() || `audio_${Date.now()}.mp3`;
+        const ext = cleanUrl.match(/\.(mp3|m4a|wav|ogg|aac)$/i)?.[0] ?? '.mp3';
+        const filename = `audio_${hashCode(cleanUrl)}${ext}`;
         const fileUri = `${FileSystem.cacheDirectory}${filename}`;
 
+        // Download if not cached
         const fileInfo = await FileSystem.getInfoAsync(fileUri);
         if (!fileInfo.exists) {
           await FileSystem.downloadAsync(attachment.url, fileUri);
         }
 
-        if (isActive) {
-          setLocalPath(fileUri);
+        if (!isActive) return;
+
+        // Strip file:// prefix for native path
+        const nativePath = fileUri.replace('file://', '');
+        setLocalPath(fileUri);
+
+        // Extract amplitude data
+        try {
+          const amps = computeAmplitude(nativePath, BAR_COUNT);
+          if (isActive) setAmplitudes(amps);
+        } catch (err) {
+          console.warn('computeAmplitude failed, using fallback:', err);
+          if (isActive) setAmplitudes(generateFallbackAmplitudes(BAR_COUNT));
         }
+
+        if (isActive) setIsLoading(false);
       } catch (error) {
-        console.error('Error caching audio for waveform:', error);
+        console.error('Error preparing audio:', error);
+        if (isActive) {
+          // Even on download error, show a fallback and stop loading
+          setAmplitudes(generateFallbackAmplitudes(BAR_COUNT));
+          setIsLoading(false);
+        }
       }
     };
 
-    downloadAudio();
-    return () => { isActive = false; };
+    prepareAudio();
+    return () => {
+      isActive = false;
+    };
   }, [attachment.url]);
 
-  const onTogglePlayback = async () => {
-    if (!waveformRef.current || isWaveformLoading) return;
+  // ── Audio Player (expo-audio) ───────────────────────────────────────────
 
-    try {
-      if (playerState === PlayerState.playing) {
-        await waveformRef.current.pausePlayer();
-      } else if (playerState === PlayerState.paused) {
-        await waveformRef.current.resumePlayer();
-      } else {
-        await waveformRef.current.startPlayer();
+  const player = useAudioPlayer(localPath ?? undefined);
+  const status = useAudioPlayerStatus(player);
+
+  const isPlaying = status.playing;
+  const progress =
+    status.duration > 0 ? status.currentTime / status.duration : 0;
+
+  const onTogglePlayback = useCallback(() => {
+    if (isLoading || !localPath) return;
+
+    if (isPlaying) {
+      player.pause();
+    } else {
+      // If playback finished, restart from beginning
+      if (status.currentTime >= status.duration && status.duration > 0) {
+        player.seekTo(0);
       }
-    } catch (error) {
-      console.warn('Waveform playback failed:', error);
+      player.play();
     }
-  };
+  }, [isLoading, localPath, isPlaying, player, status.currentTime, status.duration]);
 
-  const isPlaying = playerState === PlayerState.playing;
+  // ── Layout ──────────────────────────────────────────────────────────────
+
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    setContainerWidth(e.nativeEvent.layout.width);
+  }, []);
+
+  // ── Render ──────────────────────────────────────────────────────────────
+
+  const timeLabel = isPlaying || status.currentTime > 0
+    ? formatDuration(status.currentTime)
+    : formatDuration(status.duration);
 
   return (
     <View style={styles.attachmentBox}>
@@ -91,12 +229,12 @@ export function AudioAttachmentView({
         <View style={styles.waveformRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? "Pause audio" : "Play audio"}
-            accessibilityState={{ disabled: isWaveformLoading }}
-            style={[styles.playIconCircle, isWaveformLoading && styles.disabledButton]}
+            accessibilityLabel={isPlaying ? 'Pause audio' : 'Play audio'}
+            accessibilityState={{ disabled: isLoading }}
+            style={[styles.playIconCircle, isLoading && styles.disabledButton]}
             onPress={onTogglePlayback}
           >
-            {isWaveformLoading ? (
+            {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : isPlaying ? (
               <PauseIcon />
@@ -105,38 +243,55 @@ export function AudioAttachmentView({
             )}
           </Pressable>
 
-          <View style={styles.waveformWrapper}>
-            {localPath ? (
-              <Waveform
-                key={localPath} // Force-remount on new path to avoid player instance clashing
-                ref={waveformRef}
-                mode="static"
-                path={localPath.replace('file://', '')} // Strip file:// for native file handling
-                candleWidth={3}
-                candleSpace={2}
-                candleHeightScale={8} // Amplifies quieter tracks
-                waveColor="rgba(0,0,0,0.2)"
-                scrubColor="black"
-                containerStyle={styles.waveformContainer}
-                onPlayerStateChange={setPlayerState}
-                onChangeWaveformLoadState={setIsWaveformLoading}
-              />
-            ) : (
+          <View style={styles.waveformWrapper} onLayout={onLayout}>
+            {isLoading ? (
               <View style={styles.placeholderWave} />
+            ) : (
+              <WaveformBars
+                amplitudes={amplitudes}
+                progress={progress}
+                containerWidth={containerWidth}
+              />
             )}
           </View>
+
+          {!isLoading && status.duration > 0 && (
+            <Text style={styles.durationText}>{timeLabel}</Text>
+          )}
         </View>
       </View>
     </View>
   );
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Simple string hash for deterministic cache filenames */
+function hashCode(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash + ch) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/** Deterministic fallback amplitudes when analysis fails */
+function generateFallbackAmplitudes(count: number): number[] {
+  return Array.from({ length: count }, (_, i) => {
+    const t = i / count;
+    return 0.2 + 0.3 * Math.sin(t * Math.PI * 2) + 0.15 * Math.sin(t * Math.PI * 5);
+  });
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   attachmentBox: {
     backgroundColor: 'transparent',
     borderRadius: 14,
     overflow: 'hidden',
-    marginTop: 4
+    marginTop: 4,
   } as ViewStyle,
   contentContainer: {
     padding: 0,
@@ -145,7 +300,7 @@ const styles = StyleSheet.create({
     color: theme.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 8
+    marginBottom: 8,
   } as TextStyle,
   waveformRow: {
     flexDirection: 'row',
@@ -165,12 +320,8 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   waveformWrapper: {
     flex: 1,
-    height: 40,
+    height: WAVEFORM_HEIGHT,
     justifyContent: 'center',
-  } as ViewStyle,
-  waveformContainer: {
-    width: '100%',
-    height: '100%',
   } as ViewStyle,
   placeholderWave: {
     height: 2,
@@ -178,4 +329,12 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 1,
   } as ViewStyle,
+  durationText: {
+    color: theme.colors.cardTextPrimary,
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.6,
+    minWidth: 32,
+    textAlign: 'right',
+  } as TextStyle,
 });

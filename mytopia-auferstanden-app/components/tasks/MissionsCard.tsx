@@ -4,24 +4,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { theme } from '@/src/shared/ui/theme';
 
 import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
+import { fetchMissions, type MissionListItem, MISSION_KIND_METADATA } from '@/src/features/tasks/data/missionRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
-
-const KIND_EMOJI: Record<string, string> = {
-  quiz: '🧠',
-  gps: '📍',
-  text: '📝',
-  photo: '📸',
-};
-
-const KIND_LABEL: Record<string, string> = {
-  quiz: 'Quiz',
-  gps: 'GPS',
-  text: 'Text',
-  photo: 'Foto',
-};
 
 type MissionsCardProps = {
   userId?: string;
@@ -123,11 +109,11 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
                 <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
                   <Pressable style={styles.row}>
                     <View style={styles.rowHeader}>
-                      <Text style={styles.kindBadge}>{KIND_EMOJI[mission.kind] ?? '❓'}</Text>
+                      <Text style={styles.kindBadge}>{MISSION_KIND_METADATA[mission.kind]?.emoji ?? '❓'}</Text>
                       <Text style={styles.rowTitle}>{mission.title}</Text>
                     </View>
                     <Text style={styles.rowMeta}>
-                      {KIND_LABEL[mission.kind] ?? mission.kind} · {mission.points} Punkte
+                      {MISSION_KIND_METADATA[mission.kind]?.label ?? mission.kind} · {mission.points} Punkte
                       {mission.kind === 'quiz' && mission.questionCount ? ` · ${mission.questionCount} Fragen` : ''}
                     </Text>
                   </Pressable>

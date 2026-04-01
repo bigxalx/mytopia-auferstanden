@@ -4,14 +4,19 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { type MissionKind, MISSION_KIND_METADATA } from '@/src/features/tasks/data/missionRepository';
 
 export function MissionAttachmentView({
   attachment,
 }: {
   attachment: Extract<NarrativeAttachmentDto, { _type: 'missionAttachment' }>;
 }) {
+  const meta = attachment.missionKind
+    ? MISSION_KIND_METADATA[attachment.missionKind as MissionKind]
+    : null;
+
   const description = attachment.excerpt || [
-    attachment.missionKind ? (attachment.missionKind === 'quiz' ? '🧠 Quiz' : '📍 GPS') : null,
+    meta ? `${meta.emoji} ${meta.label}` : null,
     attachment.missionPoints ? `${attachment.missionPoints} Punkte` : null
   ].filter(Boolean).join(' · ');
 

@@ -11,6 +11,7 @@ import {
   submitTextMission,
   submitPhotoMission,
   type MissionListItem,
+  MISSION_KIND_METADATA,
 } from '@/src/features/tasks/data/missionRepository';
 import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
@@ -159,7 +160,7 @@ export default function TaskDetailScreen() {
   return (
     <Screen
       title={mission.title}
-      subtitle={`${mission.points} Punkte · ${mission.kind === 'quiz' ? '🧠 Quiz' : mission.kind === 'gps' ? '📍 GPS' : mission.kind === 'text' ? '📝 Text' : mission.kind === 'photo' ? '📸 Foto' : '❓'}`}
+      subtitle={`${mission.points} Punkte · ${MISSION_KIND_METADATA[mission.kind] ? `${MISSION_KIND_METADATA[mission.kind].emoji} ${MISSION_KIND_METADATA[mission.kind].label}` : '❓'}`}
       headerShown={false}
     >
       <Stack.Screen
