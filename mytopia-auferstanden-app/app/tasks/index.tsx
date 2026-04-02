@@ -111,7 +111,7 @@ export default function TasksScreen() {
                 {activeMissions.map((mission) => {
                   const isRejected = submissionStates[mission._id]?.status === 'rejected';
                   return (
-                    <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                    <Link asChild href={`/(modals)/tasks/${mission._id}`} key={mission._id}>
                       <Pressable
                         style={[
                           styles.row,
@@ -165,7 +165,7 @@ export default function TasksScreen() {
 
                 {completedExpanded &&
                   doneMissions.map(({ mission, status }) => (
-                    <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                    <Link asChild href={`/(modals)/tasks/${mission._id}`} key={mission._id}>
                       <Pressable
                         disabled
                         style={[

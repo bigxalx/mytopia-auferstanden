@@ -5,7 +5,20 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
+import { ActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
 import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
+
+/**
+ * Feature flag: Enable native iOS 18+ bottom accessory with liquid glass effect.
+ * 
+ * DISABLED due to issues:
+ * 1. Duplicate/offset text on navigation back (partially fixed with stable keys)
+ * 2. minimizeBehavior="onScrollUp" doesn't re-expand on scroll down (Expo Router limitation)
+ * 
+ * TODO: Re-enable when Expo Router supports bidirectional scroll behavior
+ * or when we implement custom scroll coordination.
+ */
+const ENABLE_NATIVE_BOTTOM_ACCESSORY = false;
 
 export default function TabLayout() {
   return (
@@ -18,6 +31,7 @@ export default function TabLayout() {
 function TabLayoutInner() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
   const { unreadCount } = useNarrativeSignal();
+  const supportsNativeBottomAccessory = ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
 
   if (!isHydrated) {
     return (
@@ -43,6 +57,7 @@ function TabLayoutInner() {
         // @ts-ignore — nativeContainerStyle passes through to Tabs.Host (react-native-screens)
         nativeContainerStyle={{ backgroundColor: theme.colors.background }}
         backgroundColor={theme.colors.background}
+        // minimizeBehavior disabled - see ENABLE_NATIVE_BOTTOM_ACCESSORY feature flag
         blurEffect="systemThinMaterialDark"
         indicatorColor="#3b83f646"
         rippleColor="transparent"
@@ -114,7 +129,17 @@ function TabLayoutInner() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="index" hidden />
+
+        {/* Native bottom accessory disabled - see ENABLE_NATIVE_BOTTOM_ACCESSORY feature flag */}
+        {supportsNativeBottomAccessory && (
+          <NativeTabs.BottomAccessory>
+            <ActiveMissionBar />
+          </NativeTabs.BottomAccessory>
+        )}
       </NativeTabs>
+
+      {/* Always render custom bottom bar for all platforms */}
+      <ActiveMissionBar standaloneFallback />
     </View>
   );
 }
@@ -131,3 +156,17 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
 });
+
+function getIOSMajorVersion() {
+  if (Platform.OS !== 'ios') {
+    return 0;
+  }
+
+  const version = Platform.Version;
+  if (typeof version === 'number') {
+    return version;
+  }
+
+  const parsed = Number.parseInt(String(version), 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}

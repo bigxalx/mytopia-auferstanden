@@ -106,7 +106,7 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
           {openMissions.length > 0 && (
             <View style={styles.section}>
               {openMissions.map((mission) => (
-                <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                <Link asChild href={`/(modals)/tasks/${mission._id}`} key={mission._id}>
                   <Pressable style={styles.row}>
                     <View style={styles.rowHeader}>
                       <Text style={styles.kindBadge}>{MISSION_KIND_METADATA[mission.kind]?.emoji ?? '❓'}</Text>
@@ -128,7 +128,7 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
               <>
                 <Text style={styles.subHeader}>Eingereicht und in Prüfung</Text>
                 {pendingMissions.map((mission) => (
-                  <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                  <Link asChild href={`/(modals)/tasks/${mission._id}`} key={mission._id}>
                     <Pressable style={StyleSheet.flatten([styles.row, styles.rowPending])}>
                       <View style={styles.rowHeader}>
                         <Text style={styles.statusEmoji}>⏳</Text>
@@ -161,7 +161,7 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
                 {completedExpanded && (
                   <View style={styles.completedList}>
                     {doneMissions.map(({ mission, status }) => (
-                      <Link asChild href={`/tasks/${mission._id}`} key={mission._id}>
+                      <Link asChild href={`/(modals)/tasks/${mission._id}`} key={mission._id}>
                         <Pressable
                           style={StyleSheet.flatten([
                             styles.row,

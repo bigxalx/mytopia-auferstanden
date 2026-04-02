@@ -1,20 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack } from 'expo-router';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
   Pressable,
-  SectionList,
-  type SectionListData,
-  type SectionListRenderItemInfo,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   type TextStyle,
   View,
   type ViewStyle,
-  type ViewToken,
   Animated,
   LayoutAnimation,
   Platform,
@@ -23,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ImageView from 'react-native-image-viewing';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 
@@ -36,8 +33,8 @@ import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalCont
 import { MessageBubble } from '@/components/feed/MessageBubble';
 import {
   buildPlaybackMessages,
-  type PlaybackMessage,
 } from '@/src/features/feed/utils/playback';
+import { useActiveMissionBarVisible } from '@/components/tasks/ActiveMissionBar';
 
 const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
@@ -51,11 +48,10 @@ const IS_GLASS_EFFECT_ENABLED =
   isGlassEffectAPIAvailable() &&
   isLiquidGlassAvailable();
 
-type FeedSection = {
-  data: PlaybackMessage[];
-  key: string;
-  title: string;
-};
+type FeedItem = 
+  | { type: 'header'; key: string; title: string; revealAtMs: number }
+  | { type: 'message'; key: string; message: any; bundleId: string; revealAtMs: number; 
+      showAvatar: boolean; showName: boolean; marginTop: number };
 
 type FeedCachePayload = {
   bundles: NarrativeBundleDto[];
@@ -68,6 +64,7 @@ export default function FeedScreen() {
   const { selectedMode, user } = useSession();
   const { lastSeenTime, markAsRead, pulse, refreshKey } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
+  const isMissionBarVisible = useActiveMissionBarVisible();
 
   const requestVersionRef = useRef(0);
   const activeInitialLoadsRef = useRef(0);
@@ -75,16 +72,17 @@ export default function FeedScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const latestSignalTokenRef = useRef<string | null>(null);
   const initialRefreshKeyRef = useRef(refreshKey);
-  const sectionListRef = useRef<any>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
   const listMetricsRef = useRef({ contentHeight: 0, viewportHeight: 0, currentOffsetY: 0 });
   const isAtBottomRef = useRef(true);
   const prevVisibleCountRef = useRef(0);
   const didInitialScrollRef = useRef(false);
-  // Track whether list has been positioned to prevent visual jump on mount
   const isPositionedRef = useRef(false);
-  const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPrependAdjustmentRef = useRef<null | { previousContentHeight: number; previousOffsetY: number }>(null);
   const didHydrateCacheRef = useRef(false);
+  const messageOffsetsRef = useRef<Record<string, number>>({});
+  const headerOffsetsRef = useRef<Record<string, number>>({});
+  const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigation = useNavigation<any>();
   const [clockMs, setClockMs] = useState(() => Date.now());
@@ -100,39 +98,16 @@ export default function FeedScreen() {
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(false);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [activeSectionTitle, setActiveSectionTitle] = useState<string | null>(null);
-  // Controls list visibility - hidden until scroll position is calculated to prevent jump
   const [isPositioned, setIsPositioned] = useState(false);
   const newMessagesOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndIconOpacity = useRef(new Animated.Value(0)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Viewability config for tracking the current sticky header title
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 0,
-    minimumViewTime: 0,
-  }).current;
-
-  const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken<PlaybackMessage>[] }) => {
-      // The first item in the list is the one currently at the top of the viewport
-      if (viewableItems.length > 0) {
-        const firstItem = viewableItems[0];
-        // SectionListData is passed through the item structure in FlashList/SectionList usually but
-        // for SectionList, we can find the section from the item's key or index if needed.
-        // Actually, for SectionList, it's easier to check the rendering or just find by index.
-        // Since each section has a TITLE, we look for the section title of the first viewable item.
-        // For simplicity, we can rely on the section structure.
-        const firstViewableSectionTitle = firstItem.section?.title || null;
-        if (firstViewableSectionTitle !== activeSectionTitle) {
-          setActiveSectionTitle(firstViewableSectionTitle);
-        }
-      }
-    },
-    [activeSectionTitle]
-  );
-
   const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP);
+  const scrollToEndButtonBottom = isMissionBarVisible 
+    ? Math.max(insets.bottom + 92, 108) 
+    : Math.max(insets.bottom + 16, 24);
   const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
 
   const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);
@@ -141,25 +116,64 @@ export default function FeedScreen() {
     [clockMs, playbackMessages]
   );
 
-  const sections = useMemo<FeedSection[]>(() => {
-    const grouped = new Map<string, FeedSection>();
+  const { flatData, stickyHeaderIndices } = useMemo(() => {
+    const items: FeedItem[] = [];
+    const stickyIndices: number[] = [];
+    const dayKeys = new Set<string>();
 
-    for (const item of visibleMessages) {
-      const key = getDayKey(item.revealAtMs);
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.data.push(item);
-        continue;
+    for (let i = 0; i < visibleMessages.length; i++) {
+      const item = visibleMessages[i];
+      const dayKey = getDayKey(item.revealAtMs);
+
+      // Inject Header
+      if (!dayKeys.has(dayKey)) {
+        dayKeys.add(dayKey);
+        stickyIndices.push(items.length);
+        items.push({
+          type: 'header',
+          key: `header-${dayKey}`,
+          title: formatDayLabel(item.revealAtMs),
+          revealAtMs: item.revealAtMs,
+        });
       }
 
-      grouped.set(key, {
-        data: [item],
-        key,
-        title: formatDayLabel(item.revealAtMs),
+      // Calculate message metadata (bubbles logic)
+      const nextItem = visibleMessages[i + 1];
+      const showAvatar = !nextItem || nextItem.message.actor.name !== item.message.actor.name;
+      
+      const prevItem = visibleMessages[i - 1];
+      const isNewActor = !prevItem || prevItem.message.actor.name !== item.message.actor.name;
+      const isNewBundle = prevItem && prevItem.bundleId !== item.bundleId;
+      const showName = isNewActor;
+
+      let marginTop = 0;
+      if (prevItem) {
+        const isSameDay = getDayKey(prevItem.revealAtMs) === dayKey;
+        if (!isSameDay) {
+          // If the previous item was from another day, the separator handles the space
+          marginTop = 0; 
+        } else if (isNewActor) {
+          marginTop = 36;
+        } else if (isNewBundle) {
+          marginTop = 16;
+        } else {
+          marginTop = 6;
+        }
+      }
+
+      items.push({
+        type: 'message',
+        key: item.key,
+        message: item.message,
+        bundleId: item.bundleId,
+        revealAtMs: item.revealAtMs,
+        showAvatar,
+        showName,
+        marginTop,
       });
     }
 
-    return Array.from(grouped.values());
+    return { flatData: items, stickyHeaderIndices: stickyIndices };
   }, [visibleMessages]);
 
   const imageSources = useMemo(() => {
@@ -236,18 +250,11 @@ export default function FeedScreen() {
   }, [isLoadingMore, nextCursor, selectedMode, user]);
 
   const scrollToOffset = useCallback((offset: number, animated: boolean) => {
-    const list = sectionListRef.current;
-    const targetOffset = Math.max(0, offset);
-
-    list?.scrollToLocation?.({
+    scrollViewRef.current?.scrollTo({
+      x: 0,
+      y: offset,
       animated,
-      itemIndex: 0,
-      sectionIndex: 0,
-      viewOffset: -targetOffset,
-      viewPosition: 0,
     });
-
-    list?.getScrollResponder?.()?.scrollTo?.({ x: 0, y: targetOffset, animated });
   }, []);
 
   const scrollToEnd = useCallback((options?: { animated?: boolean; allowCorrection?: boolean }) => {
@@ -261,23 +268,101 @@ export default function FeedScreen() {
     const targetOffset = Math.max(0, contentHeight - viewportHeight);
 
     requestAnimationFrame(() => {
-      sectionListRef.current?.getScrollResponder?.()?.scrollTo?.({
-        x: 0,
-        y: targetOffset,
-        animated,
-      });
+      scrollViewRef.current?.scrollToEnd?.({ animated });
 
       if (allowCorrection) {
         setTimeout(() => {
-          sectionListRef.current?.getScrollResponder?.()?.scrollTo?.({
-            x: 0,
-            y: targetOffset,
-            animated: false,
-          });
+          scrollToOffset(targetOffset, false);
         }, animated ? 320 : 0);
       }
     });
-  }, [visibleMessages.length]);
+  }, [scrollToOffset, visibleMessages.length]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      ...createNativeTabStackOptions({
+        title: 'Notfallkanal',
+        largeTitle: false,
+      }),
+      headerRight: () =>
+        selectedMode === 'dev' ? (
+          <Text style={styles.modeBadge}>Dev Mode</Text>
+        ) : null,
+    });
+  }, [navigation, selectedMode]);
+
+  const resolveFirstUnreadMessageKey = useCallback(() => {
+    const firstUnreadItem = flatData.find(
+      (item): item is Extract<FeedItem, { type: 'message' }> =>
+        item.type === 'message' && item.revealAtMs > lastSeenTime
+    );
+
+    return firstUnreadItem?.key ?? null;
+  }, [flatData, lastSeenTime]);
+
+  const updateActiveSectionForOffset = useCallback((offsetY: number) => {
+    let nextActiveTitle: string | null = null;
+
+    for (const stickyIndex of stickyHeaderIndices) {
+      const item = flatData[stickyIndex];
+      if (!item || item.type !== 'header') {
+        continue;
+      }
+
+      const headerOffset = headerOffsetsRef.current[item.key];
+      if (typeof headerOffset === 'number' && headerOffset <= offsetY + 1) {
+        nextActiveTitle = item.title;
+      } else {
+        break;
+      }
+    }
+
+    setActiveSectionTitle((currentTitle) =>
+      currentTitle === nextActiveTitle ? currentTitle : nextActiveTitle
+    );
+  }, [flatData, stickyHeaderIndices]);
+
+  const tryCompleteInitialPositioning = useCallback(() => {
+    if (
+      !didInitialScrollRef.current ||
+      isPositionedRef.current ||
+      isLoadingInitial ||
+      visibleMessages.length === 0 ||
+      listMetricsRef.current.viewportHeight <= 0 ||
+      listMetricsRef.current.contentHeight <= 0
+    ) {
+      return;
+    }
+
+    const firstUnreadMessageKey = resolveFirstUnreadMessageKey();
+
+    if (!firstUnreadMessageKey) {
+      isPositionedRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToEnd({ animated: false, allowCorrection: true });
+        setTimeout(() => setIsPositioned(true), 50);
+      });
+      return;
+    }
+
+    const targetOffset = messageOffsetsRef.current[firstUnreadMessageKey];
+    if (typeof targetOffset !== 'number') {
+      return;
+    }
+
+    isPositionedRef.current = true;
+    requestAnimationFrame(() => {
+      scrollToOffset(Math.max(0, targetOffset - 100), false);
+      setShowNewMessagesBadge(true);
+      setTimeout(() => setIsPositioned(true), 50);
+    });
+  }, [
+    isLoadingInitial,
+    resolveFirstUnreadMessageKey,
+    scrollToEnd,
+    scrollToOffset,
+    visibleMessages.length,
+  ]);
 
   useEffect(() => {
     if (!user || !cacheKey) {
@@ -297,6 +382,8 @@ export default function FeedScreen() {
     didInitialScrollRef.current = false;
     isPositionedRef.current = false;
     didHydrateCacheRef.current = false;
+    headerOffsetsRef.current = {};
+    messageOffsetsRef.current = {};
     setIsPositioned(false);
 
     let isCancelled = false;
@@ -394,7 +481,6 @@ export default function FeedScreen() {
     }
   }, [scrollToEnd, visibleMessages.length]);
 
-  // Mark that initial scroll is needed, but don't execute yet - wait for metrics
   useEffect(() => {
     if (
       !didInitialScrollRef.current &&
@@ -403,10 +489,9 @@ export default function FeedScreen() {
       !isPositionedRef.current
     ) {
       didInitialScrollRef.current = true;
-      // Actual scroll happens in onContentSizeChange when metrics are ready
+      tryCompleteInitialPositioning();
     }
-  }, [isLoadingInitial, visibleMessages.length]);
-
+  }, [isLoadingInitial, tryCompleteInitialPositioning, visibleMessages.length]);
 
   useEffect(() => {
     Animated.timing(newMessagesOpacity, {
@@ -431,8 +516,6 @@ export default function FeedScreen() {
       useNativeDriver: true,
     }).start();
   }, [showScrollToEndButton, scrollToEndIconOpacity]);
-
-
 
   useEffect(() => {
     return () => {
@@ -475,78 +558,6 @@ export default function FeedScreen() {
     return unsubscribe;
   }, [navigation, scrollToEnd]);
 
-  const renderSectionHeader = useCallback(
-    ({ section }: { section: SectionListData<PlaybackMessage, FeedSection> }) => {
-      const isCurrentlySticky =
-        isUserScrolling && section.title === activeSectionTitle;
-      return (
-        <Animated.View
-          style={[
-            styles.daySeparatorWrap,
-            { opacity: isCurrentlySticky ? headerOpacity : 1 },
-          ]}
-        >
-          <View
-            style={[
-              styles.daySeparatorLine,
-              isCurrentlySticky && styles.daySeparatorLineHidden,
-            ]}
-          />
-          <View style={styles.daySeparatorPill}>
-            <Text style={styles.daySeparatorText}>{section.title}</Text>
-          </View>
-          <View
-            style={[
-              styles.daySeparatorLine,
-              isCurrentlySticky && styles.daySeparatorLineHidden,
-            ]}
-          />
-        </Animated.View>
-      );
-    },
-    [headerOpacity, activeSectionTitle, isUserScrolling]
-  );
-
-  const renderItem = useCallback(
-    ({ item, index, section }: SectionListRenderItemInfo<PlaybackMessage, FeedSection>) => {
-      const nextItem = section.data[index + 1];
-      const showAvatar =
-        !nextItem ||
-        nextItem.message.actor.name !== item.message.actor.name;
-
-      const prevItem = section.data[index - 1];
-      const isNewActor = !prevItem || prevItem.message.actor.name !== item.message.actor.name;
-      const isNewBundle = prevItem && prevItem.bundleId !== item.bundleId;
-      const showName = isNewActor;
-
-      let marginTop = 0;
-      if (prevItem) {
-        if (isNewActor) {
-          marginTop = 36;
-        } else if (isNewBundle) {
-          marginTop = 16;
-        } else {
-          marginTop = 6;
-        }
-      }
-
-      return (
-        <MessageBubble
-          message={item.message}
-          showAvatar={showAvatar}
-          showName={showName}
-          gallerySources={imageSources}
-          onImagePress={(idx) => {
-            setViewerIndex(idx);
-            setViewerVisible(true);
-          }}
-          containerStyle={{ marginTop }}
-        />
-      );
-    },
-    [imageSources]
-  );
-
   const ListHeader = useMemo(() => {
     return (
       <View>
@@ -583,34 +594,31 @@ export default function FeedScreen() {
     return <View style={{ height: bottomSpacerHeight }} />;
   }, [bottomSpacerHeight]);
 
+  const scrollStickyHeaderIndices = useMemo(
+    () => stickyHeaderIndices.map((index) => index + 1),
+    [stickyHeaderIndices]
+  );
+
   return (
     <>
-      <Stack.Screen
-        options={{
-          ...createNativeTabStackOptions({
-            title: 'Notfallkanal',
-            largeTitle: false,
-          }),
-          headerRight: () =>
-            selectedMode === 'dev' ? (
-              <Text style={styles.modeBadge}>Dev Mode</Text>
-            ) : null,
-        }}
-      />
-      <SectionList
+      <ScrollView
+        ref={scrollViewRef}
         contentInsetAdjustmentBehavior="automatic"
-        ref={sectionListRef}
-        sections={sections}
-        renderItem={renderItem}
-        renderSectionHeader={renderSectionHeader}
-        keyExtractor={(item) => item.key}
-        style={[styles.scrollView, { flex: 1, opacity: isPositioned ? 1 : 0 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => void loadFirstPage('refresh')}
+            tintColor={theme.colors.orange}
+          />
+        }
+        stickyHeaderIndices={scrollStickyHeaderIndices}
+        style={[styles.scrollView, { opacity: isPositioned ? 1 : 0 }]}
         contentContainerStyle={styles.scrollContent}
+        scrollEventThrottle={16}
         onContentSizeChange={(_, height) => {
           const pendingAdjustment = pendingPrependAdjustmentRef.current;
           listMetricsRef.current.contentHeight = height;
 
-          // Handle prepend adjustment when loading older messages
           if (pendingAdjustment) {
             pendingPrependAdjustmentRef.current = null;
             const delta = height - pendingAdjustment.previousContentHeight;
@@ -618,91 +626,12 @@ export default function FeedScreen() {
             return;
           }
 
-          // Handle initial scroll positioning - wait for both height and viewport to be measured
-          if (
-            didInitialScrollRef.current &&
-            !isPositionedRef.current &&
-            height > 0 &&
-            listMetricsRef.current.viewportHeight > 0
-          ) {
-            isPositionedRef.current = true;
-
-            // Scroll to last read position: bottom if all read, or first unread message
-            const firstUnreadIndex = visibleMessages.findIndex(
-              (msg) => msg.revealAtMs > lastSeenTime
-            );
-
-            if (firstUnreadIndex === -1) {
-              // No unread messages, scroll to bottom
-              requestAnimationFrame(() => {
-                scrollToEnd({ animated: false, allowCorrection: true });
-                setTimeout(() => setIsPositioned(true), 50);
-              });
-            } else {
-              // Has unread messages, scroll to first unread and show badge
-              const unreadMessage = visibleMessages[firstUnreadIndex];
-              const sectionIndex = sections.findIndex((section) =>
-                section.data.some((msg) => msg.key === unreadMessage.key)
-              );
-
-              if (sectionIndex !== -1) {
-                const section = sections[sectionIndex];
-                const itemIndex = section.data.findIndex(
-                  (msg) => msg.key === unreadMessage.key
-                );
-
-                requestAnimationFrame(() => {
-                  sectionListRef.current?.scrollToLocation?.({
-                    animated: false,
-                    itemIndex: Math.max(0, itemIndex),
-                    sectionIndex,
-                    viewOffset: 100,
-                    viewPosition: 0,
-                  });
-                  setShowNewMessagesBadge(true);
-                  setTimeout(() => setIsPositioned(true), 50);
-                });
-              } else {
-                // Fallback to bottom if section not found
-                requestAnimationFrame(() => {
-                  scrollToEnd({ animated: false, allowCorrection: true });
-                  setTimeout(() => setIsPositioned(true), 50);
-                });
-              }
-            }
-          }
+          tryCompleteInitialPositioning();
         }}
         onLayout={(event) => {
           listMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
+          tryCompleteInitialPositioning();
         }}
-        onRefresh={() => void loadFirstPage('refresh')}
-        refreshing={isRefreshing}
-        ListHeaderComponent={ListHeader}
-        ListFooterComponent={ListFooter}
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
-        windowSize={11}
-        stickySectionHeadersEnabled={true}
-        onScrollToIndexFailed={(info) => {
-          // The target index hasn't been rendered yet. Scroll as close as
-          // possible, then retry once the item has been laid out.
-          const list = sectionListRef.current;
-          list?.getScrollResponder?.()?.scrollTo?.({
-            y: info.averageItemLength * info.index,
-            animated: false,
-          });
-          setTimeout(() => {
-            list?.scrollToLocation?.({
-              animated: false,
-              itemIndex: info.index,
-              sectionIndex: 0,
-              viewOffset: 100,
-              viewPosition: 0,
-            });
-          }, 100);
-        }}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
         onScrollBeginDrag={() => {
           if (stickyDateHideTimeoutRef.current) {
             clearTimeout(stickyDateHideTimeoutRef.current);
@@ -762,6 +691,7 @@ export default function FeedScreen() {
           listMetricsRef.current.contentHeight = contentSize.height;
           listMetricsRef.current.viewportHeight = layoutMeasurement.height;
           listMetricsRef.current.currentOffsetY = contentOffset.y;
+          updateActiveSectionForOffset(contentOffset.y);
 
           if (
             contentOffset.y <= OLDER_MESSAGES_THRESHOLD_PX &&
@@ -783,13 +713,73 @@ export default function FeedScreen() {
 
           if (isCloseToBottom && showNewMessagesBadge) {
             setShowNewMessagesBadge(false);
-            // Mark as read when user scrolls to bottom
             void markAsRead();
           }
         }}
-      />
+      >
+        {ListHeader}
+        {flatData.map((item) => {
+          if (item.type === 'header') {
+            const isCurrentlySticky = isUserScrolling && item.title === activeSectionTitle;
 
-      {/* Spinner overlay shown while list is being positioned to prevent visual jump */}
+            return (
+              <Animated.View
+                key={item.key}
+                onLayout={(event) => {
+                  headerOffsetsRef.current[item.key] = event.nativeEvent.layout.y;
+                  updateActiveSectionForOffset(listMetricsRef.current.currentOffsetY);
+                }}
+                style={[
+                  styles.daySeparatorWrap,
+                  { opacity: isCurrentlySticky ? headerOpacity : 1 },
+                ]}
+              >
+                <View style={styles.daySeparatorInner}>
+                  <View
+                    style={[
+                      styles.daySeparatorLine,
+                      isCurrentlySticky && styles.daySeparatorLineHidden,
+                    ]}
+                  />
+                  <View style={styles.daySeparatorPill}>
+                    <Text style={styles.daySeparatorText}>{item.title}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.daySeparatorLine,
+                      isCurrentlySticky && styles.daySeparatorLineHidden,
+                    ]}
+                  />
+                </View>
+              </Animated.View>
+            );
+          }
+
+          return (
+            <View
+              key={item.key}
+              onLayout={(event) => {
+                messageOffsetsRef.current[item.key] = event.nativeEvent.layout.y;
+                tryCompleteInitialPositioning();
+              }}
+            >
+              <MessageBubble
+                message={item.message}
+                showAvatar={item.showAvatar}
+                showName={item.showName}
+                gallerySources={imageSources}
+                onImagePress={(idx) => {
+                  setViewerIndex(idx);
+                  setViewerVisible(true);
+                }}
+                containerStyle={{ marginTop: item.marginTop }}
+              />
+            </View>
+          );
+        })}
+        {ListFooter}
+      </ScrollView>
+
       {!isPositioned && (
         <View style={styles.positioningOverlay}>
           <ActivityIndicator size="large" color={theme.colors.orange} />
@@ -813,7 +803,7 @@ export default function FeedScreen() {
         style={[
           styles.scrollToEndButtonWrap,
           {
-            bottom: Math.max(insets.bottom + 16, 24),
+            bottom: scrollToEndButtonBottom,
             opacity: IS_GLASS_EFFECT_ENABLED ? 1 : scrollToEndOpacity,
           },
         ]}
@@ -864,7 +854,10 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollView: { backgroundColor: theme.colors.background } as ViewStyle,
+  scrollView: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  } as ViewStyle,
   scrollContent: { padding: 20, paddingBottom: 24 } as ViewStyle,
   errorBanner: {
     backgroundColor: theme.colors.errorSurface,
@@ -896,16 +889,23 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   } as TextStyle,
   daySeparatorWrap: {
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    marginBottom: 16,
+    marginTop: 28,
+    paddingBottom: 4,
+    paddingTop: 4,
+  } as ViewStyle,
+  daySeparatorInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 16,
-    marginTop: 28,
+    width: '100%',
   } as ViewStyle,
   daySeparatorLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
   } as ViewStyle,
   daySeparatorLineHidden: {
     backgroundColor: 'transparent',
@@ -1017,6 +1017,12 @@ function getDayKey(timestampMs: number) {
 
 function formatDayLabel(timestampMs: number) {
   const date = new Date(timestampMs);
+  const relativeDay = formatRelativeDay(date);
+
+  if (relativeDay) {
+    return relativeDay;
+  }
+
   const weekday = new Intl.DateTimeFormat('de-DE', {
     weekday: 'short',
   })
@@ -1029,6 +1035,27 @@ function formatDayLabel(timestampMs: number) {
   }).format(date);
 
   return `${weekday}, ${numericDate}`;
+}
+
+function formatRelativeDay(date: Date) {
+  const diffInDays = getCalendarDayDifference(date, new Date());
+
+  if (diffInDays < -1 || diffInDays > 1) {
+    return null;
+  }
+
+  const relativeLabel = new Intl.RelativeTimeFormat('de-DE', {
+    numeric: 'auto',
+  }).format(diffInDays, 'day');
+
+  return relativeLabel.charAt(0).toUpperCase() + relativeLabel.slice(1);
+}
+
+function getCalendarDayDifference(date: Date, now: Date) {
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  return Math.round((dateStart - nowStart) / 86_400_000);
 }
 
 function mergeFreshBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
