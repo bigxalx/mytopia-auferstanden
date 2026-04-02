@@ -5,25 +5,28 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
-import { ActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
+import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
 import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
+import { ActiveMissionProvider } from '@/src/features/tasks/context/ActiveMissionContext';
 
 /**
  * Feature flag: Enable native iOS 18+ bottom accessory with liquid glass effect.
  * 
- * DISABLED due to issues:
- * 1. Duplicate/offset text on navigation back (partially fixed with stable keys)
- * 2. minimizeBehavior="onScrollUp" doesn't re-expand on scroll down (Expo Router limitation)
+ * TESTING: Temporarily enabled with proper state lifting to fix:
+ * 1. Duplicate/offset text on navigation back (caused by dual-instance rendering)
+ * 2. minimizeBehavior="onScrollUp" not re-expanding on scroll down
  * 
- * TODO: Re-enable when Expo Router supports bidirectional scroll behavior
- * or when we implement custom scroll coordination.
+ * State is now lifted to ActiveMissionContext per Expo Router requirements.
+ * If issues persist, disable and continue with fallback.
  */
-const ENABLE_NATIVE_BOTTOM_ACCESSORY = false;
+const ENABLE_NATIVE_BOTTOM_ACCESSORY = true;
 
 export default function TabLayout() {
   return (
     <NarrativeSignalProvider>
-      <TabLayoutInner />
+      <ActiveMissionProvider>
+        <TabLayoutInner />
+      </ActiveMissionProvider>
     </NarrativeSignalProvider>
   );
 }
@@ -57,7 +60,7 @@ function TabLayoutInner() {
         // @ts-ignore — nativeContainerStyle passes through to Tabs.Host (react-native-screens)
         nativeContainerStyle={{ backgroundColor: theme.colors.background }}
         backgroundColor={theme.colors.background}
-        // minimizeBehavior disabled - see ENABLE_NATIVE_BOTTOM_ACCESSORY feature flag
+        minimizeBehavior={supportsNativeBottomAccessory ? 'onScrollUp' : undefined}
         blurEffect="systemThinMaterialDark"
         indicatorColor="#3b83f646"
         rippleColor="transparent"
@@ -130,16 +133,14 @@ function TabLayoutInner() {
 
         <NativeTabs.Trigger name="index" hidden />
 
-        {/* Native bottom accessory disabled - see ENABLE_NATIVE_BOTTOM_ACCESSORY feature flag */}
         {supportsNativeBottomAccessory && (
           <NativeTabs.BottomAccessory>
-            <ActiveMissionBar />
+            <NativeActiveMissionBar />
           </NativeTabs.BottomAccessory>
         )}
       </NativeTabs>
 
-      {/* Always render custom bottom bar for all platforms */}
-      <ActiveMissionBar standaloneFallback />
+      {!supportsNativeBottomAccessory && <FallbackActiveMissionBar />}
     </View>
   );
 }
