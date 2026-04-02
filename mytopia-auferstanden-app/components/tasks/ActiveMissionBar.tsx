@@ -9,15 +9,6 @@ import { type MissionListItem, MISSION_KIND_METADATA } from '@/src/features/task
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 /**
- * Hook to check if the ActiveMissionBar is currently visible.
- * Used by other components to adjust their UI accordingly.
- */
-export function useActiveMissionBarVisible() {
-  const { activeMission, isLoading } = useActiveMission();
-  return !isLoading && activeMission !== null;
-}
-
-/**
  * Internal content component for the Mission Bar.
  * Handles both 'regular' and 'inline' placements for native bottom accessory.
  * 

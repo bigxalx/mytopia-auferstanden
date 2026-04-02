@@ -34,7 +34,7 @@ import { MessageBubble } from '@/components/feed/MessageBubble';
 import {
   buildPlaybackMessages,
 } from '@/src/features/feed/utils/playback';
-import { useActiveMissionBarVisible } from '@/components/tasks/ActiveMissionBar';
+import { useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
 
 const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
@@ -64,7 +64,7 @@ export default function FeedScreen() {
   const { selectedMode, user } = useSession();
   const { lastSeenTime, markAsRead, pulse, refreshKey } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
-  const isMissionBarVisible = useActiveMissionBarVisible();
+  const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
 
   const requestVersionRef = useRef(0);
   const activeInitialLoadsRef = useRef(0);
@@ -105,9 +105,11 @@ export default function FeedScreen() {
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
   const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP);
-  const scrollToEndButtonBottom = isMissionBarVisible 
-    ? Math.max(insets.bottom + 92, 108) 
-    : Math.max(insets.bottom + 16, 24);
+  const scrollToEndButtonBottom = isNativeMissionBar
+    ? Math.max(insets.bottom + 16, 24)  // Native bottom accessory adjusts safe area automatically
+    : isMissionBarVisible 
+      ? Math.max(insets.bottom + 92, 108)  // Fallback bar needs manual spacing adjustment
+      : Math.max(insets.bottom + 16, 24);  // No mission bar
   const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
 
   const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);

@@ -61,12 +61,13 @@ function TabLayoutInner() {
         nativeContainerStyle={{ backgroundColor: theme.colors.background }}
         backgroundColor={theme.colors.background}
         minimizeBehavior={supportsNativeBottomAccessory ? 'onScrollUp' : undefined}
-        blurEffect="systemThinMaterialDark"
+        blurEffect="systemThickMaterialDark"
         indicatorColor="#3b83f646"
         rippleColor="transparent"
         disableTransparentOnScrollEdge
         badgeBackgroundColor={theme.colors.blue}
         badgeTextColor={theme.colors.textPrimary}
+
         iconColor={{
           default: Platform.OS === 'android' ? theme.colors.textSecondary : '#8E8E93',
           selected: theme.colors.blue,
