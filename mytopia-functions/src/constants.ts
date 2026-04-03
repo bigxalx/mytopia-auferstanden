@@ -69,6 +69,7 @@ export const MISSION_LIST_PROJECTION = `
   points,
   description,
   active,
+  "imageUrl": image.asset->url,
   "gpsConfig": gpsConfig{
     "latitude": location.lat,
     "longitude": location.lng,
@@ -84,6 +85,7 @@ export const MISSION_DETAIL_PROJECTION = `
   points,
   description,
   active,
+  "imageUrl": image.asset->url,
   "gpsConfig": gpsConfig{
     "latitude": location.lat,
     "longitude": location.lng,

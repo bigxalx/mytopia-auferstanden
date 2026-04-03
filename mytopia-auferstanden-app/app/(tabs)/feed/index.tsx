@@ -78,6 +78,7 @@ export default function FeedScreen() {
   const didInitialScrollRef = useRef(false);
   const isPositionedRef = useRef(false);
   const pendingPrependAdjustmentRef = useRef<null | { previousContentHeight: number; previousOffsetY: number }>(null);
+  const isPullToRefreshActiveRef = useRef(false);
   const didHydrateCacheRef = useRef(false);
   const messageOffsetsRef = useRef<Record<string, number>>({});
   const headerOffsetsRef = useRef<Record<string, number>>({});
@@ -218,6 +219,9 @@ export default function FeedScreen() {
         if (mode === 'refresh') {
           activeRefreshLoadsRef.current = Math.max(0, activeRefreshLoadsRef.current - 1);
           setIsRefreshing(activeRefreshLoadsRef.current > 0);
+          if (activeRefreshLoadsRef.current === 0) {
+            isPullToRefreshActiveRef.current = false;
+          }
         }
       }
     },
@@ -225,7 +229,15 @@ export default function FeedScreen() {
   );
 
   const loadMore = useCallback(async () => {
-    if (!user || !nextCursor || isLoadingMore) return;
+    if (
+      !user ||
+      !nextCursor ||
+      isLoadingMore ||
+      isRefreshing ||
+      isPullToRefreshActiveRef.current
+    ) {
+      return;
+    }
 
     pendingPrependAdjustmentRef.current = {
       previousContentHeight: listMetricsRef.current.contentHeight,
@@ -248,7 +260,12 @@ export default function FeedScreen() {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isLoadingMore, nextCursor, selectedMode, user]);
+  }, [isLoadingMore, isRefreshing, nextCursor, selectedMode, user]);
+
+  const handleRefresh = useCallback(() => {
+    isPullToRefreshActiveRef.current = true;
+    void loadFirstPage('refresh');
+  }, [loadFirstPage]);
 
   const scrollToOffset = useCallback((offset: number, animated: boolean) => {
     scrollViewRef.current?.scrollTo({
@@ -371,6 +388,7 @@ export default function FeedScreen() {
       setIsLoadingMore(false);
       activeInitialLoadsRef.current = 0;
       activeRefreshLoadsRef.current = 0;
+      isPullToRefreshActiveRef.current = false;
       didHydrateCacheRef.current = false;
       return;
     }
@@ -604,7 +622,7 @@ export default function FeedScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() => void loadFirstPage('refresh')}
+            onRefresh={handleRefresh}
             tintColor={theme.colors.orange}
           />
         }
@@ -691,10 +709,13 @@ export default function FeedScreen() {
           updateActiveSectionForOffset(contentOffset.y);
 
           if (
+            contentOffset.y > 0 &&
             contentOffset.y <= OLDER_MESSAGES_THRESHOLD_PX &&
             nextCursor &&
             !isLoadingMore &&
-            !isLoadingInitial
+            !isLoadingInitial &&
+            !isRefreshing &&
+            !isPullToRefreshActiveRef.current
           ) {
             void loadMore();
           }

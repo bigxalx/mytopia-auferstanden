@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Alert, StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
@@ -130,7 +131,7 @@ export default function TaskDetailScreen() {
       <Screen title="Fehler" subtitle="Mission konnte nicht geladen werden." headerShown={false}>
         <Stack.Screen
           options={createNativeTabStackOptions({
-            title: 'Fehler',
+            title: 'Mission',
             largeTitle: false,
           })}
         />
@@ -146,7 +147,7 @@ export default function TaskDetailScreen() {
       <Screen title="Nicht gefunden" subtitle="Diese Mission existiert nicht." headerShown={false}>
         <Stack.Screen
           options={createNativeTabStackOptions({
-            title: 'Nicht gefunden',
+            title: 'Mission',
             largeTitle: false,
           })}
         />
@@ -159,21 +160,30 @@ export default function TaskDetailScreen() {
 
   return (
     <Screen
-      title={mission.title}
+      title="Mission"
       subtitle={`${mission.points} Punkte · ${MISSION_KIND_METADATA[mission.kind] ? `${MISSION_KIND_METADATA[mission.kind].emoji} ${MISSION_KIND_METADATA[mission.kind].label}` : '❓'}`}
       headerShown={false}
     >
       <Stack.Screen
         options={createNativeTabStackOptions({
-          title: mission.title,
+          title: 'Mission',
           largeTitle: false,
         })}
       />
-      {mission.description ? (
-        <SectionCard title="Beschreibung">
+
+      <SectionCard title={mission.title}>
+        <Text style={styles.type}>{MISSION_KIND_METADATA[mission.kind]?.label ?? mission.kind}</Text>
+        {mission.imageUrl ? (
+          <Image
+            source={{ uri: mission.imageUrl }}
+            style={styles.image}
+            contentFit="cover"
+          />
+        ) : null}
+        {mission.description ? (
           <Text style={styles.body}>{mission.description}</Text>
-        </SectionCard>
-      ) : null}
+        ) : null}
+      </SectionCard>
 
       {completedMissions.includes(mission._id) ? (
         <SectionCard title="Abgeschlossen">
@@ -238,6 +248,19 @@ const styles = StyleSheet.create({
     color: theme.colors.cardTextSecondary,
     fontSize: 14,
     lineHeight: 20,
+  },
+  type: {
+    color: theme.colors.cardTextMuted,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  image: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 12,
   },
   errorText: {
     color: theme.colors.errorText,

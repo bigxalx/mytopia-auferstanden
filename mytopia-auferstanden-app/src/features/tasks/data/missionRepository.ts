@@ -27,6 +27,7 @@ export type MissionListItem = {
         longitude: number;
         radiusMeters: number;
     };
+    imageUrl?: string;
     kind: MissionKind;
     points: number;
     questionCount?: number;
