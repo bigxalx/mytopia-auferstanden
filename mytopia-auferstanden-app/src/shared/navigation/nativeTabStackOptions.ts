@@ -31,7 +31,7 @@ export function createNativeTabStackOptions({
         fontFamily: theme.typography.title.fontFamily,
         textTransform: 'uppercase' as const,
       },
-      headerTransparent: false, // Unified: Always false
+      headerTransparent: false,
     };
 
     if (variant === 'overlay') {

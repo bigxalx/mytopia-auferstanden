@@ -22,7 +22,6 @@ import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ImageView from 'react-native-image-viewing';
-import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 
 import { useSession } from '@/src/core/session/SessionContext';
 import {
@@ -282,10 +281,6 @@ export default function FeedScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      ...createNativeTabStackOptions({
-        title: 'Notfallkanal',
-        largeTitle: false,
-      }),
       headerRight: () =>
         selectedMode === 'dev' ? (
           <Text style={styles.modeBadge}>Dev Mode</Text>

@@ -9,7 +9,6 @@ import { MissionsCard } from '@/components/tasks/MissionsCard';
 import { RankingSummaryCard } from '@/components/profile/RankingSummaryCard';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
-import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 
 export default function ProfileScreen() {
   const { selectedMode, user } = useSession();
@@ -36,12 +35,7 @@ export default function ProfileScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <Stack.Screen
-          options={createNativeTabStackOptions({
-            title: 'Profil',
-            largeTitle: false,
-          })}
-        />
+        <Stack.Screen options={{ headerRight: () => null }} />
         <SectionCard title="Keine aktive Sitzung">
           <Text style={styles.body}>
             Melde dich an, um auf das Profil und die Rangliste zuzugreifen.
@@ -68,10 +62,6 @@ export default function ProfileScreen() {
     >
       <Stack.Screen
         options={{
-          ...createNativeTabStackOptions({
-            title: 'Profil',
-            largeTitle: false,
-          }),
           headerRight: () => (
             <Link href="/(tabs)/profile/settings" asChild>
               <Pressable hitSlop={20}>

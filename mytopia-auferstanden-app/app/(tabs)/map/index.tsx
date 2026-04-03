@@ -1,4 +1,3 @@
-import { Stack } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
@@ -13,7 +12,6 @@ import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMission
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
-import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 import { darkMapStyle } from '@/src/shared/ui/darkMapStyle';
 import {
     CheckIcon,
@@ -125,12 +123,6 @@ export default function MapScreen() {
     if (permissionStatus === 'denied') {
         return (
             <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" headerShown={false}>
-                <Stack.Screen
-                    options={createNativeTabStackOptions({
-                        title: 'Karte',
-                        largeTitle: false,
-                    })}
-                />
                 <SectionCard title="Standortzugriff benötigt">
                     <Text style={styles.body}>
                         Um die Karte und GPS-Missionen nutzen zu können, benötigen wir Zugriff auf deinen Standort.
@@ -158,12 +150,6 @@ export default function MapScreen() {
             bottomInset={false}
             headerShown={false}
         >
-            <Stack.Screen
-                options={createNativeTabStackOptions({
-                    title: 'Karte',
-                    largeTitle: false,
-                })}
-            />
             <View style={styles.mapContainer}>
                 <MapView
                     initialRegion={region}

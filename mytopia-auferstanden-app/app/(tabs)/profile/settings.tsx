@@ -16,11 +16,9 @@ import {
   useExpoUpdatesState,
 } from '@/src/core/updates/expoUpdatesClient';
 import { resolveExpoUpdateChannel } from '@/src/core/updates/expoUpdateChannel';
-import { Stack } from 'expo-router';
 
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
-import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 
 export default function SettingsScreen() {
   const { canUseDevMode, selectedMode, setSelectedMode, signOut, user } = useSession();
@@ -50,12 +48,6 @@ export default function SettingsScreen() {
   if (!user) {
     return (
       <Screen title="Einstellungen" headerShown={false}>
-        <Stack.Screen
-          options={createNativeTabStackOptions({
-            title: 'Einstellungen',
-            largeTitle: false,
-          })}
-        />
         <SectionCard title="Keine aktive Sitzung">
           <Text style={styles.body}>Melde dich an, um auf die Einstellungen zuzugreifen.</Text>
         </SectionCard>
@@ -156,15 +148,6 @@ export default function SettingsScreen() {
       title="Einstellungen"
       headerShown={false}
     >
-      <Stack.Screen
-        options={{
-          ...createNativeTabStackOptions({
-            title: 'Einstellungen',
-            largeTitle: false,
-          }),
-          headerBackButtonDisplayMode: 'minimal',
-        }}
-      />
       <SectionCard title="Account">
         <View style={styles.row}>
           <Text style={styles.label}>Name</Text>
