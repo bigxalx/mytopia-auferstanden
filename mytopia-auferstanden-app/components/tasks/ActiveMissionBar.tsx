@@ -21,10 +21,12 @@ import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionCont
  */
 function MissionBarContent({
   mission,
-  placement
+  placement,
+  transparent = true
 }: {
   mission: MissionListItem,
-  placement: 'regular' | 'inline'
+  placement: 'regular' | 'inline',
+  transparent?: boolean
 }) {
   const isInline = placement === 'inline';
   const kindMeta = MISSION_KIND_METADATA[mission.kind as keyof typeof MISSION_KIND_METADATA];
@@ -37,6 +39,7 @@ function MissionBarContent({
         styles.container,
         // isInline && styles.inlineContainer,
         pressed && styles.containerPressed,
+        !transparent && { backgroundColor: theme.colors.orange },
       ]}
     >
       <View style={styles.textBlock}>
@@ -86,25 +89,7 @@ export function FallbackActiveMissionBar() {
 
   return (
     <View style={[styles.manualFallbackWrapper, { bottom: fallbackBottomOffset }]} pointerEvents="box-none">
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push('/(modals)/tasks/' + activeMission._id)}
-        style={({ pressed }) => [
-          styles.container,
-          styles.fallbackContainer,
-          pressed && styles.containerPressed,
-        ]}
-      >
-        <View style={styles.fallbackBackground} />
-        <View style={styles.textBlock}>
-          <Text style={[styles.missionTitle, styles.fallbackText]} numberOfLines={1}>
-            {activeMission.title}
-          </Text>
-          <Text style={[styles.missionMeta, styles.fallbackText]} numberOfLines={1}>
-            {kindMeta?.label || 'Mission'} · {activeMission.points} Punkte
-          </Text>
-        </View>
-      </Pressable>
+      <MissionBarContent mission={activeMission} placement="regular" transparent={false} />
     </View>
   );
 }
@@ -113,9 +98,11 @@ const styles = StyleSheet.create({
 
   manualFallbackWrapper: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: 8,
+    right: 8,
     zIndex: 99,
+    borderRadius: 24,
+    overflow: 'hidden',
   },
   container: {
     justifyContent: 'center',
