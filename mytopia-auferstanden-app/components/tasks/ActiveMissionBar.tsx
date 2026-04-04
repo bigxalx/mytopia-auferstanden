@@ -5,7 +5,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/src/shared/ui/theme';
 
-import { type MissionListItem, MISSION_KIND_METADATA } from '@/src/features/tasks/data/missionRepository';
+import { type MissionListItem } from '@/src/features/tasks/data/missionRepository';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 /**
@@ -28,18 +28,19 @@ function MissionBarContent({
   placement: 'regular' | 'inline',
   transparent?: boolean
 }) {
-  const isInline = placement === 'inline';
-  const kindMeta = MISSION_KIND_METADATA[mission.kind as keyof typeof MISSION_KIND_METADATA];
-
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={() => router.push('/(modals)/tasks/' + mission._id)}
+      onPress={() => router.push({
+        pathname: '/(modals)/tasks/[taskId]',
+        params: { taskId: mission._id },
+      })}
       style={({ pressed }) => [
         styles.container,
-        // isInline && styles.inlineContainer,
-        pressed && styles.containerPressed,
         !transparent && { backgroundColor: theme.colors.orange },
+        // isInline && styles.inlineContainer,
+        pressed && (transparent ? styles.containerPressed : styles.fallbackContainerPressed),
+
       ]}
     >
       <View style={styles.textBlock}>
@@ -84,7 +85,6 @@ export function FallbackActiveMissionBar() {
 
   if (isLoading || !activeMission) return null;
 
-  const kindMeta = MISSION_KIND_METADATA[activeMission.kind as keyof typeof MISSION_KIND_METADATA];
   const fallbackBottomOffset = insets.bottom + (Platform.OS === 'android' ? 78 : 56);
 
   return (
@@ -130,8 +130,11 @@ const styles = StyleSheet.create({
   containerPressed: {
     opacity: 0.88,
   },
+  fallbackContainerPressed: {
+    backgroundColor: '#fb923c',
+
+  },
   fallbackBackground: {
-    ...StyleSheet.absoluteFillObject,
     backgroundColor: theme.colors.orange,
   },
   textBlock: {

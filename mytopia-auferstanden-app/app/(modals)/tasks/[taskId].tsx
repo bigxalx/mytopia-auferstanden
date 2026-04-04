@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 import { Image } from 'expo-image';
 
 import { useSession } from '@/src/core/session/SessionContext';
