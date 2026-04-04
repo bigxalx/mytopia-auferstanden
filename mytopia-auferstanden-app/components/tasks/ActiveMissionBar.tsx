@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { theme } from '@/src/shared/ui/theme';
 
 import { type MissionListItem } from '@/src/features/tasks/data/missionRepository';
@@ -28,6 +29,12 @@ function MissionBarContent({
   placement: 'regular' | 'inline',
   transparent?: boolean
 }) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -35,29 +42,41 @@ function MissionBarContent({
         pathname: '/(modals)/tasks/[taskId]',
         params: { taskId: mission._id },
       })}
-      style={({ pressed }) => [
-        styles.container,
-        !transparent && { backgroundColor: theme.colors.orange },
-        // isInline && styles.inlineContainer,
-        pressed && (transparent ? styles.containerPressed : styles.fallbackContainerPressed),
-
-      ]}
+      onPressIn={!transparent ? () => {
+        scale.value = withSpring(0.985, { stiffness: 700, damping: 38, mass: 0.45 });
+      } : undefined}
+      onPressOut={!transparent ? () => {
+        scale.value = withSpring(1, { stiffness: 700, damping: 38, mass: 0.45 });
+      } : undefined}
+      style={styles.pressable}
     >
-      <View style={styles.textBlock}>
-        <Text style={[styles.missionTitle,
-          // isInline && styles.missionTitleInline
-        ]} numberOfLines={1}>
-          {mission.title}
-        </Text>
-        <Text style={styles.missionMeta}>
-          Aktuelle Mission
-        </Text>
-        {/* {!isInline && (
-          <Text style={styles.missionMeta} numberOfLines={1}>
-            {kindMeta?.label || 'Mission'} · {mission.points} Punkte
-          </Text>
-        )} */}
-      </View>
+      {({ pressed }) => (
+        <Animated.View
+          style={[
+            styles.container,
+            !transparent && styles.fallbackContainer,
+            !transparent && animatedStyle,
+            // isInline && styles.inlineContainer,
+            pressed && (transparent ? styles.containerPressed : styles.fallbackContainerPressed),
+          ]}
+        >
+          <View style={styles.textBlock}>
+            <Text style={[styles.missionTitle,
+              // isInline && styles.missionTitleInline
+            ]} numberOfLines={1}>
+              {mission.title}
+            </Text>
+            <Text style={styles.missionMeta}>
+              Aktuelle Mission
+            </Text>
+            {/* {!isInline && (
+              <Text style={styles.missionMeta}>
+                {kindMeta?.label || 'Mission'} · {mission.points} Punkte
+              </Text>
+            )} */}
+          </View>
+        </Animated.View>
+      )}
     </Pressable>
   );
 }
@@ -101,8 +120,6 @@ const styles = StyleSheet.create({
     left: 8,
     right: 8,
     zIndex: 99,
-    borderRadius: 24,
-    overflow: 'hidden',
   },
   container: {
     justifyContent: 'center',
@@ -111,6 +128,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: 'rgba(249, 116, 22, 0.75)',
   },
+  pressable: {
+    width: '100%',
+  },
   inlineContainer: {
     minHeight: 38,
     paddingHorizontal: 10,
@@ -118,8 +138,8 @@ const styles = StyleSheet.create({
   },
   fallbackContainer: {
     minHeight: 60,
-    borderRadius: 18,
-    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: theme.colors.orange,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
@@ -132,7 +152,6 @@ const styles = StyleSheet.create({
   },
   fallbackContainerPressed: {
     backgroundColor: '#fb923c',
-
   },
   fallbackBackground: {
     backgroundColor: theme.colors.orange,
