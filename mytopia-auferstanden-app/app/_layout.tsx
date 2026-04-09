@@ -45,14 +45,13 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" options={{ title: 'Zurück', headerBackTitle: 'Zurück' }} />
               <Stack.Screen name="welcome-back" />
-              <Stack.Screen 
-                name="(modals)/tasks/[taskId]" 
-                options={{ 
+              <Stack.Screen
+                name="(modals)/tasks/[taskId]"
+                options={{
                   presentation: 'modal',
-                  headerShown: true, 
-                  title: 'Mission', 
-                  headerBackTitle: 'Zurück' 
-                }} 
+                  title: 'Mission',
+                  headerBackTitle: 'Zurück'
+                }}
               />
             </Stack>
           </ThemeProvider>

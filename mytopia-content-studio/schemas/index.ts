@@ -8,6 +8,7 @@ import {
   narrativeMessage,
   videoAttachment,
 } from './narrativeBundle';
+import { sammelaufgabe } from './sammelaufgabe';
 
 export const schemaTypes = [
   mission,
@@ -20,4 +21,5 @@ export const schemaTypes = [
   missionAttachment,
   narrativeMessage,
   narrativeBundle,
+  sammelaufgabe,
 ];

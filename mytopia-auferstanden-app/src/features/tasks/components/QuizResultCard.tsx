@@ -5,15 +5,15 @@ import { theme } from '@/src/shared/ui/theme';
 
 type QuizResultCardProps = {
     correct: number;
+    embedded?: boolean;
     earned: number;
     total: number;
 };
 
-export function QuizResultCard({ correct, earned, total }: QuizResultCardProps) {
+export function QuizResultCard({ correct, earned, total, embedded = false }: QuizResultCardProps) {
     const allCorrect = correct === total;
-
-    return (
-        <SectionCard title="Quiz abgeschlossen">
+    const content = (
+        <View style={embedded ? styles.embeddedContainer : undefined}>
             <View style={styles.scoreCircle}>
                 <Text style={styles.scoreNumber}>{earned}</Text>
                 <Text style={styles.scoreLabel}>Punkte</Text>
@@ -26,8 +26,14 @@ export function QuizResultCard({ correct, earned, total }: QuizResultCardProps) 
             {allCorrect ? (
                 <Text style={styles.successText}>🎉 Perfekt! Alle Fragen richtig.</Text>
             ) : null}
-        </SectionCard>
+        </View>
     );
+
+    if (embedded) {
+        return content;
+    }
+
+    return <SectionCard title="Quiz abgeschlossen">{content}</SectionCard>;
 }
 
 const styles = StyleSheet.create({
@@ -35,6 +41,9 @@ const styles = StyleSheet.create({
         color: theme.colors.cardTextSecondary,
         fontSize: 14,
         textAlign: 'center',
+    },
+    embeddedContainer: {
+        gap: 12,
     },
     scoreCircle: {
         alignItems: 'center',

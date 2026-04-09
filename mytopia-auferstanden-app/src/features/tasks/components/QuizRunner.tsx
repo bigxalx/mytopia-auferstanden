@@ -10,13 +10,14 @@ type QuizQuestion = {
 };
 
 type QuizRunnerProps = {
+    embedded?: boolean;
     missionId: string;
     missionTitle: string;
     onComplete: (answers: number[]) => Promise<{ correct: number; earned: number; total: number }>;
     questions: QuizQuestion[];
 };
 
-export function QuizRunner({ missionId, missionTitle, onComplete, questions }: QuizRunnerProps) {
+export function QuizRunner({ embedded = false, missionId: _missionId, missionTitle: _missionTitle, onComplete, questions }: QuizRunnerProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
     const [result, setResult] = useState<{ correct: number; earned: number; total: number } | null>(null);
@@ -24,7 +25,7 @@ export function QuizRunner({ missionId, missionTitle, onComplete, questions }: Q
     const [error, setError] = useState<string | null>(null);
 
     if (result) {
-        return <QuizResultCard correct={result.correct} earned={result.earned} total={result.total} />;
+        return <QuizResultCard correct={result.correct} earned={result.earned} total={result.total} embedded={embedded} />;
     }
 
     const question = questions[currentIndex];

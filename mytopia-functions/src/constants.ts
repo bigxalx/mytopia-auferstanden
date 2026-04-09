@@ -69,6 +69,8 @@ export const MISSION_LIST_PROJECTION = `
   points,
   description,
   active,
+  expiresAt,
+  "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
   "imageUrl": image.asset->url,
   "gpsConfig": gpsConfig{
     "latitude": location.lat,
@@ -85,6 +87,9 @@ export const MISSION_DETAIL_PROJECTION = `
   points,
   description,
   active,
+  expiresAt,
+  "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
+  "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,
   "imageUrl": image.asset->url,
   "gpsConfig": gpsConfig{
     "latitude": location.lat,
@@ -104,6 +109,7 @@ export const MISSION_SCORING_PROJECTION = `
   kind,
   points,
   active,
+  expiresAt,
   "questions": quizConfig.questions[]{
     questionText,
     "options": options[]{text, isCorrect}

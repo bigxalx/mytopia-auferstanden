@@ -90,6 +90,8 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Mission is not active.');
     }
 
+    assertMissionNotExpired(mission);
+
     if (mission.kind !== 'quiz') {
       throw new HttpError(400, 'Mission is not a quiz.');
     }
@@ -206,7 +208,7 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     }
 
     // Fetch mission from Sanity (no answers needed, just verify it exists)
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
@@ -216,6 +218,8 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     if (!mission.active) {
       throw new HttpError(400, 'Mission is not active.');
     }
+
+    assertMissionNotExpired(mission);
 
     if (mission.kind !== 'gps') {
       throw new HttpError(400, 'Mission is not a GPS mission.');
@@ -307,7 +311,7 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing text payload.');
     }
 
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
@@ -317,6 +321,8 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
     if (!mission.active) {
       throw new HttpError(400, 'Mission is not active.');
     }
+
+    assertMissionNotExpired(mission);
 
     if (mission.kind !== 'text') {
       throw new HttpError(400, 'Mission is not a text mission.');
@@ -379,7 +385,7 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing photoPath payload.');
     }
 
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
@@ -389,6 +395,8 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
     if (!mission.active) {
       throw new HttpError(400, 'Mission is not active.');
     }
+
+    assertMissionNotExpired(mission);
 
     if (mission.kind !== 'photo') {
       throw new HttpError(400, 'Mission is not a photo mission.');
@@ -421,5 +429,16 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
     } catch (error) {
     logger.error('photoSubmit failed', error);
     sendError(res, error);
+    }
+}
+
+function assertMissionNotExpired(mission: MissionDto) {
+    if (!mission.expiresAt) {
+      return;
+    }
+
+    const expiresAt = Date.parse(mission.expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+      throw new HttpError(400, 'Mission has expired.');
     }
 }

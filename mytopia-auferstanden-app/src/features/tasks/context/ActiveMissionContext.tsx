@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
-import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
+import { fetchMissions, getCachedMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
 import { useSession } from '@/src/core/session/SessionContext';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
+import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStatus';
 
 /**
  * Feature flag import - must match the value in app/(tabs)/_layout.tsx
@@ -30,15 +31,23 @@ const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(nul
 
 export function ActiveMissionProvider({ children }: { children: React.ReactNode }) {
   const { selectedMode, user } = useSession();
-  const [missions, setMissions] = useState<MissionListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
+  const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
 
   useEffect(() => {
     let active = true;
+    const cached = getCachedMissions(selectedMode);
+
+    if (cached) {
+      setMissions(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
     async function load() {
-      if (active) setIsLoading(true);
       try {
         const result = await fetchMissions({ mode: selectedMode });
         if (active) setMissions(result);
@@ -53,14 +62,9 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   }, [selectedMode]);
 
   const activeMission = useMemo(() => {
-    const openMissions = missions.filter((mission) => {
-      const isCompleted = completedMissions.includes(mission._id);
-      const submissionState = submissionStates[mission._id];
-      const isPending = !isCompleted && submissionState?.status === 'pending';
-      const isRejected = !isCompleted && submissionState?.status === 'rejected';
-
-      return !isCompleted && !isPending && !isRejected;
-    });
+    const openMissions = missions.filter(
+      (mission) => getMissionLifecycleStatus(mission, completedMissions, submissionStates) === 'available'
+    );
 
     return openMissions[0] || null;
   }, [completedMissions, missions, submissionStates]);

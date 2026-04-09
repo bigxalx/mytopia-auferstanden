@@ -6,11 +6,12 @@ import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
 
 type PhotoRunnerProps = {
+  embedded?: boolean;
   missionId: string;
   onComplete: (photoUri: string) => Promise<{ action: string }>;
 };
 
-export function PhotoRunner({ missionId, onComplete }: PhotoRunnerProps) {
+export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRunnerProps) {
   const { user } = useSession();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,7 +97,7 @@ export function PhotoRunner({ missionId, onComplete }: PhotoRunnerProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, embedded ? styles.containerEmbedded : null]}>
       <Text style={styles.title}>Dein Foto</Text>
 
       {photoUri ? (
@@ -176,6 +177,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.cardBorder,
     marginTop: 16,
+  },
+  containerEmbedded: {
+    marginTop: 0,
   },
   title: {
     color: theme.colors.textPrimary,

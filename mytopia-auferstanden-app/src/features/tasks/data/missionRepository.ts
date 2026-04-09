@@ -4,6 +4,7 @@ import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
 import type { AppMode } from '@/src/core/session/appMode';
 
 const REQUEST_TIMEOUT_MS = 15000;
+const MISSION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,11 +23,14 @@ export type MissionListItem = {
     _id: string;
     active: boolean;
     description?: string;
+    expiresAt?: string;
     gpsConfig?: {
         latitude: number;
         longitude: number;
         radiusMeters: number;
     };
+    groupId?: string;
+    groupTitle?: string;
     imageUrl?: string;
     kind: MissionKind;
     points: number;
@@ -34,6 +38,14 @@ export type MissionListItem = {
     questions?: QuizQuestion[];
     title: string;
 };
+
+type MissionCacheEntry = {
+    fetchedAt: number;
+    missions: MissionListItem[];
+};
+
+const missionCache = new Map<AppMode, MissionCacheEntry>();
+const inFlightMissionRequests = new Map<AppMode, Promise<MissionListItem[]>>();
 
 export type QuizQuestion = {
     options: string[];
@@ -62,13 +74,42 @@ export type SubmitResult = {
 
 export async function fetchMissions({
     mode = 'production',
+    forceRefresh = false,
 }: {
+    forceRefresh?: boolean;
     mode?: AppMode;
 } = {}): Promise<MissionListItem[]> {
     if (!hasConfiguredFeedApi()) {
         throw new Error('EXPO_PUBLIC_FEED_API_BASE_URL is not configured.');
     }
 
+    const cached = missionCache.get(mode);
+    if (!forceRefresh && cached && Date.now() - cached.fetchedAt < MISSION_CACHE_TTL_MS) {
+        return cached.missions;
+    }
+
+    const existingRequest = inFlightMissionRequests.get(mode);
+    if (!forceRefresh && existingRequest) {
+        return existingRequest;
+    }
+
+    const request = loadMissionsFromApi(mode);
+    inFlightMissionRequests.set(mode, request);
+
+    try {
+        return await request;
+    } finally {
+        if (inFlightMissionRequests.get(mode) === request) {
+            inFlightMissionRequests.delete(mode);
+        }
+    }
+}
+
+export function getCachedMissions(mode: AppMode = 'production'): MissionListItem[] | null {
+    return missionCache.get(mode)?.missions ?? null;
+}
+
+async function loadMissionsFromApi(mode: AppMode): Promise<MissionListItem[]> {
     const idToken = await ensureIdToken();
     const baseUrl = normalizeBaseUrl(env.feedApiBaseUrl);
 
@@ -88,9 +129,16 @@ export async function fetchMissions({
     }
 
     const payload = (await response.json()) as { missions?: unknown[] };
-    return Array.isArray(payload.missions)
+    const missions = Array.isArray(payload.missions)
         ? (payload.missions as MissionListItem[])
         : [];
+
+    missionCache.set(mode, {
+        fetchedAt: Date.now(),
+        missions,
+    });
+
+    return missions;
 }
 
 // ---------------------------------------------------------------------------

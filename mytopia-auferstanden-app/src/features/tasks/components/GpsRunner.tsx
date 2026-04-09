@@ -13,12 +13,13 @@ type GpsTarget = {
 };
 
 type GpsRunnerProps = {
+    embedded?: boolean;
     missionId: string;
     onComplete: () => Promise<{ earned: number }>;
     target: GpsTarget;
 };
 
-export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
+export function GpsRunner({ embedded = false, missionId: _missionId, onComplete, target }: GpsRunnerProps) {
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [distance, setDistance] = useState<number | null>(null);
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -96,20 +97,24 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
     }, [target.latitude, target.longitude]);
 
     if (result) {
-        return (
-            <SectionCard title="Check-in erfolgreich">
+        const content = (
+            <View style={styles.resultContainer}>
                 <View style={styles.successCircle}>
                     <Text style={styles.successNumber}>{result.earned}</Text>
                     <Text style={styles.successLabel}>Punkte</Text>
                 </View>
                 <Text style={styles.successText}>📍 Du bist angekommen!</Text>
-            </SectionCard>
+            </View>
         );
+
+        return embedded
+            ? <View style={styles.panel}>{content}</View>
+            : <SectionCard title="Check-in erfolgreich">{content}</SectionCard>;
     }
 
     if (permissionStatus === 'denied') {
-        return (
-            <SectionCard title="Standortzugriff benötigt">
+        const content = (
+            <View style={styles.permissionContainer}>
                 <Text style={styles.body}>
                     Diese Mission benötigt Zugriff auf deinen Standort.
                 </Text>
@@ -119,8 +124,12 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
                 <Pressable onPress={() => Linking.openSettings()} style={styles.settingsButton}>
                     <Text style={styles.settingsButtonText}>Einstellungen öffnen</Text>
                 </Pressable>
-            </SectionCard>
+            </View>
         );
+
+        return embedded
+            ? <View style={styles.panel}>{content}</View>
+            : <SectionCard title="Standortzugriff benötigt">{content}</SectionCard>;
     }
 
     async function handleCheckIn() {
@@ -141,8 +150,8 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
 
     return (
         <View style={styles.container}>
-            {/* Map showing goal location with radius */}
-            <SectionCard title="Zielgebiet">
+            <View style={styles.panel}>
+                <Text style={styles.panelTitle}>Zielgebiet</Text>
                 <GpsMap
                     radiusMeters={target.radiusMeters}
                     targetLatitude={target.latitude}
@@ -150,9 +159,10 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
                     userLatitude={userCoords?.latitude}
                     userLongitude={userCoords?.longitude}
                 />
-            </SectionCard>
+            </View>
 
-            <SectionCard title="Navigation zum Ziel">
+            <View style={styles.panel}>
+                <Text style={styles.panelTitle}>Navigation zum Ziel</Text>
                 <View style={styles.distanceContainer}>
                     <Text style={styles.distanceValue}>
                         {distance !== null ? formatDistance(distance) : '…'}
@@ -171,7 +181,7 @@ export function GpsRunner({ missionId, onComplete, target }: GpsRunnerProps) {
                 ) : (
                     <Text style={styles.loadingText}>Standort wird ermittelt…</Text>
                 )}
-            </SectionCard>
+            </View>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -284,6 +294,26 @@ const styles = StyleSheet.create({
         color: theme.colors.cardTextSecondary,
         fontSize: 13,
         textAlign: 'center',
+    },
+    panel: {
+        backgroundColor: theme.colors.cardSubtleBackground,
+        borderColor: theme.colors.cardBorder,
+        borderRadius: 14,
+        borderWidth: 1,
+        padding: 16,
+    },
+    panelTitle: {
+        color: theme.colors.cardTextHeading,
+        fontFamily: 'Nunito_700Bold',
+        fontSize: 15,
+        marginBottom: 12,
+        textTransform: 'uppercase',
+    },
+    permissionContainer: {
+        gap: 8,
+    },
+    resultContainer: {
+        gap: 12,
     },
     settingsButton: {
         alignItems: 'center',

@@ -3,10 +3,11 @@ import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 
 type TextRunnerProps = {
+  embedded?: boolean;
   onComplete: (text: string) => Promise<{ action: string }>;
 };
 
-export function TextRunner({ onComplete }: TextRunnerProps) {
+export function TextRunner({ onComplete, embedded = false }: TextRunnerProps) {
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export function TextRunner({ onComplete }: TextRunnerProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, embedded ? styles.containerEmbedded : null]}>
       <Text style={styles.title}>Dein Beitrag</Text>
 
       <TextInput
@@ -85,6 +86,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.cardBorder,
     marginTop: 16,
+  },
+  containerEmbedded: {
+    marginTop: 0,
   },
   title: {
     color: theme.colors.textPrimary,

@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import { theme } from '@/src/shared/ui/theme';
 import { PrivacyManager } from '@/src/core/firebase/privacyManager';
 
 import { deleteCurrentUserAccount } from '@/src/core/firebase/accountDeletionClient';
 import { useSession } from '@/src/core/session/SessionContext';
-import { getFCMToken } from '@/src/core/firebase/messagingClient';
-import {
-  checkAndFetchExpoUpdate,
-  getExpoRuntimeVersion,
-  isExpoUpdatesEnabled,
-  reloadToApplyExpoUpdate,
-  useExpoUpdatesState,
-} from '@/src/core/updates/expoUpdatesClient';
-import { resolveExpoUpdateChannel } from '@/src/core/updates/expoUpdateChannel';
+import { getExpoRuntimeVersion } from '@/src/core/updates/expoUpdatesClient';
 
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
@@ -24,13 +15,7 @@ export default function SettingsScreen() {
   const { canUseDevMode, selectedMode, setSelectedMode, signOut, user } = useSession();
   const [accountFeedback, setAccountFeedback] = useState<{ message: string; tone: 'error' | 'success' } | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const updatesState = useExpoUpdatesState();
-  const updatesEnabled = isExpoUpdatesEnabled();
   const runtimeVersion = getExpoRuntimeVersion();
-  const requestedChannel = resolveExpoUpdateChannel(selectedMode, canUseDevMode);
-  const [updatesError, setUpdatesError] = useState<string | null>(null);
-  const [fcmToken, setFcmToken] = useState<string | null>(null);
-  const [hasCopied, setHasCopied] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
 
   useEffect(() => {
@@ -38,12 +23,6 @@ export default function SettingsScreen() {
   }, []);
 
   const otaVersion = Constants.expoConfig?.extra?.otaVersion ?? Constants.expoConfig?.version ?? 'Unavailable';
-
-  useEffect(() => {
-    if (selectedMode === 'dev') {
-      void getFCMToken().then(setFcmToken);
-    }
-  }, [selectedMode]);
 
   if (!user) {
     return (
@@ -53,44 +32,6 @@ export default function SettingsScreen() {
         </SectionCard>
       </Screen>
     );
-  }
-
-  const updatesSummary = updatesEnabled
-    ? updatesState.isUpdatePending
-      ? 'A JS update has been downloaded and is ready to apply.'
-      : updatesState.isChecking || updatesState.isDownloading
-        ? 'Checking for a JS update on the selected channel.'
-        : updatesState.currentlyRunning.isEmbeddedLaunch
-          ? 'Running the embedded bundle from the installed native build.'
-          : 'Running a downloaded JS update.'
-    : 'Expo Updates are disabled in local development builds. Install a Fastlane-built TestFlight or Play build to receive JS-only updates.';
-
-  async function handleCheckForUpdates() {
-    setUpdatesError(null);
-
-    try {
-      await checkAndFetchExpoUpdate(requestedChannel);
-    } catch (error) {
-      setUpdatesError(formatUpdatesError(error));
-    }
-  }
-
-  async function handleApplyUpdate() {
-    setUpdatesError(null);
-
-    try {
-      await reloadToApplyExpoUpdate();
-    } catch (error) {
-      setUpdatesError(formatUpdatesError(error));
-    }
-  }
-
-  async function handleCopyToken() {
-    if (fcmToken) {
-      await Clipboard.setStringAsync(fcmToken);
-      setHasCopied(true);
-      setTimeout(() => setHasCopied(false), 2000);
-    }
   }
 
   function handleDeleteAccount() {
@@ -150,10 +91,6 @@ export default function SettingsScreen() {
     >
       <SectionCard title="Account">
         <View style={styles.row}>
-          <Text style={styles.label}>Name</Text>
-          <Text style={styles.value}>{user.displayName}</Text>
-        </View>
-        <View style={styles.row}>
           <Text style={styles.label}>E‑Mail</Text>
           <Text style={styles.value}>{user.email}</Text>
         </View>
@@ -162,6 +99,9 @@ export default function SettingsScreen() {
             {accountFeedback.message}
           </Text>
         ) : null}
+        <Pressable onPress={signOut} style={styles.signOutButton}>
+          <Text style={styles.signOutText}>Abmelden</Text>
+        </Pressable>
         <Pressable
           disabled={isDeletingAccount}
           onPress={handleDeleteAccount}
@@ -212,68 +152,27 @@ export default function SettingsScreen() {
         </SectionCard>
       )}
 
-      {selectedMode === 'dev' && (
-        <SectionCard title="Push registration">
-          <View style={styles.row}>
-            <Text style={styles.label}>FCM Token</Text>
-            <Text style={styles.value} numberOfLines={1} ellipsizeMode="middle">
-              {fcmToken ?? 'Fetching…'}
-            </Text>
-          </View>
-          {fcmToken && (
-            <Pressable onPress={handleCopyToken} style={StyleSheet.flatten([styles.modeButton, styles.copyButton])}>
-              <Text style={styles.modeButtonLabel}>
-                {hasCopied ? 'Copied!' : 'Copy token'}
-              </Text>
-            </Pressable>
-          )}
-        </SectionCard>
-      )}
-
-      {canUseDevMode && (
-        <SectionCard title="App update">
-          <View style={styles.row}>
-            <Text style={styles.label}>Requested JS channel</Text>
-            <Text style={styles.value}>{requestedChannel}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>Runtime version</Text>
-            <Text style={styles.value}>{runtimeVersion ?? 'Unavailable'}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.label}>App version (OTA)</Text>
-            <Text style={styles.value}>{otaVersion}</Text>
-          </View>
-          <Text style={styles.body}>{updatesSummary}</Text>
-          {updatesError && <Text style={styles.errorText}>{updatesError}</Text>}
-          <View style={styles.modeRow}>
-            <Pressable
-              disabled={!updatesEnabled || updatesState.isChecking || updatesState.isDownloading || updatesState.isRestarting}
-              onPress={handleCheckForUpdates}
-              style={StyleSheet.flatten([
-                styles.modeButton,
-                (!updatesEnabled || updatesState.isChecking || updatesState.isDownloading || updatesState.isRestarting)
-                && styles.modeButtonDisabled,
-              ])}>
-              <Text style={styles.modeButtonLabel}>
-                {updatesState.isChecking || updatesState.isDownloading ? 'Checking…' : 'Check now'}
-              </Text>
-            </Pressable>
-            {updatesState.isUpdatePending && (
-              <Pressable
-                onPress={handleApplyUpdate}
-                style={StyleSheet.flatten([styles.modeButton, styles.modeButtonActive])}
-              >
-                <Text style={StyleSheet.flatten([styles.modeButtonLabel, styles.modeButtonLabelActive])}>Apply now</Text>
-              </Pressable>
-            )}
-          </View>
-        </SectionCard>
-      )}
-
-      <Pressable onPress={signOut} style={styles.signOutButton}>
-        <Text style={styles.signOutText}>Abmelden</Text>
-      </Pressable>
+      <View style={styles.footer}>
+        <Text style={styles.footerMeta}>
+          Runtime-Version: {runtimeVersion ?? 'Unavailable'} | {otaVersion}
+        </Text>
+        <Text style={styles.footerText}>
+          Designed und entwickelt von{' '}
+          <Text style={styles.footerLink} onPress={() => Linking.openURL('https://arminluschin.com')}>
+            Armin Luschin
+          </Text>{' '}
+          für Theater Altenburg Gera gGmbH
+        </Text>
+        <Text style={styles.footerText}>
+          <Text style={styles.footerLink} onPress={() => Linking.openURL('https://www.mytopia.world/')}>
+            Impressum
+          </Text>
+          {' · '}
+          <Text style={styles.footerLink} onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')}>
+            Datenschutz
+          </Text>
+        </Text>
+      </View>
     </Screen>
   );
 }
@@ -290,8 +189,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.headerBorder,
     borderRadius: 10,
     borderWidth: 1,
+    marginTop: 12,
     paddingVertical: 12,
-    marginTop: 20,
   },
   signOutText: {
     color: theme.colors.destructiveBorder,
@@ -370,9 +269,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 8,
   },
-  copyButton: {
-    marginTop: 8,
-  },
   value: {
     color: theme.colors.cardTextPrimary,
     flex: 2,
@@ -380,12 +276,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
   },
+  footer: {
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    paddingHorizontal: 8,
+  },
+  footerMeta: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  footerText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  footerLink: {
+    color: theme.colors.orange,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 });
-
-function formatUpdatesError(error: unknown) {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return 'Unable to complete the update action right now.';
-}

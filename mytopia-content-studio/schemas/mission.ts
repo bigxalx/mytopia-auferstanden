@@ -132,6 +132,12 @@ export const mission = defineType({
             description: 'Optional: Eine Beschreibung oder Anleitung für die Spieler.',
         }),
         defineField({
+            name: 'expiresAt',
+            title: 'Deadline',
+            type: 'datetime',
+            description: 'Optional: Nach diesem Zeitpunkt gilt die Mission als abgelaufen.',
+        }),
+        defineField({
             name: 'active',
             title: 'Aktiv',
             type: 'boolean',
@@ -213,13 +219,15 @@ export const mission = defineType({
             kind: 'kind',
             points: 'points',
             active: 'active',
+            expiresAt: 'expiresAt',
         },
         prepare(selection) {
             const kindLabel = selection.kind === 'quiz' ? '🧠 Quiz' : selection.kind === 'gps' ? '📍 GPS' : selection.kind === 'text' ? '📝 Text' : selection.kind === 'photo' ? '📸 Foto' : '❓';
             const status = selection.active ? '' : ' (inaktiv)';
+            const expiresLabel = selection.expiresAt ? ` · bis ${new Date(selection.expiresAt).toLocaleDateString('de-DE')}` : '';
             return {
                 title: selection.title || 'Unbenannte Mission',
-                subtitle: `${kindLabel} · ${selection.points ?? '?'} Punkte${status}`,
+                subtitle: `${kindLabel} · ${selection.points ?? '?'} Punkte${expiresLabel}${status}`,
             };
         },
     },

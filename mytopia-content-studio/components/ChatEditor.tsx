@@ -1,6 +1,6 @@
 import { ArrayOfObjectsInputProps, insert, setIfMissing, useFormValue, ArrayOfObjectsInputMembers } from 'sanity';
 import { Card, Stack, TextInput, Box, Text, Button, Flex } from '@sanity/ui';
-import { useCallback, useState } from 'react';
+import { type ChangeEvent, useCallback, useState } from 'react';
 import { AddIcon, SyncIcon } from '@sanity/icons';
 
 // Simple key generator since Sanity's internal randomKey isn't exported in the main bundle
@@ -124,7 +124,7 @@ export function ChatEditor(props: ArrayOfObjectsInputProps) {
               icon={AddIcon}
               placeholder="Schnelle Nachricht + Enter (Nutzt Standard-Absender)..."
               value={inputText}
-              onChange={(e) => setInputText(e.currentTarget.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setInputText(event.currentTarget.value)}
               onKeyDown={handleKeyDown}
             />
           </Card>

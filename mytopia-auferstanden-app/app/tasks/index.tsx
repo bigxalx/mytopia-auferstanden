@@ -4,9 +4,14 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/src/shared/ui/theme';
-import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
+import {
+  fetchMissions,
+  getCachedMissions,
+  type MissionListItem,
+} from '@/src/features/tasks/data/missionRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
+import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStatus';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { useSession } from '@/src/core/session/SessionContext';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
@@ -29,8 +34,8 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
-  const [missions, setMissions] = useState<MissionListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
+  const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [error, setError] = useState<string | null>(null);
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
@@ -38,13 +43,27 @@ export default function TasksScreen() {
 
   useEffect(() => {
     let active = true;
+    const cached = getCachedMissions(selectedMode);
+    setError(null);
+
+    if (cached) {
+      setMissions(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
 
     async function load() {
       try {
         const result = await fetchMissions({ mode: selectedMode });
-        if (active) setMissions(result);
+        if (active) {
+          setError(null);
+          setMissions(result);
+        }
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Failed to load missions.');
+        if (active && !cached) {
+          setError(err instanceof Error ? err.message : 'Failed to load missions.');
+        }
       } finally {
         if (active) setIsLoading(false);
       }
@@ -56,19 +75,14 @@ export default function TasksScreen() {
 
   // Categorize missions
   const activeMissions: MissionListItem[] = [];
-  const doneMissions: { mission: MissionListItem; status: 'completed' | 'pending' | 'rejected' }[] = [];
+  const doneMissions: { mission: MissionListItem; status: 'completed' | 'expired' | 'pending' | 'rejected' }[] = [];
 
   for (const mission of missions) {
-    const isCompleted = completedMissions.includes(mission._id);
-    const submissionState = submissionStates[mission._id];
-    const isPending = !isCompleted && submissionState?.status === 'pending';
-    const isRejected = !isCompleted && submissionState?.status === 'rejected';
+    const status = getMissionLifecycleStatus(mission, completedMissions, submissionStates);
 
-    if (isCompleted) {
-      doneMissions.push({ mission, status: 'completed' });
-    } else if (isPending) {
-      doneMissions.push({ mission, status: 'pending' });
-    } else if (isRejected) {
+    if (status === 'completed' || status === 'pending' || status === 'expired') {
+      doneMissions.push({ mission, status });
+    } else if (status === 'rejected') {
       // Rejected missions show as active so the user can re-attempt
       activeMissions.push(mission);
     } else {
@@ -176,7 +190,7 @@ export default function TasksScreen() {
                       >
                         <View style={styles.rowHeader}>
                           <Text style={styles.kindBadge}>
-                            {status === 'completed' ? '✅' : '⏳'}
+                            {status === 'completed' ? '✅' : status === 'expired' ? '⌛' : '⏳'}
                           </Text>
                           <Text
                             style={[
@@ -191,7 +205,9 @@ export default function TasksScreen() {
                           {KIND_LABEL[mission.kind] ?? mission.kind} · {mission.points} Punkte
                           {status === 'completed'
                             ? ' · Abgeschlossen'
-                            : ' · Wird überprüft'}
+                            : status === 'expired'
+                              ? ' · Abgelaufen'
+                              : ' · Wird überprüft'}
                         </Text>
                       </Pressable>
                     </Link>

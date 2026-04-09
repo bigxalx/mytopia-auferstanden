@@ -85,6 +85,7 @@ export type FirebaseResponse = {
 export type MissionDto = {
       _id: string;
       active: boolean;
+      expiresAt?: string;
       kind: 'gps' | 'quiz' | 'text' | 'photo';
       points: number;
       questions?: Array<{

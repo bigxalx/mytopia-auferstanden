@@ -4,9 +4,15 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { theme } from '@/src/shared/ui/theme';
 
 import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-import { fetchMissions, type MissionListItem, MISSION_KIND_METADATA } from '@/src/features/tasks/data/missionRepository';
+import {
+  fetchMissions,
+  getCachedMissions,
+  type MissionListItem,
+  MISSION_KIND_METADATA,
+} from '@/src/features/tasks/data/missionRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
+import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStatus';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 
 type MissionsCardProps = {
@@ -21,20 +27,34 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
   const submissionStates = useMissionSubmissionStates(userId, refreshTrigger);
   const { pulse } = useNarrativeSignal();
   
-  const [missions, setMissions] = useState<MissionListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(mode) ?? []);
+  const [isLoading, setIsLoading] = useState(() => !getCachedMissions(mode));
   const [error, setError] = useState<string | null>(null);
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
+    const cached = getCachedMissions(mode);
+    setError(null);
+
+    if (cached) {
+      setMissions(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
 
     async function load() {
       try {
         const result = await fetchMissions({ mode });
-        if (active) setMissions(result);
+        if (active) {
+          setError(null);
+          setMissions(result);
+        }
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Failed to load missions.');
+        if (active && !cached) {
+          setError(err instanceof Error ? err.message : 'Failed to load missions.');
+        }
       } finally {
         if (active) {
           setIsLoading(false);
@@ -69,20 +89,17 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
   // Categorize
   const openMissions: MissionListItem[] = [];
   const pendingMissions: MissionListItem[] = [];
-  const doneMissions: { mission: MissionListItem; status: 'completed' | 'rejected' }[] = [];
+  const doneMissions: { mission: MissionListItem; status: 'completed' | 'expired' | 'rejected' }[] = [];
 
   for (const mission of missions) {
-    const isCompleted = completedMissions.includes(mission._id);
-    const submissionState = submissionStates[mission._id];
-    const isPending = !isCompleted && submissionState?.status === 'pending';
-    const isRejected = !isCompleted && submissionState?.status === 'rejected';
+    const status = getMissionLifecycleStatus(mission, completedMissions, submissionStates);
 
-    if (isCompleted) {
-      doneMissions.push({ mission, status: 'completed' });
-    } else if (isPending) {
+    if (status === 'completed') {
+      doneMissions.push({ mission, status });
+    } else if (status === 'pending') {
       pendingMissions.push(mission);
-    } else if (isRejected) {
-      doneMissions.push({ mission, status: 'rejected' });
+    } else if (status === 'rejected' || status === 'expired') {
+      doneMissions.push({ mission, status });
     } else {
       openMissions.push(mission);
     }
@@ -170,13 +187,13 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
                           ])}
                         >
                           <View style={styles.rowHeader}>
-                            <Text style={styles.statusEmoji}>
-                              {status === 'completed' ? '✅' : '❌'}
+                          <Text style={styles.statusEmoji}>
+                              {status === 'completed' ? '✅' : status === 'expired' ? '⌛' : '❌'}
                             </Text>
                             <Text style={StyleSheet.flatten([styles.rowTitle, styles.rowTitleDone])}>{mission.title}</Text>
                           </View>
                           <Text style={styles.rowMeta}>
-                             {mission.points} Punkte · {status === 'completed' ? 'Erfolgreich' : 'Nicht bestätigt'}
+                             {mission.points} Punkte · {status === 'completed' ? 'Erfolgreich' : status === 'expired' ? 'Abgelaufen' : 'Nicht bestätigt'}
                           </Text>
                         </Pressable>
                       </Link>
