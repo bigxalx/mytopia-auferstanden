@@ -168,6 +168,27 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
+    // Also create a submission record for the feed
+    const submissionRef = firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).doc(idempotencyKey);
+    batch.set(submissionRef, {
+      createdAt: FieldValue.serverTimestamp(),
+      idempotencyKey,
+      metadata: {
+        missionTitle: mission.title,
+      },
+      ownerUid: uid,
+      payload: {
+        correctCount,
+        totalCount: questions.length,
+        earned,
+      },
+      sourceId: missionId,
+      sourceType: 'quiz',
+      status: 'approved',
+      awarded: true,
+      awardedAt: FieldValue.serverTimestamp(),
+    });
+
     await batch.commit();
     await syncUserToLeaderboard(uid);
 
@@ -268,6 +289,23 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
       pointsCurrent: FieldValue.increment(earned),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
+
+    // Also create a submission record for the feed
+    const submissionRef = firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).doc(idempotencyKey);
+    batch.set(submissionRef, {
+      createdAt: FieldValue.serverTimestamp(),
+      idempotencyKey,
+      metadata: {
+        missionTitle: mission.title,
+      },
+      ownerUid: uid,
+      payload: {}, // No specific payload needed for GPS yet, just the pin is enough
+      sourceId: missionId,
+      sourceType: 'gps',
+      status: 'approved',
+      awarded: true,
+      awardedAt: FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
     await syncUserToLeaderboard(uid);

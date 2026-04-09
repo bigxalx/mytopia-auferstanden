@@ -39,6 +39,15 @@ export type NarrativeAttachmentDto =
     missionTitle?: string;
     title?: string;
     imageUrl?: string;
+  }
+  | {
+    _type: 'submissionAttachment';
+    submissionId: string;
+    status: 'pending' | 'approved' | 'rejected';
+    kind: 'gps' | 'quiz' | 'text' | 'photo';
+    payload: any;
+    missionTitle: string;
+    moderatorNote?: string;
   };
 
 export type NarrativeMessageDto = {
@@ -51,6 +60,7 @@ export type NarrativeMessageDto = {
   attachment?: NarrativeAttachmentDto;
   messageId: string;
   text?: string;
+  isUser?: boolean;
 };
 
 export type NarrativeBundleDto = {
@@ -60,6 +70,7 @@ export type NarrativeBundleDto = {
   pushTitle?: string;
   releaseAt: string;
   title: string;
+  isUser?: boolean;
 };
 
 export type NarrativeFeedPageDto = {
@@ -220,6 +231,7 @@ function normalizeBundle(value: unknown): NarrativeBundleDto | null {
     ...(typeof raw.pushTitle === 'string' ? { pushTitle: raw.pushTitle } : {}),
     releaseAt,
     title,
+    isUser: typeof raw.isUser === 'boolean' ? raw.isUser : false,
   };
 }
 
@@ -233,6 +245,7 @@ function normalizeMessage(value: unknown): NarrativeMessageDto | null {
   const actor = normalizeActor(raw.actor);
   const text = typeof raw.text === 'string' && raw.text.trim().length > 0 ? raw.text : undefined;
   const attachment = normalizeAttachment(raw.attachment);
+  const isUser = typeof raw.isUser === 'boolean' ? raw.isUser : false;
 
   if (!messageId || !actor || (!text && !attachment)) {
     return null;
@@ -243,6 +256,7 @@ function normalizeMessage(value: unknown): NarrativeMessageDto | null {
     ...(attachment ? { attachment } : {}),
     messageId,
     ...(text ? { text } : {}),
+    isUser,
   };
 }
 
@@ -331,6 +345,23 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       ...(typeof raw.missionTitle === 'string' ? { missionTitle: raw.missionTitle } : {}),
       ...(typeof raw.title === 'string' && raw.title.length > 0 ? { title: raw.title } : {}),
       ...(typeof raw.imageUrl === 'string' && raw.imageUrl.length > 0 ? { imageUrl: raw.imageUrl } : {}),
+    };
+  }
+
+  if (raw._type === 'submissionAttachment') {
+    const submissionId = asNonEmptyString(raw.submissionId);
+    if (!submissionId) {
+      return undefined;
+    }
+
+    return {
+      _type: 'submissionAttachment',
+      submissionId,
+      status: raw.status as any,
+      kind: raw.kind as any,
+      payload: raw.payload,
+      missionTitle: asNonEmptyString(raw.missionTitle) ?? '',
+      moderatorNote: asNonEmptyString(raw.moderatorNote) ?? undefined,
     };
   }
 

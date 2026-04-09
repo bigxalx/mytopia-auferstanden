@@ -31,8 +31,12 @@ const NarrativeSignalContext = createContext<NarrativeSignalContextValue>({
 
 export const useNarrativeSignal = () => useContext(NarrativeSignalContext);
 
-const LAST_SEEN_TOKEN_KEY = 'mytopia_last_seen_narrative_token';
-const LAST_SEEN_TIME_KEY = 'mytopia_last_seen_narrative_time';
+const LAST_SEEN_TOKEN_KEY_BASE = 'mytopia_last_seen_narrative_token';
+const LAST_SEEN_TIME_KEY_BASE = 'mytopia_last_seen_narrative_time';
+
+function getPersistenceKey(base: string, userId: string, mode: string) {
+  return `${base}:${userId}:${mode}`;
+}
 
 export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -44,16 +48,21 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
   const [unreadCount, setUnreadCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Load persistence on mount
+  // Load persistence when user/mode changes
   useEffect(() => {
+    if (!user) return;
+
+    const tokenKey = getPersistenceKey(LAST_SEEN_TOKEN_KEY_BASE, user.id, selectedMode);
+    const timeKey = getPersistenceKey(LAST_SEEN_TIME_KEY_BASE, user.id, selectedMode);
+
     Promise.all([
-      AsyncStorage.getItem(LAST_SEEN_TOKEN_KEY),
-      AsyncStorage.getItem(LAST_SEEN_TIME_KEY),
+      AsyncStorage.getItem(tokenKey),
+      AsyncStorage.getItem(timeKey),
     ]).then(([token, timeStr]) => {
-      if (token) setLastSeenToken(token);
-      if (timeStr) setLastSeenTime(parseInt(timeStr, 10) || 0);
+      setLastSeenToken(token);
+      setLastSeenTime(parseInt(timeStr || '0', 10) || 0);
     });
-  }, []);
+  }, [user, selectedMode]);
 
   // Firestore signal listener
   useEffect(() => {
@@ -131,6 +140,7 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
   const hasUnreadNarrative = unreadCount > 0 || (pulse !== null && pulse.token !== lastSeenToken);
 
   const markAsRead = async () => {
+    if (!user) return;
     const now = Date.now();
     const token = pulse?.token;
 
@@ -140,9 +150,12 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
       setLastSeenToken(token);
     }
 
+    const tokenKey = getPersistenceKey(LAST_SEEN_TOKEN_KEY_BASE, user.id, selectedMode);
+    const timeKey = getPersistenceKey(LAST_SEEN_TIME_KEY_BASE, user.id, selectedMode);
+
     await Promise.all([
-      AsyncStorage.setItem(LAST_SEEN_TIME_KEY, now.toString()),
-      token ? AsyncStorage.setItem(LAST_SEEN_TOKEN_KEY, token) : Promise.resolve(),
+      AsyncStorage.setItem(timeKey, now.toString()),
+      token ? AsyncStorage.setItem(tokenKey, token) : Promise.resolve(),
     ]);
   };
 

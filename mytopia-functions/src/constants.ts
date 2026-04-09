@@ -17,7 +17,7 @@ export const SANITY_BUNDLE_PROJECTION = `
     "avatarUrl": avatar.asset->url,
     "nameColor": nameColor.hex
   },
-  releaseAt,
+  "releaseAt": select(publishMode == "instant" => _updatedAt, releaseAt),
   pushTitle,
   pushBody,
   pushNow,

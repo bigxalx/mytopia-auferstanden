@@ -2,6 +2,7 @@ import { ThemeProvider } from '@react-navigation/native';
 import { AppNavigationTheme } from '@/src/shared/ui/theme';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
@@ -13,6 +14,8 @@ import { NunitoSans_400Regular, NunitoSans_700Bold } from '@expo-google-fonts/nu
 import { PrivacyManager } from '@/src/core/firebase/privacyManager';
 import { useEffect } from 'react';
 import * as SystemUI from 'expo-system-ui';
+import { Pressable } from 'react-native';
+import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 
 // Register FCM background handler before React tree mounts
 registerBackgroundNarrativeHandler();
@@ -47,11 +50,31 @@ export default function RootLayout() {
               <Stack.Screen name="welcome-back" />
               <Stack.Screen
                 name="(modals)/tasks/[taskId]"
-                options={{
+                options={({ navigation }) => ({
+                  ...createNativeTabStackOptions({
+                    title: 'Mission',
+                    largeTitle: false,
+                  }),
+
+                  headerShown: true,
+                  headerBackVisible: false,
+                  headerLeft: () => (
+                    <Pressable
+                      accessibilityLabel="Mission schließen"
+                      hitSlop={8}
+                      onPress={() => navigation.goBack()}
+                      style={{
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                      }}
+                    >
+                      <MaterialIcons color={AppNavigationTheme.colors.text} name="close" size={24} />
+                    </Pressable>
+                  ),
                   presentation: 'modal',
                   title: 'Mission',
-                  headerBackTitle: 'Zurück'
-                }}
+                })}
               />
             </Stack>
           </ThemeProvider>

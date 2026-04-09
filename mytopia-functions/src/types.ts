@@ -20,6 +20,15 @@ export type AttachmentDto = | {
         missionPoints?: number;
         missionTitle?: string;
         title?: string;
+      }
+      | {
+        _type: 'submissionAttachment';
+        submissionId: string;
+        status: 'pending' | 'approved' | 'rejected';
+        kind: 'gps' | 'quiz' | 'text' | 'photo';
+        payload: any;
+        missionTitle: string;
+        moderatorNote?: string;
       };
 export type MessageDto = {
       actor: {
@@ -95,4 +104,22 @@ export type MissionDto = {
         questionText: string;
       }>;
       title: string;
+};
+
+export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export type SubmissionDto = {
+    createdAt: any; // Typically serverTimestamp in firestore, but ISO when sent to client
+    idempotencyKey: string;
+    metadata: {
+        missionTitle: string;
     };
+    ownerUid: string;
+    payload: any;
+    sourceId: string;
+    sourceType: 'gps' | 'quiz' | 'text' | 'photo';
+    status: SubmissionStatus;
+    moderatorNote?: string;
+    awarded?: boolean;
+    awardedAt?: any;
+};

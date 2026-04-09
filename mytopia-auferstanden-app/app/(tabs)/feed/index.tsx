@@ -81,6 +81,7 @@ export default function FeedScreen() {
   const prevVisibleCountRef = useRef(0);
   const didInitialScrollRef = useRef(false);
   const isPositionedRef = useRef(false);
+  const hasUserInteractedRef = useRef(false);
   const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPrependAdjustmentRef = useRef<null | { previousContentHeight: number; previousOffsetY: number }>(null);
   const isPullToRefreshActiveRef = useRef(false);
@@ -130,6 +131,13 @@ export default function FeedScreen() {
     : isMissionBarVisible
       ? Math.max(insets.bottom + 92, 108)
       : Math.max(insets.bottom + 16, 24);
+
+  const newMessagesBottom = isNativeMissionBar
+    ? Math.max(insets.bottom + 16, 24)
+    : isMissionBarVisible
+      ? Math.max(insets.bottom + 92, 108)
+      : Math.max(insets.bottom + 24, 32);
+
   const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
 
   const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);
@@ -319,6 +327,7 @@ export default function FeedScreen() {
     latestSignalTokenRef.current = null;
     didInitialScrollRef.current = false;
     isPositionedRef.current = false;
+    hasUserInteractedRef.current = false;
     didHydrateCacheRef.current = false;
     setIsPositioned(false);
 
@@ -406,9 +415,12 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (visibleMessages.length > prevVisibleCountRef.current) {
-      if (!isAtBottomRef.current && didInitialScrollRef.current) {
+      // If we've already done our first positioning and user is NOT at current bottom,
+      // show the badge for new content.
+      if (!isAtBottomRef.current && didInitialScrollRef.current && isPositionedRef.current) {
         setShowNewMessagesBadge(true);
-      } else if (prevVisibleCountRef.current > 0 && didInitialScrollRef.current) {
+      } else if (didInitialScrollRef.current) {
+        // If we are at the bottom (or still positioning), follow the content
         requestAnimationFrame(() => {
           scrollToEnd();
         });
@@ -625,22 +637,29 @@ export default function FeedScreen() {
 
           if (
             didInitialScrollRef.current &&
-            !isPositionedRef.current &&
             height > 0 &&
             listMetricsRef.current.viewportHeight > 0
           ) {
-            isPositionedRef.current = true;
-
-            const firstUnreadIndex = visibleMessages.findIndex(
-              (msg) => msg.revealAtMs > lastSeenTime
-            );
+            const firstUnreadIndex =
+              lastSeenTime > 0
+                ? visibleMessages.findIndex((msg) => msg.revealAtMs > lastSeenTime)
+                : -1;
 
             if (firstUnreadIndex === -1) {
-              requestAnimationFrame(() => {
-                scrollToEnd({ animated: false, allowCorrection: true });
-                setTimeout(() => setIsPositioned(true), 50);
-              });
-            } else {
+              // If we are showing the bottom, keep following it until user interacts
+              if (!hasUserInteractedRef.current) {
+                console.log(`[Feed] Follow end: height=${height}, viewport=${listMetricsRef.current.viewportHeight}`);
+                scrollToEnd({ animated: false, allowCorrection: false });
+
+                if (!isPositionedRef.current) {
+                  isPositionedRef.current = true;
+                  void markAsRead();
+                  setTimeout(() => setIsPositioned(true), 50);
+                }
+              }
+            } else if (!isPositionedRef.current) {
+              // Scroll to unread happens once
+              isPositionedRef.current = true;
               const unreadMessage = visibleMessages[firstUnreadIndex];
               const sectionIndex = sections.findIndex((section) =>
                 section.data.some((msg) => msg.key === unreadMessage.key)
@@ -652,6 +671,7 @@ export default function FeedScreen() {
                   (msg) => msg.key === unreadMessage.key
                 );
 
+                console.log(`[Feed] Scroll to unread: index=${firstUnreadIndex}, height=${height}`);
                 requestAnimationFrame(() => {
                   sectionListRef.current?.scrollToLocation?.({
                     animated: false,
@@ -707,6 +727,7 @@ export default function FeedScreen() {
           }
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setIsUserScrolling(true);
+          hasUserInteractedRef.current = true;
           Animated.timing(headerOpacity, {
             toValue: 1,
             duration: 250,
@@ -776,7 +797,7 @@ export default function FeedScreen() {
             0,
             contentSize.height - (layoutMeasurement.height + contentOffset.y)
           );
-          const isCloseToBottom = distanceFromBottom <= 100;
+          const isCloseToBottom = distanceFromBottom <= 250;
 
           isAtBottomRef.current = isCloseToBottom;
           setShowScrollToEndButton(distanceFromBottom > SCROLL_TO_END_SHOW_THRESHOLD_PX);
@@ -797,7 +818,11 @@ export default function FeedScreen() {
       <Animated.View
         style={StyleSheet.flatten([
           styles.newMessagesContainer,
-          { opacity: newMessagesOpacity, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' },
+          {
+            bottom: newMessagesBottom,
+            opacity: newMessagesOpacity,
+            pointerEvents: showNewMessagesBadge ? 'auto' : 'none',
+          },
         ])}
       >
         <Pressable
@@ -848,7 +873,7 @@ export default function FeedScreen() {
               <Animated.View style={{ opacity: scrollToEndIconOpacity }}>
                 <FeedDownArrowIcon
                   color={theme.colors.cardTextHeading}
-                  size={30}
+                  size={22}
                   variant={SCROLL_TO_END_ICON_VARIANT}
                 />
               </Animated.View>
@@ -857,7 +882,7 @@ export default function FeedScreen() {
             <View style={[styles.scrollToEndButton, styles.scrollToEndButtonFallback]}>
               <FeedDownArrowIcon
                 color={theme.colors.cardTextHeading}
-                size={30}
+                size={22}
                 variant={SCROLL_TO_END_ICON_VARIANT}
               />
             </View>
@@ -938,7 +963,6 @@ const styles = StyleSheet.create({
   } as TextStyle,
   newMessagesContainer: {
     position: 'absolute',
-    bottom: 24,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -977,10 +1001,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    height: 52,
+    height: 38,
     justifyContent: 'center',
     overflow: 'hidden',
-    width: 52,
+    width: 38,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,

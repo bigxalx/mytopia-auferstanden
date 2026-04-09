@@ -26,12 +26,12 @@ export function buildPlaybackMessages(bundles: NarrativeBundleDto[]): PlaybackMe
   for (const bundle of sorted) {
     let cursorMs = getBundleReleaseMs(bundle);
     for (const msg of bundle.messages) {
-      cursorMs += resolveMessageDelayMs(msg);
+      cursorMs += resolveMessageDelayMs(msg, bundle.isUser);
       items.push({
         bundleId: bundle._id,
         bundleTitle: bundle.title,
         key: `${bundle._id}:${msg.messageId}`,
-        message: msg,
+        message: { ...msg, isUser: bundle.isUser ?? msg.isUser },
         revealAtMs: cursorMs,
       });
     }
@@ -43,7 +43,11 @@ export function buildPlaybackMessages(bundles: NarrativeBundleDto[]): PlaybackMe
  * Resolves the delay for a single narrative message based on its text length
  * or presence of an attachment.
  */
-export function resolveMessageDelayMs(message: NarrativeMessageDto) {
+export function resolveMessageDelayMs(message: NarrativeMessageDto, isUser?: boolean) {
+  if (isUser) {
+    return 100; // Minimal reveal delay for user messages
+  }
+
   const textLength = message.text?.trim().length ?? 0;
   if (textLength > 0) {
     return Math.max(

@@ -108,7 +108,7 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
         );
 
         return embedded
-            ? <View style={styles.panel}>{content}</View>
+            ? <View>{content}</View>
             : <SectionCard title="Check-in erfolgreich">{content}</SectionCard>;
     }
 
@@ -128,7 +128,7 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
         );
 
         return embedded
-            ? <View style={styles.panel}>{content}</View>
+            ? <View>{content}</View>
             : <SectionCard title="Standortzugriff benötigt">{content}</SectionCard>;
     }
 
@@ -150,8 +150,7 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
 
     return (
         <View style={styles.container}>
-            <View style={styles.panel}>
-                <Text style={styles.panelTitle}>Zielgebiet</Text>
+            <View style={styles.mapWrap}>
                 <GpsMap
                     radiusMeters={target.radiusMeters}
                     targetLatitude={target.latitude}
@@ -161,8 +160,7 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
                 />
             </View>
 
-            <View style={styles.panel}>
-                <Text style={styles.panelTitle}>Navigation zum Ziel</Text>
+            <View style={styles.detailsBlock}>
                 <View style={styles.distanceContainer}>
                     <Text style={styles.distanceValue}>
                         {distance !== null ? formatDistance(distance) : '…'}
@@ -250,6 +248,9 @@ const styles = StyleSheet.create({
     container: {
         gap: 16,
     },
+    detailsBlock: {
+        gap: 12,
+    },
     distanceContainer: {
         alignItems: 'center',
         gap: 4,
@@ -290,24 +291,14 @@ const styles = StyleSheet.create({
         fontSize: 13,
         textAlign: 'center',
     },
+    mapWrap: {
+        borderRadius: 14,
+        overflow: 'hidden',
+    },
     outOfRangeText: {
         color: theme.colors.cardTextPrimary,
         fontSize: 13,
         textAlign: 'center',
-    },
-    panel: {
-        backgroundColor: theme.colors.cardSubtleBackground,
-        borderColor: theme.colors.cardBorder,
-        borderRadius: 14,
-        borderWidth: 1,
-        padding: 16,
-    },
-    panelTitle: {
-        color: theme.colors.cardTextPrimary,
-        fontFamily: 'Nunito_700Bold',
-        fontSize: 15,
-        marginBottom: 12,
-        textTransform: 'uppercase',
     },
     permissionContainer: {
         gap: 8,

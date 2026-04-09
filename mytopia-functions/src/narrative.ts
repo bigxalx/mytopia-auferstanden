@@ -343,15 +343,89 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
     const limit = clampLimit(rawLimit);
     const cursor = parseCursor(rawCursor);
 
-    const bundles = await getReleasedFeedBundles({ cursor, limit, mode });
-    const lastBundle = bundles[bundles.length - 1];
-    const nextCursor = bundles.length === limit ? createNextCursor(lastBundle) : null;
+    // Fetch narrative bundles and player submissions in parallel
+    const [sanityBundles, playerSubmissions] = await Promise.all([
+      getReleasedFeedBundles({ cursor, limit, mode }),
+      getPlayerFeedSubmissions({ cursor, limit, uid: decodedToken.uid }),
+    ]);
 
-    res.status(200).json({ bundles, mode, nextCursor });
+    // Map submissions to virtual bundles
+    const submissionBundles = playerSubmissions.map((sub) => ({
+      _id: sub.idempotencyKey,
+      isUser: true,
+      messages: [mapSubmissionToMessage(sub)],
+      releaseAt: sub.createdAt.toDate().toISOString(),
+      title: 'Deine Aktivität',
+    }));
+
+    // Interleave and sort: newest first
+    // We sort by releaseAt desc, then _id desc to keep consistent with Sanity
+    const combined = [...sanityBundles, ...submissionBundles]
+      .sort((a, b) => {
+        const timeA = Date.parse(a.releaseAt);
+        const timeB = Date.parse(b.releaseAt);
+        if (timeA !== timeB) return timeB - timeA;
+        return b._id.localeCompare(a._id);
+      })
+      .slice(0, limit);
+
+    const nextCursor = combined.length === limit ? createNextCursor(combined[combined.length - 1] as any) : null;
+
+    res.status(200).json({ bundles: combined, mode, nextCursor });
     } catch (error) {
     logger.error('feedProxy failed', error);
     sendError(res, error);
     }
+}
+
+async function getPlayerFeedSubmissions({
+  cursor,
+  limit,
+  uid,
+}: {
+  cursor: FeedCursor | null;
+  limit: number;
+  uid: string;
+}) {
+  let query = firestore
+    .collection(V2_SUBMISSIONS_COLLECTION_PATH)
+    .where('ownerUid', '==', uid)
+    .orderBy('createdAt', 'desc')
+    .orderBy('idempotencyKey', 'desc');
+
+  if (cursor) {
+    const cursorTimestamp = toTimestamp(cursor.releaseAt);
+    if (cursorTimestamp) {
+      query = query.startAfter(cursorTimestamp, cursor.id);
+    }
+  }
+
+  const snapshot = await query.limit(limit).get();
+  return snapshot.docs.map((doc) => doc.data() as SubmissionDto);
+}
+
+function mapSubmissionToMessage(sub: SubmissionDto): MessageDto {
+  const actor = {
+    name: 'Du',
+    role: 'Spieler',
+  };
+
+  const attachment: AttachmentDto = {
+    _type: 'submissionAttachment' as any,
+    submissionId: sub.idempotencyKey,
+    status: sub.status,
+    kind: sub.sourceType,
+    payload: sub.payload,
+    missionTitle: sub.metadata.missionTitle,
+    moderatorNote: sub.moderatorNote,
+  } as any;
+
+  return {
+    actor,
+    attachment,
+    messageId: `sub_${sub.idempotencyKey}`,
+    text: sub.sourceType === 'text' ? (sub.payload as string) : undefined,
+  };
 }
 
 export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
@@ -368,7 +442,7 @@ export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const query = `*[_type == "mission" && active == true && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
+    const query = `*[_type == "mission" && active == true && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
     const missions = await sanityQuery<unknown[]>(query, {}, mode);
 
     res.status(200).json({ missions });
@@ -393,14 +467,16 @@ export async function getReleasedFeedBundles({
           mode: NarrativeMode;
         }): Promise<BundleDto[]> {
     const cursorFilter = cursor
-            ? '&& (releaseAt < $cursorReleaseAt || (releaseAt == $cursorReleaseAt && _id < $cursorId))'
+            ? '&& (select(publishMode == "instant" => _updatedAt, releaseAt) < $cursorReleaseAt || (select(publishMode == "instant" => _updatedAt, releaseAt) == $cursorReleaseAt && _id < $cursorId))'
             : '';
     const query = `*[_type == "narrativeBundle"
     && !(_id in path("drafts.**"))
-    && defined(releaseAt)
-    && dateTime(releaseAt) <= dateTime(now())
+    && (
+      (publishMode == "instant") || 
+      (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))
+    )
     ${cursorFilter}
-  ] | order(releaseAt desc, _id desc) [0...$limit] {${SANITY_BUNDLE_PROJECTION}}`;
+  ] | order(select(publishMode == "instant" => _updatedAt, releaseAt) desc, _id desc) [0...$limit] {${SANITY_BUNDLE_PROJECTION}}`;
     const params: Record<string, unknown> = { limit };
     if (cursor) {
     params.cursorId = cursor.id;

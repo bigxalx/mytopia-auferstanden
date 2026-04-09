@@ -4,6 +4,7 @@ import { theme } from '@/src/shared/ui/theme';
 import { VideoAttachmentView } from './VideoAttachmentView';
 import { AudioAttachmentView } from './AudioAttachmentView';
 import { MissionAttachmentView } from './MissionAttachmentView';
+import { SubmissionAttachmentView } from './SubmissionAttachmentView';
 import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { AppImage } from '@/src/shared/ui/AppImage';
 
@@ -36,6 +37,8 @@ export function AttachmentView({
       return <AudioAttachmentView attachment={attachment} />;
     case 'missionAttachment':
       return <MissionAttachmentView attachment={attachment} />;
+    case 'submissionAttachment':
+      return <SubmissionAttachmentView {...attachment} />;
     default:
       return null;
   }

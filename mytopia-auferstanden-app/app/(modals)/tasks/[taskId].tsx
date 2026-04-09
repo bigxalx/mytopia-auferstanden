@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -30,7 +30,6 @@ import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMiss
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
-import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 import { AppImage } from '@/src/shared/ui/AppImage';
 
 export default function TaskDetailScreen() {
@@ -81,17 +80,17 @@ export default function TaskDetailScreen() {
     : null;
   const groupMissions = mission?.groupId
     ? missions
-        .filter((candidate) => candidate.groupId === mission.groupId)
-        .sort((left, right) => {
-          const leftIsCurrent = left._id === mission._id;
-          const rightIsCurrent = right._id === mission._id;
+      .filter((candidate) => candidate.groupId === mission.groupId)
+      .sort((left, right) => {
+        const leftIsCurrent = left._id === mission._id;
+        const rightIsCurrent = right._id === mission._id;
 
-          if (leftIsCurrent === rightIsCurrent) {
-            return left.title.localeCompare(right.title, 'de');
-          }
+        if (leftIsCurrent === rightIsCurrent) {
+          return left.title.localeCompare(right.title, 'de');
+        }
 
-          return leftIsCurrent ? 1 : -1;
-        })
+        return leftIsCurrent ? 1 : -1;
+      })
     : [];
 
   useEffect(() => {
@@ -157,13 +156,7 @@ export default function TaskDetailScreen() {
 
   if (isLoading) {
     return (
-      <Screen title="Mission" subtitle="Wird geladen…" headerShown={false} topInset>
-        <Stack.Screen
-          options={createNativeTabStackOptions({
-            title: 'Mission',
-            largeTitle: false,
-          })}
-        />
+      <Screen title="Mission" subtitle="Wird geladen…" headerShown={false}>
         <SectionCard title="Laden">
           <Text style={styles.body}>Mission wird geladen…</Text>
         </SectionCard>
@@ -173,13 +166,7 @@ export default function TaskDetailScreen() {
 
   if (error) {
     return (
-      <Screen title="Fehler" subtitle="Mission konnte nicht geladen werden." headerShown={false} topInset>
-        <Stack.Screen
-          options={createNativeTabStackOptions({
-            title: 'Mission',
-            largeTitle: false,
-          })}
-        />
+      <Screen title="Fehler" subtitle="Mission konnte nicht geladen werden." headerShown={false}>
         <SectionCard title="Fehler">
           <Text style={styles.errorText}>{error}</Text>
         </SectionCard>
@@ -189,13 +176,7 @@ export default function TaskDetailScreen() {
 
   if (!mission || !missionStatus) {
     return (
-      <Screen title="Nicht gefunden" subtitle="Diese Mission existiert nicht." headerShown={false} topInset>
-        <Stack.Screen
-          options={createNativeTabStackOptions({
-            title: 'Mission',
-            largeTitle: false,
-          })}
-        />
+      <Screen title="Nicht gefunden" subtitle="Diese Mission existiert nicht." headerShown={false}>
         <SectionCard title="Unbekannte Mission">
           <Text style={styles.body}>Mission-ID: {String(taskId)}</Text>
         </SectionCard>
@@ -221,15 +202,7 @@ export default function TaskDetailScreen() {
       title="Mission"
       subtitle={missionMeta ? `${missionMeta.emoji} ${missionMeta.label}` : 'Mission'}
       headerShown={false}
-      topInset
     >
-      <Stack.Screen
-        options={createNativeTabStackOptions({
-          title: 'Mission',
-          largeTitle: false,
-        })}
-      />
-
       <SectionCard title={mission.title} titleStyle={styles.cardTitle}>
         <Text style={styles.type}>{missionTypeLabel}</Text>
 
@@ -248,7 +221,7 @@ export default function TaskDetailScreen() {
         {missionBody ? (
           <>
             <View style={styles.divider} />
-            <MissionHeadline>Aufgabe</MissionHeadline>
+            <MissionHeadline>{mission.kind === 'gps' ? 'Zielgebiet' : 'Aufgabe'}</MissionHeadline>
             {missionBody}
           </>
         ) : null}
@@ -256,8 +229,6 @@ export default function TaskDetailScreen() {
 
       <View style={styles.infoCard}>
         <Text style={styles.pointsValue}>{mission.points} Punkte</Text>
-
-        <View style={styles.infoDivider} />
 
         <View style={styles.infoBlock}>
           <Text style={styles.infoLabel}>Status</Text>
@@ -268,24 +239,18 @@ export default function TaskDetailScreen() {
         </View>
 
         {mission.expiresAt ? (
-          <>
-            <View style={styles.infoDivider} />
-
-            <View style={styles.infoBlock}>
-              <Text style={styles.infoLabel}>Deadline</Text>
-              <Text style={styles.infoValue}>{formatMissionDeadline(mission.expiresAt)}</Text>
-              {countdownText ? <Text style={styles.infoMeta}>{countdownText}</Text> : null}
-            </View>
-          </>
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoLabel}>Deadline</Text>
+            <Text style={styles.infoValue}>{formatMissionDeadline(mission.expiresAt)}</Text>
+            {countdownText ? <Text style={styles.infoMeta}>{countdownText}</Text> : null}
+          </View>
         ) : null}
 
-        <View style={styles.infoDivider} />
-
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoLabel}>{mission.groupTitle ? `Sammelaufgabe: ${mission.groupTitle}` : 'Teil einer Sammelaufgabe'}</Text>
-          {!mission.groupId ? (
-            <Text style={styles.infoValue}>Nein</Text>
-          ) : (
+        {mission.groupId ? (
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoLabel}>
+              {mission.groupTitle ? `Sammelaufgabe: ${mission.groupTitle}` : 'Teil einer Sammelaufgabe'}
+            </Text>
             <View style={styles.groupList}>
               {groupMissions.map((groupMission) => (
                 <View key={groupMission._id} style={styles.groupRow}>
@@ -301,8 +266,8 @@ export default function TaskDetailScreen() {
                 </View>
               ))}
             </View>
-          )}
-        </View>
+          </View>
+        ) : null}
       </View>
     </Screen>
   );
@@ -541,11 +506,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#DDEAF8',
     borderRadius: 20,
     gap: 16,
+    marginTop: 8,
     padding: 24,
-  },
-  infoDivider: {
-    borderTopColor: 'rgba(1, 106, 211, 0.18)',
-    borderTopWidth: 1,
   },
   infoLabel: {
     color: theme.colors.cardTextPrimary,
@@ -574,11 +536,8 @@ const styles = StyleSheet.create({
   pointsValue: {
     ...theme.typography.h1,
     color: theme.colors.cardTextPrimary,
-    fontSize: 28,
-    lineHeight: 34,
     marginBottom: 0,
     textAlign: 'left',
-    textTransform: 'none',
   },
   type: {
     color: theme.colors.cardTextPrimary,

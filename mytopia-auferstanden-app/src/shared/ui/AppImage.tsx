@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
+  Easing,
   StyleSheet,
   Text,
   View,
@@ -30,14 +31,42 @@ export function AppImage({
 }: AppImageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     setIsLoading(true);
     setHasError(false);
   }, [uri]);
 
+  useEffect(() => {
+    if (!isLoading || hasError) {
+      shimmer.stopAnimation();
+      return;
+    }
+
+    shimmer.setValue(0);
+    const animation = Animated.loop(
+      Animated.timing(shimmer, {
+        toValue: 1,
+        duration: 1400,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [hasError, isLoading, shimmer]);
+
   const flattenedStyle = (StyleSheet.flatten(style) ?? {}) as ImageStyle;
   const borderRadius = typeof flattenedStyle.borderRadius === 'number' ? flattenedStyle.borderRadius : 0;
+  const shimmerTranslateX = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-220, 220],
+  });
 
   const handleLoad: NonNullable<ImageProps['onLoad']> = (event) => {
     setIsLoading(false);
@@ -64,7 +93,14 @@ export function AppImage({
 
       {isLoading && !hasError ? (
         <View pointerEvents="none" style={styles.placeholder}>
-          <ActivityIndicator color={theme.colors.cardTextPrimary} />
+          <Animated.View
+            style={[
+              styles.shimmerBand,
+              {
+                transform: [{ translateX: shimmerTranslateX }],
+              },
+            ]}
+          />
         </View>
       ) : null}
 
@@ -97,8 +133,12 @@ const styles = StyleSheet.create({
   } as TextStyle,
   placeholder: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    backgroundColor: 'rgba(237, 236, 224, 0.82)',
-    justifyContent: 'center',
+    backgroundColor: '#ebe5d8',
+    overflow: 'hidden',
+  } as ViewStyle,
+  shimmerBand: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.32)',
+    width: '42%',
   } as ViewStyle,
 });
