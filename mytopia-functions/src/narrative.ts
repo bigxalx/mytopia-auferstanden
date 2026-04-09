@@ -152,6 +152,17 @@ export async function handleSanityWebhook(req: Request, res: FirebaseResponse) {
       return;
     }
 
+    if (bundle.publishMode === 'instant' || bundle.pushNow) {
+      await executeBundleRelease(bundle, mode);
+      logger.info('sanityBundleUpsert pushed_immediately', {
+        bundleId: bundle._id,
+        mode,
+      });
+
+      res.status(200).json({ ok: true, action: 'pushed_immediately', bundleId: bundle._id, mode });
+      return;
+    }
+
     await upsertReleaseTask(bundle, mode);
 
     // Write signal immediately so the app's Firestore listener detects the
@@ -178,12 +189,12 @@ export async function handleSanityWebhook(req: Request, res: FirebaseResponse) {
 }
 
 export async function handleReleaseNarrativeBundle(req: Request, res: FirebaseResponse) {
-    if (req.method !== 'POST') {
+  if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
-    }
+  }
 
-    try {
+  try {
     await verifyCloudTaskInvocation(req);
     const mode = resolveMode(
       typeof req.body?.mode === 'string' ? req.body.mode : readQueryParam(req, 'mode')
@@ -194,7 +205,7 @@ export async function handleReleaseNarrativeBundle(req: Request, res: FirebaseRe
       throw new HttpError(400, 'Missing bundleId in task payload.');
     }
 
-    logger.info('releaseNarrativeBundle start', { bundleId, mode });
+    logger.info('releaseNarrativeBundle task_triggered', { bundleId, mode });
 
     const bundle = await getBundleById(bundleId, mode);
     if (!bundle) {
@@ -203,113 +214,114 @@ export async function handleReleaseNarrativeBundle(req: Request, res: FirebaseRe
       return;
     }
 
-    const nowIso = new Date().toISOString();
-    const releaseClaim = await claimBundleRelease({
-      bundleId,
-      mode,
-      nowIso,
-      releaseAt: bundle.releaseAt,
-    });
-
-    if (releaseClaim.alreadyReleased) {
-      logger.info('releaseNarrativeBundle already_released', { bundleId, mode });
-      res.status(200).json({ ok: true, action: 'already_released', bundleId, mode });
-      return;
-    }
-
-    try {
-      // --- DYNAMIC PUSH NOTIFICATION LOGIC ---
-      // We calculate defaults based on content if push fields are empty in Sanity.
-      
-      const firstMessage = bundle.messages && bundle.messages.length > 0 ? bundle.messages[0] : null;
-      
-      // 1. Resolve Actor Name for Title
-      const actorName = firstMessage?.actor?.name || bundle.scriptActor?.name || 'Notfallkanal';
-
-      // Default Title: "Neue Nachricht von [Actor]"
-      const defaultTitle = `Neue Nachricht von ${actorName}`;
-      const title = bundle.pushTitle?.trim() || defaultTitle;
-
-      // 2. Resolve Body (First text or Emoji based on attachment type)
-      let defaultBody = 'New narrative messages are available.';
-      if (firstMessage) {
-        if (firstMessage.text?.trim()) {
-          defaultBody = firstMessage.text.trim();
-        } else if (firstMessage.attachment) {
-          const type = firstMessage.attachment._type;
-          // Map attachment types to user-friendly German summaries with emojis
-          if (type === 'imageAttachment') defaultBody = '📸 Bild empfangen';
-          else if (type === 'videoAttachment') defaultBody = '🎥 Video empfangen';
-          else if (type === 'audioAttachment') defaultBody = '🎙️ Sprachnachricht';
-          else if (type === 'missionAttachment') {
-            const kind = (firstMessage.attachment as any).missionKind;
-            if (kind === 'quiz') defaultBody = '🧠 Quiz verfügbar';
-            else if (kind === 'photo') defaultBody = '📸 Foto-Mission';
-            else if (kind === 'gps') defaultBody = '📍 Ort finden';
-            else if (kind === 'text') defaultBody = '✏️ Text-Aufgabe';
-            else defaultBody = '🚩 Neue Mission';
-          }
-        }
-      } else if (bundle.script?.trim()) {
-        // Fallback for legacy script-only bundles
-        const firstLine = bundle.script.trim().split('\n')[0].trim();
-        if (firstLine) defaultBody = firstLine;
-      }
-
-      const body = bundle.pushBody?.trim() || defaultBody;
-
-      const pushMessageId = await messaging.send({
-        data: {
-          bundleId,
-          eventType: 'release',
-          route: '/(tabs)/feed',
-        },
-        notification: {
-          // Truncate to avoid FCM errors or weird UI cuts
-          body: body.length > 200 ? `${body.substring(0, 197)}...` : body,
-          title: title.length > 100 ? `${title.substring(0, 97)}...` : title,
-        },
-        topic: resolveNarrativeTopic(mode),
-      });
-
-      await touchNarrativeState({
-        bundleId,
-        eventType: 'release',
-        lastReleaseError: null,
-        mode,
-        pushSentAt: nowIso,
-        pushState: 'sent',
-        releaseAt: bundle.releaseAt,
-      });
-      logger.info('releaseNarrativeBundle push_sent', {
-        bundleId,
-        mode,
-        pushMessageId,
-        releaseAt: bundle.releaseAt,
-      });
-    } catch (pushError) {
-      await touchNarrativeState({
-        bundleId,
-        eventType: 'release',
-        lastReleaseError: formatError(pushError),
-        mode,
-        pushState: 'failed',
-        releaseAt: bundle.releaseAt,
-      });
-      logger.error('releaseNarrativeBundle push_failed', {
-        bundleId,
-        mode,
-        releaseAt: bundle.releaseAt,
-        error: formatError(pushError),
-      });
-      throw pushError;
-    }
-
+    await executeBundleRelease(bundle, mode);
     res.status(200).json({ ok: true, action: 'released', bundleId, mode });
-    } catch (error) {
+  } catch (error) {
     logger.error('releaseNarrativeBundle failed', error);
     sendError(res, error);
+  }
+}
+
+export async function executeBundleRelease(bundle: BundleDto, mode: NarrativeMode) {
+  const bundleId = bundle._id;
+  const nowIso = new Date().toISOString();
+
+  // If pushNow is used, releaseAt might not be set in Sanity. 
+  // We use now as the fallback for state tracking.
+  const releaseAt = bundle.releaseAt || nowIso;
+
+  const releaseClaim = await claimBundleRelease({
+    bundleId,
+    mode,
+    nowIso,
+    releaseAt: releaseAt,
+  });
+
+  if (releaseClaim.alreadyReleased) {
+    logger.info('executeBundleRelease already_rolled_out', { bundleId, mode });
+    return;
+  }
+
+  try {
+    // --- DYNAMIC PUSH NOTIFICATION LOGIC ---
+    const firstMessage = bundle.messages && bundle.messages.length > 0 ? bundle.messages[0] : null;
+
+    // 1. Resolve Actor Name for Title
+    const actorName = firstMessage?.actor?.name || bundle.scriptActor?.name || 'Notfallkanal';
+    const title = bundle.pushTitle?.trim() || `Neue Nachricht von ${actorName}`;
+
+    // 2. Resolve Body
+    let defaultBody = 'New narrative messages are available.';
+    if (firstMessage) {
+      if (firstMessage.text?.trim()) {
+        defaultBody = firstMessage.text.trim();
+      } else if (firstMessage.attachment) {
+        const type = firstMessage.attachment._type;
+        if (type === 'imageAttachment') defaultBody = '📸 Bild empfangen';
+        else if (type === 'videoAttachment') defaultBody = '🎥 Video empfangen';
+        else if (type === 'audioAttachment') defaultBody = '🎙️ Sprachnachricht';
+        else if (type === 'missionAttachment') {
+          const kind = (firstMessage.attachment as any).missionKind;
+          if (kind === 'quiz') defaultBody = '🧠 Quiz verfügbar';
+          else if (kind === 'photo') defaultBody = '📸 Foto-Mission';
+          else if (kind === 'gps') defaultBody = '📍 Ort finden';
+          else if (kind === 'text') defaultBody = '✏️ Text-Aufgabe';
+          else defaultBody = '🚩 Neue Mission';
+        }
+      }
+    } else if (bundle.script?.trim()) {
+      const firstLine = bundle.script.trim().split('\n')[0].trim();
+      if (firstLine) defaultBody = firstLine;
     }
+
+    const body = bundle.pushBody?.trim() || defaultBody;
+
+    const pushMessageId = await messaging.send({
+      data: {
+        bundleId,
+        eventType: 'release',
+        route: '/(tabs)/feed',
+      },
+      notification: {
+        body: body.length > 200 ? `${body.substring(0, 197)}...` : body,
+        title: title.length > 100 ? `${title.substring(0, 97)}...` : title,
+      },
+      topic: resolveNarrativeTopic(mode),
+    });
+
+    await touchNarrativeState({
+      bundleId,
+      eventType: 'release',
+      lastReleaseError: null,
+      mode,
+      pushSentAt: nowIso,
+      pushState: 'sent',
+      releaseAt: releaseAt,
+    });
+
+    logger.info('executeBundleRelease push_sent', {
+      bundleId,
+      mode,
+      pushMessageId,
+      releaseAt: releaseAt,
+    });
+  } catch (pushError) {
+    await touchNarrativeState({
+      bundleId,
+      eventType: 'release',
+      lastReleaseError: formatError(pushError),
+      mode,
+      pushState: 'failed',
+      releaseAt: releaseAt,
+    });
+    logger.error('executeBundleRelease push_failed', {
+      bundleId,
+      mode,
+      releaseAt: releaseAt,
+      error: formatError(pushError),
+    });
+    throw pushError;
+  }
 }
 
 export async function handleFeedProxy(req: Request, res: FirebaseResponse) {

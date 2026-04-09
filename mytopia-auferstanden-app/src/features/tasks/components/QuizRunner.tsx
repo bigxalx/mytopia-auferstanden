@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
         height: '100%',
     },
     progressLabel: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 12,
         textAlign: 'center',
     },

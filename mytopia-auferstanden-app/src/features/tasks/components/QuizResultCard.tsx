@@ -38,7 +38,7 @@ export function QuizResultCard({ correct, earned, total, embedded = false }: Qui
 
 const styles = StyleSheet.create({
     breakdown: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 14,
         textAlign: 'center',
     },
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     successText: {
-        color: theme.colors.successText,
+        color: theme.colors.cardTextPrimary,
         fontSize: 14,
         fontWeight: '600',
         textAlign: 'center',

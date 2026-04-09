@@ -1,10 +1,10 @@
 import React from 'react';
 import { StyleSheet, View, Text, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
-import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { type MissionKind, MISSION_KIND_METADATA } from '@/src/features/tasks/data/missionRepository';
+import { AppImage } from '@/src/shared/ui/AppImage';
 
 export function MissionAttachmentView({
   attachment,
@@ -24,13 +24,10 @@ export function MissionAttachmentView({
     <Link asChild href={`/tasks/${attachment.missionId}`}>
       <Pressable style={styles.orange}>
         {attachment.imageUrl && (
-          <Image
-            source={{ uri: attachment.imageUrl }}
+          <AppImage
+            uri={attachment.imageUrl}
             style={styles.missionCardImage}
             contentFit="cover"
-            cachePolicy="disk"
-            transition={200}
-            placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
           />
         )}
         <View style={styles.missionCardContent}>

@@ -1,9 +1,11 @@
 import { defineField, defineType } from 'sanity';
+import { PackageIcon } from '@sanity/icons';
 
 export const sammelaufgabe = defineType({
     name: 'sammelaufgabe',
     title: 'Sammelaufgabe',
     type: 'document',
+    icon: PackageIcon,
     fields: [
         defineField({
             name: 'title',
@@ -38,12 +40,14 @@ export const sammelaufgabe = defineType({
         select: {
             title: 'title',
             active: 'active',
+            media: 'missions.0->image',
         },
         prepare(selection) {
             const status = selection.active ? '🟢' : '🔴';
             return {
                 title: `${status} ${selection.title || 'Unbenannt'}`,
                 subtitle: 'Sammelaufgabe',
+                media: selection.media,
             };
         },
     },

@@ -59,3 +59,42 @@ export function formatMissionDeadline(expiresAt?: string): string {
 
   return deadlineFormatter.format(parsed);
 }
+
+export function formatMissionCountdown(expiresAt?: string, now = Date.now()): string | null {
+  if (!expiresAt) {
+    return null;
+  }
+
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) {
+    return null;
+  }
+
+  const remainingMs = expiresAtMs - now;
+  if (remainingMs <= 0) {
+    return 'Abgelaufen';
+  }
+
+  const totalMinutes = Math.max(1, Math.floor(remainingMs / 60000));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    if (hours > 0) {
+      return `Noch ${days} ${days === 1 ? 'Tag' : 'Tage'} ${hours} Std.`;
+    }
+
+    return `Noch ${days} ${days === 1 ? 'Tag' : 'Tage'}`;
+  }
+
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `Noch ${hours} Std. ${minutes} Min.`;
+    }
+
+    return `Noch ${hours} Std.`;
+  }
+
+  return `Noch ${minutes} Min.`;
+}

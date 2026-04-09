@@ -7,6 +7,8 @@ type ScreenProps = PropsWithChildren<{
   noPadding?: boolean;
   /** Whether to apply safe-area bottom padding. Defaults to true. */
   bottomInset?: boolean;
+  /** Whether to apply safe-area top padding when the internal header is hidden. Defaults to false. */
+  topInset?: boolean;
   /** When false the children are rendered in a plain View instead of a ScrollView. */
   scrollable?: boolean;
   subtitle?: string;
@@ -25,6 +27,7 @@ export function Screen({
   children,
   noPadding = false,
   bottomInset = true,
+  topInset = false,
   scrollable = true,
   subtitle,
   title,
@@ -35,6 +38,7 @@ export function Screen({
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const bottomPadding = bottomInset ? Math.max(insets.bottom, 20) : 0;
+  const topPadding = topInset ? insets.top + 20 : 20;
 
   const header = headerShown ? (
     <View style={[styles.header, { paddingTop: insets.top }]}>
@@ -50,7 +54,7 @@ export function Screen({
     const content = (
       <View style={StyleSheet.flatten([
         styles.fillContent,
-        { paddingBottom: bottomPadding },
+        { paddingBottom: bottomPadding, paddingTop: topPadding },
         noPadding && styles.noPadding,
         centerContent && { justifyContent: 'center' },
         bgStyle
@@ -73,11 +77,11 @@ export function Screen({
 
   const scrollContent = (
     <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior={topInset ? 'never' : 'automatic'}
       style={StyleSheet.flatten([styles.scrollView, bgStyle])}
       contentContainerStyle={StyleSheet.flatten([
         styles.content,
-        { paddingBottom: bottomPadding },
+        { paddingBottom: bottomPadding, paddingTop: topPadding },
         noPadding && styles.noPadding,
         centerContent && { flexGrow: 1, justifyContent: 'center' }
       ])}

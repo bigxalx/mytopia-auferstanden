@@ -39,7 +39,7 @@ export function TextRunner({ onComplete, embedded = false }: TextRunnerProps) {
         multiline
         numberOfLines={6}
         placeholder="Schreibe hier deinen Text..."
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor="rgba(17, 24, 39, 0.55)"
         value={text}
         onChangeText={setText}
         editable={!isSubmitting}
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
       borderColor: theme.colors.orange,
   },
   container: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.beige,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -91,17 +91,17 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   title: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.cardTextPrimary,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 16,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: '#f8f4ea',
     borderWidth: 1,
     borderColor: theme.colors.cardBorder,
     borderRadius: 8,
-    color: theme.colors.textPrimary,
+    color: theme.colors.cardTextPrimary,
     padding: 12,
     fontSize: 16,
     minHeight: 120,

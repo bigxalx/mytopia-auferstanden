@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
-import { Image } from 'expo-image';
 import { theme } from '@/src/shared/ui/theme';
 import { VideoAttachmentView } from './VideoAttachmentView';
 import { AudioAttachmentView } from './AudioAttachmentView';
 import { MissionAttachmentView } from './MissionAttachmentView';
 import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { AppImage } from '@/src/shared/ui/AppImage';
 
 export function AttachmentView({
   attachment,
@@ -21,13 +21,10 @@ export function AttachmentView({
       const index = gallerySources.findIndex((s) => s.uri === attachment.url);
       return (
         <Pressable style={styles.attachmentBox} onPress={() => index >= 0 && onImagePress(index)}>
-          <Image
-            source={{ uri: attachment.url }}
+          <AppImage
+            uri={attachment.url}
             style={styles.imageAttachment}
             contentFit="cover"
-            cachePolicy="disk"
-            transition={200}
-            placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
           />
           {attachment.caption && <Text style={styles.attachmentCaption}>{attachment.caption}</Text>}
         </Pressable>

@@ -1,9 +1,11 @@
 import { defineField, defineType } from 'sanity';
+import { UserIcon } from '@sanity/icons';
 
 export const narrativeActor = defineType({
   name: 'narrativeActor',
   title: 'Narrative Actor',
   type: 'document',
+  icon: UserIcon,
   fields: [
     defineField({
       name: 'name',
@@ -40,12 +42,14 @@ export const narrativeActor = defineType({
     select: {
       title: 'name',
       role: 'role',
+      media: 'avatar',
     },
     prepare(selection) {
       const role = selection.role ? `Rolle: ${selection.role}` : 'Keine Rolle definiert';
       return {
         title: selection.title || 'Unbenannter Actor',
         subtitle: role,
+        media: selection.media,
       };
     },
   },

@@ -1,4 +1,5 @@
 import { defineArrayMember, defineField, defineType } from 'sanity';
+import { TargetIcon } from '@sanity/icons';
 
 export const quizOption = defineType({
     name: 'quizOption',
@@ -93,6 +94,7 @@ export const mission = defineType({
     name: 'mission',
     title: 'Mission',
     type: 'document',
+    icon: TargetIcon,
     fields: [
         defineField({
             name: 'title',
@@ -123,6 +125,7 @@ export const mission = defineType({
             type: 'number',
             description: 'Wie viele Punkte diese Mission wert ist.',
             validation: (rule) => rule.required().min(1).integer(),
+            initialValue: 100,
         }),
         defineField({
             name: 'description',
@@ -220,6 +223,7 @@ export const mission = defineType({
             points: 'points',
             active: 'active',
             expiresAt: 'expiresAt',
+            media: 'image',
         },
         prepare(selection) {
             const kindLabel = selection.kind === 'quiz' ? '🧠 Quiz' : selection.kind === 'gps' ? '📍 GPS' : selection.kind === 'text' ? '📝 Text' : selection.kind === 'photo' ? '📸 Foto' : '❓';
@@ -228,6 +232,7 @@ export const mission = defineType({
             return {
                 title: selection.title || 'Unbenannte Mission',
                 subtitle: `${kindLabel} · ${selection.points ?? '?'} Punkte${expiresLabel}${status}`,
+                media: selection.media,
             };
         },
     },

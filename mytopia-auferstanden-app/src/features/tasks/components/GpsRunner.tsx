@@ -231,7 +231,7 @@ function toRad(deg: number) {
 
 const styles = StyleSheet.create({
     body: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 14,
         lineHeight: 20,
     },
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     distanceLabel: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 12,
     },
     distanceValue: {
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     hintText: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 13,
         lineHeight: 18,
         marginTop: 4,
@@ -281,17 +281,17 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
     },
     inRangeText: {
-        color: theme.colors.successText,
+        color: theme.colors.cardTextPrimary,
         fontSize: 14,
         fontWeight: '600',
     },
     loadingText: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 13,
         textAlign: 'center',
     },
     outOfRangeText: {
-        color: theme.colors.cardTextSecondary,
+        color: theme.colors.cardTextPrimary,
         fontSize: 13,
         textAlign: 'center',
     },
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     panelTitle: {
-        color: theme.colors.cardTextHeading,
+        color: theme.colors.cardTextPrimary,
         fontFamily: 'Nunito_700Bold',
         fontSize: 15,
         marginBottom: 12,
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     successText: {
-        color: theme.colors.successText,
+        color: theme.colors.cardTextPrimary,
         fontSize: 14,
         fontWeight: '600',
         textAlign: 'center',

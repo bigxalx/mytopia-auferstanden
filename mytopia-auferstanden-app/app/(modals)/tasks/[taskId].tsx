@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
 
 import { useSession } from '@/src/core/session/SessionContext';
@@ -15,8 +14,14 @@ import {
   submitTextMission,
   type MissionListItem,
   MISSION_KIND_METADATA,
+  type MissionKind,
 } from '@/src/features/tasks/data/missionRepository';
-import { formatMissionDeadline, getMissionLifecycleStatus, type MissionLifecycleStatus } from '@/src/features/tasks/data/missionStatus';
+import {
+  formatMissionCountdown,
+  formatMissionDeadline,
+  getMissionLifecycleStatus,
+  type MissionLifecycleStatus,
+} from '@/src/features/tasks/data/missionStatus';
 import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
 import { TextRunner } from '@/src/features/tasks/components/TextRunner';
@@ -26,6 +31,7 @@ import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMission
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
+import { AppImage } from '@/src/shared/ui/AppImage';
 
 export default function TaskDetailScreen() {
   const router = useRouter();
@@ -36,6 +42,7 @@ export default function TaskDetailScreen() {
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let active = true;
@@ -86,6 +93,18 @@ export default function TaskDetailScreen() {
           return leftIsCurrent ? 1 : -1;
         })
     : [];
+
+  useEffect(() => {
+    if (!mission?.expiresAt) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 60_000);
+
+    return () => clearInterval(interval);
+  }, [mission?.expiresAt]);
 
   const handleQuizComplete = useCallback(
     async (answers: number[]) => {
@@ -138,7 +157,7 @@ export default function TaskDetailScreen() {
 
   if (isLoading) {
     return (
-      <Screen title="Mission" subtitle="Wird geladen…" headerShown={false}>
+      <Screen title="Mission" subtitle="Wird geladen…" headerShown={false} topInset>
         <Stack.Screen
           options={createNativeTabStackOptions({
             title: 'Mission',
@@ -154,7 +173,7 @@ export default function TaskDetailScreen() {
 
   if (error) {
     return (
-      <Screen title="Fehler" subtitle="Mission konnte nicht geladen werden." headerShown={false}>
+      <Screen title="Fehler" subtitle="Mission konnte nicht geladen werden." headerShown={false} topInset>
         <Stack.Screen
           options={createNativeTabStackOptions({
             title: 'Mission',
@@ -170,7 +189,7 @@ export default function TaskDetailScreen() {
 
   if (!mission || !missionStatus) {
     return (
-      <Screen title="Nicht gefunden" subtitle="Diese Mission existiert nicht." headerShown={false}>
+      <Screen title="Nicht gefunden" subtitle="Diese Mission existiert nicht." headerShown={false} topInset>
         <Stack.Screen
           options={createNativeTabStackOptions({
             title: 'Mission',
@@ -186,6 +205,8 @@ export default function TaskDetailScreen() {
 
   const missionMeta = MISSION_KIND_METADATA[mission.kind];
   const statusText = getStatusText(missionStatus);
+  const countdownText = formatMissionCountdown(mission.expiresAt, now);
+  const missionTypeLabel = getMissionTypeLabel(mission.kind);
   const missionBody = renderMissionBody({
     handleGpsComplete,
     handlePhotoComplete,
@@ -200,6 +221,7 @@ export default function TaskDetailScreen() {
       title="Mission"
       subtitle={missionMeta ? `${missionMeta.emoji} ${missionMeta.label}` : 'Mission'}
       headerShown={false}
+      topInset
     >
       <Stack.Screen
         options={createNativeTabStackOptions({
@@ -208,29 +230,20 @@ export default function TaskDetailScreen() {
         })}
       />
 
-      <SectionCard title={mission.title}>
-        <Text style={styles.type}>{missionMeta?.label ?? mission.kind}</Text>
+      <SectionCard title={mission.title} titleStyle={styles.cardTitle}>
+        <Text style={styles.type}>{missionTypeLabel}</Text>
 
         {mission.imageUrl ? (
-          <Image
-            source={{ uri: mission.imageUrl }}
+          <AppImage
+            uri={mission.imageUrl}
             style={styles.image}
             contentFit="cover"
           />
         ) : null}
 
-        <MissionHeadline>Beschreibung</MissionHeadline>
         <Text style={styles.body}>
           {mission.description?.trim() || 'Für diese Mission gibt es keine zusätzliche Beschreibung.'}
         </Text>
-
-        <View style={styles.divider} />
-
-        <MissionHeadline>Status</MissionHeadline>
-        <Text style={styles.body}>{statusText}</Text>
-        {missionStatus === 'rejected' && submissionStates[mission._id]?.moderatorNote ? (
-          <Text style={styles.noteText}>Hinweis: {submissionStates[mission._id]?.moderatorNote}</Text>
-        ) : null}
 
         {missionBody ? (
           <>
@@ -242,21 +255,29 @@ export default function TaskDetailScreen() {
       </SectionCard>
 
       <View style={styles.infoCard}>
-        <Text style={styles.infoCardTitle}>Mission im Überblick</Text>
-
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoLabel}>Punkte</Text>
-          <Text style={styles.pointsValue}>{mission.points}</Text>
-        </View>
+        <Text style={styles.pointsValue}>{mission.points} Punkte</Text>
 
         <View style={styles.infoDivider} />
 
         <View style={styles.infoBlock}>
-          <Text style={styles.infoLabel}>Deadline</Text>
-          <Text style={styles.infoValue}>
-            {mission.expiresAt ? formatMissionDeadline(mission.expiresAt) : 'Keine Deadline'}
-          </Text>
+          <Text style={styles.infoLabel}>Status</Text>
+          <Text style={styles.infoValue}>{statusText}</Text>
+          {missionStatus === 'rejected' && submissionStates[mission._id]?.moderatorNote ? (
+            <Text style={styles.infoMeta}>Hinweis: {submissionStates[mission._id]?.moderatorNote}</Text>
+          ) : null}
         </View>
+
+        {mission.expiresAt ? (
+          <>
+            <View style={styles.infoDivider} />
+
+            <View style={styles.infoBlock}>
+              <Text style={styles.infoLabel}>Deadline</Text>
+              <Text style={styles.infoValue}>{formatMissionDeadline(mission.expiresAt)}</Text>
+              {countdownText ? <Text style={styles.infoMeta}>{countdownText}</Text> : null}
+            </View>
+          </>
+        ) : null}
 
         <View style={styles.infoDivider} />
 
@@ -387,6 +408,22 @@ function getStatusText(status: MissionLifecycleStatus) {
   return 'Diese Mission ist aktiv und kann jetzt bearbeitet werden.';
 }
 
+function getMissionTypeLabel(kind: MissionKind) {
+  if (kind === 'gps') {
+    return 'GPS-Aufgabe';
+  }
+
+  if (kind === 'photo') {
+    return 'Foto-Aufgabe';
+  }
+
+  if (kind === 'text') {
+    return 'Text-Aufgabe';
+  }
+
+  return 'Quiz-Aufgabe';
+}
+
 function resolveGroupMissionStatus(
   groupMission: MissionListItem,
   currentMission: MissionListItem,
@@ -455,9 +492,12 @@ function GroupMissionIcon({ status }: { status: 'completed' | 'current' | 'faile
 
 const styles = StyleSheet.create({
   body: {
-    color: theme.colors.cardTextSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    color: theme.colors.cardTextPrimary,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  cardTitle: {
+    color: theme.colors.cardTextPrimary,
   },
   divider: {
     borderTopColor: theme.colors.cardBorder,
@@ -484,7 +524,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   headline: {
-    color: theme.colors.cardTextHeading,
+    color: theme.colors.cardTextPrimary,
     fontFamily: 'Nunito_700Bold',
     fontSize: 15,
     textTransform: 'uppercase',
@@ -503,22 +543,20 @@ const styles = StyleSheet.create({
     gap: 16,
     padding: 24,
   },
-  infoCardTitle: {
-    color: theme.colors.cardTextHeading,
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 20,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
   infoDivider: {
     borderTopColor: 'rgba(1, 106, 211, 0.18)',
     borderTopWidth: 1,
   },
   infoLabel: {
-    color: '#016AD3',
+    color: theme.colors.cardTextPrimary,
     fontFamily: 'Nunito_700Bold',
     fontSize: 13,
     textTransform: 'uppercase',
+  },
+  infoMeta: {
+    color: theme.colors.cardTextPrimary,
+    fontSize: 14,
+    lineHeight: 20,
   },
   infoValue: {
     color: theme.colors.cardTextPrimary,
@@ -535,16 +573,17 @@ const styles = StyleSheet.create({
   },
   pointsValue: {
     ...theme.typography.h1,
-    color: '#016AD3',
-    fontSize: 34,
-    lineHeight: 38,
+    color: theme.colors.cardTextPrimary,
+    fontSize: 28,
+    lineHeight: 34,
     marginBottom: 0,
     textAlign: 'left',
+    textTransform: 'none',
   },
   type: {
-    color: theme.colors.cardTextMuted,
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    color: theme.colors.cardTextPrimary,
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15,
+    textAlign: 'center',
   },
 });

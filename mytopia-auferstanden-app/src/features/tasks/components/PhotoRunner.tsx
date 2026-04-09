@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
       borderColor: theme.colors.orange,
   },
   container: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.beige,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   title: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.cardTextPrimary,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 16,

@@ -20,6 +20,8 @@ export const SANITY_BUNDLE_PROJECTION = `
   releaseAt,
   pushTitle,
   pushBody,
+  pushNow,
+  publishMode,
   messages[]{
     messageId,
     text,

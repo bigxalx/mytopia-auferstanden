@@ -1,4 +1,5 @@
 import { defineArrayMember, defineField, defineType } from 'sanity';
+import { CommentIcon } from '@sanity/icons';
 import { ChatEditor } from '../components/ChatEditor';
 
 export const imageAttachment = defineType({
@@ -20,6 +21,18 @@ export const imageAttachment = defineType({
       description: 'Optional: Ergänze eine kurze Bildunterschrift.',
     }),
   ],
+  preview: {
+    select: {
+      title: 'caption',
+      media: 'asset',
+    },
+    prepare(selection) {
+      return {
+        title: selection.title || 'Bild ohne Unterschrift',
+        media: selection.media,
+      };
+    },
+  },
 });
 
 export const audioAttachment = defineType({
@@ -64,6 +77,17 @@ export const audioAttachment = defineType({
       description: 'Optional: Trage einen Titel für die Audio-Datei ein.',
     }),
   ],
+  preview: {
+    select: {
+      title: 'title',
+    },
+    prepare(selection) {
+      return {
+        title: selection.title || 'Audio-Datei',
+        subtitle: '🎙️ Sprachnachricht',
+      };
+    },
+  },
 });
 
 export const videoAttachment = defineType({
@@ -85,6 +109,17 @@ export const videoAttachment = defineType({
       description: 'Optional: Trage einen Titel für das Video ein.',
     }),
   ],
+  preview: {
+    select: {
+      title: 'title',
+    },
+    prepare(selection) {
+      return {
+        title: selection.title || 'Video-Datei',
+        subtitle: '🎥 Video',
+      };
+    },
+  },
 });
 
 export const missionAttachment = defineType({
@@ -114,6 +149,21 @@ export const missionAttachment = defineType({
       description: 'Optional: Trage einen kurzen Teasertext ein.',
     }),
   ],
+  preview: {
+    select: {
+      title: 'title',
+      missionTitle: 'mission.title',
+      missionImage: 'mission.image',
+      excerpt: 'excerpt',
+    },
+    prepare(selection) {
+      return {
+        title: selection.title || selection.missionTitle || 'Unbenannte Mission',
+        subtitle: selection.excerpt || 'Missions-Anhang',
+        media: selection.missionImage,
+      };
+    },
+  },
 });
 
 export const narrativeMessage = defineType({
@@ -179,15 +229,29 @@ export const narrativeMessage = defineType({
   preview: {
     select: {
       actorName: 'actor.name',
+      actorAvatar: 'actor.avatar',
       text: 'text',
       attachmentType: 'attachment.0._type',
     },
     prepare(selection) {
-      const actor = selection.actorName || 'Unbekannter Absender';
-      const subtitle = selection.text || selection.attachmentType || 'Leere Nachricht';
+      const { actorName, actorAvatar, text, attachmentType } = selection;
+      const actor = actorName || 'Unbekannter Absender';
+
+      const emojiMap: Record<string, string> = {
+        imageAttachment: '📸',
+        audioAttachment: '🎙️',
+        videoAttachment: '🎥',
+        missionAttachment: '🚩',
+      };
+
+      const emoji = attachmentType ? (emojiMap[attachmentType] || '📎') : '';
+      const content = text || (attachmentType ? 'Anhang' : 'Leere Nachricht');
+      const subtitle = emoji ? `${emoji} ${content}` : content;
+
       return {
         title: actor,
         subtitle,
+        media: actorAvatar,
       };
     },
   },
@@ -197,14 +261,13 @@ export const narrativeBundle = defineType({
   name: 'narrativeBundle',
   title: 'Story',
   type: 'document',
+  icon: CommentIcon,
   fields: [
     defineField({
-      name: 'releaseAt',
-      title: 'Release At',
-      type: 'datetime',
-      description:
-        'Wähle den Veröffentlichungszeitpunkt (Europe/Berlin). Dann werden Release und Push ausgelöst.',
-      validation: (rule) => rule.required(),
+      name: 'internalTitle',
+      title: 'Interner Titel',
+      type: 'string',
+      description: 'Z.B. "Kapitel 1 - Einführung". Erscheint nur hier im CMS zur Übersicht.',
     }),
     defineField({
       name: 'scriptActor',
@@ -212,6 +275,7 @@ export const narrativeBundle = defineType({
       type: 'reference',
       to: [{ type: 'narrativeActor' }],
       description: 'Wähle den Absender, der für neue Nachrichten im Chat-Editor verwendet wird.',
+      validation: (rule) => rule.required(),
     }),
     defineField({
       name: 'messages',
@@ -225,17 +289,48 @@ export const narrativeBundle = defineType({
       },
     }),
     defineField({
+      name: 'publishMode',
+      title: 'Veröffentlichungs-Modus',
+      type: 'string',
+      options: {
+        list: [
+          { title: '📅 Geplant', value: 'scheduled' },
+          { title: '🚀 Sofort senden', value: 'instant' },
+        ],
+        layout: 'radio',
+      },
+      initialValue: 'scheduled',
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'releaseAt',
+      title: 'Veröffentlichung',
+      type: 'datetime',
+      description: 'Wann soll die Story im Feed erscheinen?',
+      hidden: ({ document }) => document?.publishMode !== 'scheduled',
+      initialValue: () => new Date().toISOString(),
+      validation: (rule) =>
+        rule.custom((value, context) => {
+          if (context.document?.publishMode === 'scheduled' && !value) {
+            return 'Ein Datum ist erforderlich für geplante Nachrichten.';
+          }
+          return true;
+        }),
+    }),
+    defineField({
       name: 'pushTitle',
       title: 'Push-Titel',
       type: 'string',
-      description: 'Optional: Leer = "Neue Nachricht von [Name]".',
+      description: 'Optional: Leer = "Neue Nachricht von [Name]". Empfohlen: < 40 Zeichen.',
+      validation: (rule) => rule.max(60).warning('Push-Titel über 40 Zeichen werden auf vielen Geräten abgeschnitten.'),
     }),
     defineField({
       name: 'pushBody',
       title: 'Push-Text',
       type: 'text',
       rows: 2,
-      description: 'Optional: Leer = Erster Text der Nachricht oder ein passendes Emoji (📸, 🎥, 🧠, etc.).',
+      description: 'Optional: Leer = Erster Text der Nachricht. Empfohlen: < 150 Zeichen.',
+      validation: (rule) => rule.max(200).warning('Push-Texte über 150 Zeichen werden auf vielen Geräten abgeschnitten.'),
     }),
     defineField({
       name: 'script',
@@ -244,6 +339,7 @@ export const narrativeBundle = defineType({
       rows: 10,
       description:
         '⚠️ ALT: Nutze dieses Feld nur, wenn du den neuen Chat-Editor nicht verwenden möchtest. Das neue Feld (Nachrichten & Anhänge) überschreibt dieses Skript komplett.',
+      hidden: ({ value }) => !value,
     }),
   ],
   orderings: [
@@ -260,21 +356,58 @@ export const narrativeBundle = defineType({
   ],
   preview: {
     select: {
+      internalTitle: 'internalTitle',
+      actorName: 'scriptActor.name',
+      actorAvatar: 'scriptActor.avatar',
       script: 'script',
+      firstMessageText: 'messages.0.text',
+      firstMessageAttachment: 'messages.0.attachment.0._type',
       releaseAt: 'releaseAt',
+      publishMode: 'publishMode',
+      updatedAt: '_updatedAt',
     },
     prepare(selection) {
-      const firstLine =
-        typeof selection.script === 'string'
-          ? selection.script
-            .split('\n')
-            .map((line: string) => line.trim())
-            .find((line: string) => line.length > 0)
-          : null;
+      const { internalTitle, actorName, actorAvatar, script, firstMessageText, firstMessageAttachment, releaseAt, publishMode, updatedAt } = selection;
+
+      const emojiMap: Record<string, string> = {
+        imageAttachment: '📸',
+        audioAttachment: '🎙️',
+        videoAttachment: '🎥',
+        missionAttachment: '🚩',
+      };
+
+      let title = internalTitle || 'Narrative Bundle';
+      if (!internalTitle) {
+        if (firstMessageText) {
+          const emoji = firstMessageAttachment ? (emojiMap[firstMessageAttachment] || '📎') : '';
+          title = emoji ? `${emoji} ${firstMessageText}` : firstMessageText;
+        } else if (firstMessageAttachment) {
+          title = `${emojiMap[firstMessageAttachment] || '📎'} Anhang`;
+        } else if (script) {
+          title = script.split('\n').filter(Boolean)[0] || title;
+        } else if (actorName) {
+          title = `Story von ${actorName}`;
+        }
+      }
+
+      const isInstant = publishMode === 'instant';
+      const referenceDate = isInstant ? updatedAt : releaseAt;
+      const isReleased = referenceDate && new Date(referenceDate) <= new Date();
+      const dateStr = referenceDate ? new Date(referenceDate).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : null;
+
+      let subtitle = 'Kein Release-Zeitpunkt';
+      if (dateStr) {
+        if (isInstant) {
+          subtitle = `Sofort veröffentlicht: ${dateStr}`;
+        } else {
+          subtitle = isReleased ? `Veröffentlicht: ${dateStr}` : `Geplant: ${dateStr}`;
+        }
+      }
 
       return {
-        title: firstLine || 'Narrative Bundle',
-        subtitle: selection.releaseAt || 'Kein Release-Zeitpunkt',
+        title,
+        subtitle,
+        media: actorAvatar,
       };
     },
   },

@@ -1,18 +1,27 @@
 import { PropsWithChildren } from 'react';
-import { StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { StyleSheet, Text, TextStyle, View, ViewStyle, type StyleProp } from 'react-native';
 import { theme } from './theme';
 
 type SectionCardProps = PropsWithChildren<{
   backgroundColor?: string;
   description?: string;
+  descriptionStyle?: StyleProp<TextStyle>;
   title: string;
+  titleStyle?: StyleProp<TextStyle>;
 }>;
 
-export function SectionCard({ children, description, title, backgroundColor }: SectionCardProps) {
+export function SectionCard({
+  children,
+  description,
+  descriptionStyle,
+  title,
+  titleStyle,
+  backgroundColor,
+}: SectionCardProps) {
   return (
     <View style={StyleSheet.flatten([styles.card, backgroundColor && { backgroundColor }])}>
-      <Text style={styles.title}>{title}</Text>
-      {description ? <Text style={styles.description}>{description}</Text> : null}
+      <Text style={[styles.title, titleStyle]}>{title}</Text>
+      {description ? <Text style={[styles.description, descriptionStyle]}>{description}</Text> : null}
       <View style={styles.body}>{children}</View>
     </View>
   );

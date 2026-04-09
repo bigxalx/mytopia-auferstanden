@@ -35,7 +35,16 @@ export default defineConfig({
                     S.documentTypeListItem('narrativeActor').title('Absender'),
                   ])
               ),
-            S.documentTypeListItem('mission').title('Missions'),
+            S.listItem()
+              .title('Missionen & Aufgaben')
+              .child(
+                S.list()
+                  .title('Missionen & Aufgaben')
+                  .items([
+                    S.documentTypeListItem('mission').title('Alle Einzelmissionen'),
+                    S.documentTypeListItem('sammelaufgabe').title('Sammelaufgaben (Mission-Gruppen)'),
+                  ])
+              ),
           ]),
     }),
     googleMapsInput({

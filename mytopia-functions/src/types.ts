@@ -44,6 +44,8 @@ export type BundleDto = {
       };
       pushBody?: string;
       pushTitle?: string;
+      pushNow?: boolean;
+      publishMode?: 'scheduled' | 'instant';
       releaseAt: string;
     };
 export type FeedCursor = {
