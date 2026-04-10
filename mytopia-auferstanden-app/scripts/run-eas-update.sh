@@ -21,4 +21,29 @@ if [[ -z "${MESSAGE}" ]]; then
 fi
 
 cd "${APP_DIR}"
-exec bunx eas update --channel "${CHANNEL}" --message "${MESSAGE}"
+
+if [ -f .env ]; then
+  echo "Loading variables from .env..."
+  export $(grep -v '^#' .env | xargs)
+fi
+
+if [ -f .env.local ]; then
+  echo "Loading variables from .env.local..."
+  export $(grep -v '^#' .env.local | xargs)
+fi
+
+echo "Publishing iOS update..."
+CI=1 bunx eas-cli update \
+  --channel "${CHANNEL}" \
+  --message "${MESSAGE}" \
+  --platform ios \
+  --environment "${CHANNEL}" \
+  --non-interactive
+
+echo "Publishing Android update..."
+CI=1 bunx eas-cli update \
+  --channel "${CHANNEL}" \
+  --message "${MESSAGE}" \
+  --platform android \
+  --environment "${CHANNEL}" \
+  --non-interactive

@@ -1025,32 +1025,25 @@ function formatDayLabel(timestampMs: number) {
     return relativeDay;
   }
 
-  const weekday = new Intl.DateTimeFormat('de-DE', {
-    weekday: 'short',
-  })
-    .format(date)
-    .replace(/\.$/, '');
-  const numericDate = new Intl.DateTimeFormat('de-DE', {
-    day: 'numeric',
-    month: 'numeric',
-    year: 'numeric',
-  }).format(date);
+  const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const weekday = weekdays[date.getDay()];
+  const dd = String(date.getDate()).padStart(1, '0');
+  const mm = String(date.getMonth() + 1).padStart(1, '0');
+  const yyyy = date.getFullYear();
 
-  return `${weekday}, ${numericDate}`;
+  return `${weekday}, ${dd}.${mm}.${yyyy}`;
 }
 
 function formatRelativeDay(date: Date) {
   const diffInDays = getCalendarDayDifference(date, new Date());
 
-  if (diffInDays < -1 || diffInDays > 1) {
-    return null;
-  }
+  const relativeMap: Record<number, string> = {
+    [-1]: 'Gestern',
+    [0]: 'Heute',
+    [1]: 'Morgen',
+  };
 
-  const relativeLabel = new Intl.RelativeTimeFormat('de-DE', {
-    numeric: 'auto',
-  }).format(diffInDays, 'day');
-
-  return relativeLabel.charAt(0).toUpperCase() + relativeLabel.slice(1);
+  return relativeMap[diffInDays] || null;
 }
 
 function getCalendarDayDifference(date: Date, now: Date) {
