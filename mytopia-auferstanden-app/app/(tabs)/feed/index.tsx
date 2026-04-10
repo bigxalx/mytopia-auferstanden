@@ -1103,20 +1103,39 @@ function getDayKey(timestampMs: number) {
 
 function formatDayLabel(timestampMs: number) {
   const date = new Date(timestampMs);
-  const weekday = new Intl.DateTimeFormat('de-DE', {
-    weekday: 'short',
-  })
-    .format(date)
-    .replace(/\.$/, '');
-  const numericDate = new Intl.DateTimeFormat('de-DE', {
-    day: 'numeric',
-    month: 'numeric',
-    year: 'numeric',
-  }).format(date);
+  const relativeDay = formatRelativeDay(date);
 
-  return `${weekday}, ${numericDate}`;
+  if (relativeDay) {
+    return relativeDay;
+  }
+
+  const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const weekday = weekdays[date.getDay()];
+  const dd = String(date.getDate()).padStart(1, '0');
+  const mm = String(date.getMonth() + 1).padStart(1, '0');
+  const yyyy = date.getFullYear();
+
+  return `${weekday}, ${dd}.${mm}.${yyyy}`;
 }
 
+function formatRelativeDay(date: Date) {
+  const diffInDays = getCalendarDayDifference(date, new Date());
+
+  const relativeMap: Record<number, string> = {
+    [-1]: 'Gestern',
+    [0]: 'Heute',
+    [1]: 'Morgen',
+  };
+
+  return relativeMap[diffInDays] || null;
+}
+
+function getCalendarDayDifference(date: Date, now: Date) {
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  return Math.round((dateStart - nowStart) / 86_400_000);
+}
 function mergeFreshBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
   const merged = new Map<string, NarrativeBundleDto>();
 
