@@ -34,6 +34,7 @@ export function MessageBubble({
   gallerySources,
   onImagePress,
   containerStyle,
+  userInteraction,
 }: {
   message: NarrativeMessageDto;
   showAvatar: boolean;
@@ -41,6 +42,7 @@ export function MessageBubble({
   gallerySources: { uri: string }[];
   onImagePress: (index: number) => void;
   containerStyle?: ViewStyle;
+  userInteraction?: boolean;
 }) {
   const isUser = message.isUser;
   // Don't show avatars for user messages to look like WhatsApp/Telegram
@@ -85,6 +87,7 @@ export function MessageBubble({
               attachment={message.attachment}
               gallerySources={gallerySources}
               onImagePress={onImagePress}
+              userInteraction={userInteraction}
             />
           )}
           {message.text && (

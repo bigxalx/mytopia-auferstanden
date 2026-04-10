@@ -7,7 +7,7 @@ import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
 import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
 import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
-import { ActiveMissionProvider } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 /**
  * Feature flag: Enable native iOS 18+ bottom accessory with liquid glass effect.
@@ -22,18 +22,13 @@ import { ActiveMissionProvider } from '@/src/features/tasks/context/ActiveMissio
 const ENABLE_NATIVE_BOTTOM_ACCESSORY = true;
 
 export default function TabLayout() {
-  return (
-    <NarrativeSignalProvider>
-      <ActiveMissionProvider>
-        <TabLayoutInner />
-      </ActiveMissionProvider>
-    </NarrativeSignalProvider>
-  );
+  return <TabLayoutInner />;
 }
 
 function TabLayoutInner() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
   const { unreadCount } = useNarrativeSignal();
+  const { focusedMissionId } = useActiveMission();
   const supportsNativeBottomAccessory = ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
 
   if (!isHydrated) {
@@ -134,14 +129,14 @@ function TabLayoutInner() {
 
         <NativeTabs.Trigger name="index" hidden />
 
-        {supportsNativeBottomAccessory && (
+        {supportsNativeBottomAccessory && !focusedMissionId && (
           <NativeTabs.BottomAccessory>
             <NativeActiveMissionBar />
           </NativeTabs.BottomAccessory>
         )}
       </NativeTabs>
 
-      {!supportsNativeBottomAccessory && <FallbackActiveMissionBar />}
+      {!supportsNativeBottomAccessory && !focusedMissionId && <FallbackActiveMissionBar />}
     </View>
   );
 }

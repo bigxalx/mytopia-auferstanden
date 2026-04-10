@@ -6,9 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { theme } from '@/src/shared/ui/theme';
 
-import { type MissionListItem } from '@/src/features/tasks/data/missionRepository';
-import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
-
 /**
  * Internal content component for the Mission Bar.
  * Handles both 'regular' and 'inline' placements for native bottom accessory.
@@ -20,95 +17,105 @@ import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionCont
  * State is managed externally via ActiveMissionContext to ensure both instances
  * stay in sync.
  */
+import { type MissionListItem, MISSION_KIND_METADATA, type MissionKind } from '@/src/features/tasks/data/missionRepository';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { MissionSelectionMenu } from './MissionSelectionMenu';
+
 function MissionBarContent({
   mission,
   placement,
-  transparent = true
+  transparent = true,
+  availableCount = 1
 }: {
   mission: MissionListItem,
   placement: 'regular' | 'inline',
-  transparent?: boolean
+  transparent?: boolean,
+  availableCount?: number
 }) {
   const scale = useSharedValue(1);
+  const [menuVisible, setMenuVisible] = React.useState(false);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
+  const meta = MISSION_KIND_METADATA[mission.kind as MissionKind];
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => router.push({
-        pathname: '/(modals)/tasks/[taskId]',
-        params: { taskId: mission._id },
-      })}
-      onPressIn={!transparent ? () => {
-        scale.value = withSpring(0.985, { stiffness: 700, damping: 38, mass: 0.45 });
-      } : undefined}
-      onPressOut={!transparent ? () => {
-        scale.value = withSpring(1, { stiffness: 700, damping: 38, mass: 0.45 });
-      } : undefined}
-      style={styles.pressable}
-    >
-      {({ pressed }) => (
-        <Animated.View
-          style={[
-            styles.container,
-            !transparent && styles.fallbackContainer,
-            !transparent && animatedStyle,
-            // isInline && styles.inlineContainer,
-            pressed && (transparent ? styles.containerPressed : styles.fallbackContainerPressed),
-          ]}
-        >
-          <View style={styles.textBlock}>
-            <Text style={[styles.missionTitle,
-              // isInline && styles.missionTitleInline
-            ]} numberOfLines={1}>
-              {mission.title}
-            </Text>
-            <Text style={styles.missionMeta}>
-              Aktuelle Mission
-            </Text>
-            {/* {!isInline && (
-              <Text style={styles.missionMeta}>
-                {kindMeta?.label || 'Mission'} · {mission.points} Punkte
+    <>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setMenuVisible(true)}
+        onPressIn={!transparent ? () => {
+          scale.value = withSpring(0.985, { stiffness: 700, damping: 38, mass: 0.45 });
+        } : undefined}
+        onPressOut={!transparent ? () => {
+          scale.value = withSpring(1, { stiffness: 700, damping: 38, mass: 0.45 });
+        } : undefined}
+        style={styles.pressable}
+      >
+        {({ pressed }) => (
+          <Animated.View
+            style={[
+              styles.container,
+              !transparent && styles.fallbackContainer,
+              !transparent && animatedStyle,
+              pressed && (transparent ? styles.containerPressed : styles.fallbackContainerPressed),
+            ]}
+          >
+            <View style={styles.textBlock}>
+              <Text style={styles.missionTitle} numberOfLines={1}>
+                {mission.title}
               </Text>
-            )} */}
-          </View>
-        </Animated.View>
-      )}
-    </Pressable>
+              <Text style={styles.missionMeta}>
+                {availableCount > 1 
+                  ? `${availableCount} Missionen verfügbar` 
+                  : `Aktuelle Mission: ${meta?.label || 'Aktiv'}`}
+              </Text>
+            </View>
+          </Animated.View>
+        )}
+      </Pressable>
+
+      <MissionSelectionMenu 
+        visible={menuVisible} 
+        onClose={() => setMenuVisible(false)} 
+      />
+    </>
   );
 }
 
-/**
- * Native bottom accessory component for iOS 18+.
- * Consumes shared state from ActiveMissionContext.
- */
 export function NativeActiveMissionBar() {
-  const { activeMission, isLoading } = useActiveMission();
+  const { activeMission, availableMissions, isLoading, focusedMissionId } = useActiveMission();
   const placement = NativeTabs.BottomAccessory.usePlacement();
 
-  if (isLoading || !activeMission) return null;
+  if (isLoading || !activeMission || focusedMissionId) return null;
 
-  return <MissionBarContent mission={activeMission} placement={placement} />;
+  return (
+    <MissionBarContent 
+      mission={activeMission} 
+      placement={placement} 
+      availableCount={availableMissions.length}
+    />
+  );
 }
 
-/**
- * Fallback bottom bar component for non-iOS or when native accessory is disabled.
- * Renders as a floating orange bar above the tab bar.
- */
 export function FallbackActiveMissionBar() {
-  const { activeMission, isLoading } = useActiveMission();
+  const { activeMission, availableMissions, isLoading, focusedMissionId } = useActiveMission();
   const insets = useSafeAreaInsets();
 
-  if (isLoading || !activeMission) return null;
+  if (isLoading || !activeMission || focusedMissionId) return null;
 
   const fallbackBottomOffset = insets.bottom + (Platform.OS === 'android' ? 78 : 56);
 
   return (
     <View style={[styles.manualFallbackWrapper, { bottom: fallbackBottomOffset }]} pointerEvents="box-none">
-      <MissionBarContent mission={activeMission} placement="regular" transparent={false} />
+      <MissionBarContent 
+        mission={activeMission} 
+        placement="regular" 
+        transparent={false} 
+        availableCount={availableMissions.length}
+      />
     </View>
   );
 }

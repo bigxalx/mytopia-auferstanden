@@ -36,7 +36,8 @@ import {
   buildPlaybackMessages,
   type PlaybackMessage,
 } from '@/src/features/feed/utils/playback';
-import { useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useActiveMission, useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
+import { FocusedMissionOverlay } from '@/components/feed/FocusedMissionOverlay';
 
 const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
@@ -65,9 +66,10 @@ type FeedCachePayload = {
 
 export default function FeedScreen() {
   const { selectedMode, user } = useSession();
-  const { lastSeenTime, markAsRead, pulse, refreshKey } = useNarrativeSignal();
-  const insets = useSafeAreaInsets();
-  const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
+   const { lastSeenTime, markAsRead, pulse, refreshKey } = useNarrativeSignal();
+   const insets = useSafeAreaInsets();
+   const { focusedMissionId, setFocus, registerScrollHandler } = useActiveMission();
+   const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
 
   const requestVersionRef = useRef(0);
   const activeInitialLoadsRef = useRef(0);
@@ -125,7 +127,7 @@ export default function FeedScreen() {
     [activeSectionTitle]
   );
 
-  const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP);
+  const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP) + (focusedMissionId ? 110 : 0);
   const scrollToEndButtonBottom = isNativeMissionBar
     ? Math.max(insets.bottom + 16, 24)
     : isMissionBarVisible
@@ -397,6 +399,47 @@ export default function FeedScreen() {
     }
   }, [loadFirstPage, pulse, user]);
 
+  /**
+   * Register scroll-to-message handler for mission references
+   */
+  useEffect(() => {
+    const handleScrollToMessage = (missionId: string) => {
+      // 1. Find the deepest/latest message that contains this missionId in its attachment
+      // We look in reverse to find the "start" message if there are multiple, 
+      // though usually missions are unique. In narrative context, we want the most recent "available" card.
+      const targetMessage = [...visibleMessages]
+        .reverse()
+        .find(m => {
+          const attr = m.message.attachment;
+          return attr?._type === 'missionAttachment' && attr.missionId === missionId;
+        });
+
+      if (!targetMessage) {
+        console.warn(`[FeedScroll] Mission ${missionId} not found in visible messages`);
+        return;
+      }
+
+      // 2. Find location in sections
+      const sectionIndex = sections.findIndex(s => s.data.some(i => i.key === targetMessage.key));
+      if (sectionIndex === -1) return;
+
+      const section = sections[sectionIndex];
+      const itemIndex = section.data.findIndex(i => i.key === targetMessage.key);
+
+      // 3. Perform scroll
+      sectionListRef.current?.scrollToLocation?.({
+        animated: true,
+        itemIndex,
+        sectionIndex,
+        viewOffset: 120, // Give some breathing room at the top
+        viewPosition: 0,
+      });
+    };
+
+    registerScrollHandler(handleScrollToMessage);
+    return () => registerScrollHandler(null);
+  }, [visibleMessages, sections, registerScrollHandler]);
+
   useEffect(() => {
     if (!user) return;
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -560,21 +603,26 @@ export default function FeedScreen() {
         }
       }
 
+      const isMission = item.message.attachment?._type === 'missionAttachment';
+      const missionId = isMission ? (item.message.attachment as any).missionId : null;
+      const isFocused = missionId && focusedMissionId === missionId;
+
       return (
-        <MessageBubble
-          message={item.message}
-          showAvatar={showAvatar}
-          showName={showName}
-          gallerySources={imageSources}
-          onImagePress={(idx) => {
-            setViewerIndex(idx);
-            setViewerVisible(true);
-          }}
-          containerStyle={{ marginTop }}
-        />
+        <View style={{ marginTop }}>
+          <MessageBubble
+            message={item.message}
+            showAvatar={showAvatar}
+            showName={showName}
+            gallerySources={imageSources}
+            onImagePress={(idx) => {
+              setViewerIndex(idx);
+              setViewerVisible(true);
+            }}
+          />
+        </View>
       );
     },
-    [imageSources]
+    [imageSources, focusedMissionId]
   );
 
   const ListHeader = useMemo(() => {
@@ -896,6 +944,8 @@ export default function FeedScreen() {
         visible={viewerVisible}
         onRequestClose={() => setViewerVisible(false)}
       />
+
+      <FocusedMissionOverlay />
     </>
   );
 }

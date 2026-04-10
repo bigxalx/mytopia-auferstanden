@@ -12,10 +12,12 @@ export function AttachmentView({
   attachment,
   gallerySources,
   onImagePress,
+  userInteraction,
 }: {
   attachment: NarrativeAttachmentDto;
   gallerySources: { uri: string }[];
   onImagePress: (index: number) => void;
+  userInteraction?: boolean;
 }) {
   switch (attachment._type) {
     case 'imageAttachment': {
@@ -36,7 +38,7 @@ export function AttachmentView({
     case 'audioAttachment':
       return <AudioAttachmentView attachment={attachment} />;
     case 'missionAttachment':
-      return <MissionAttachmentView attachment={attachment} />;
+      return <MissionAttachmentView attachment={attachment} userInteraction={userInteraction} />;
     case 'submissionAttachment':
       return <SubmissionAttachmentView {...attachment} />;
     default:

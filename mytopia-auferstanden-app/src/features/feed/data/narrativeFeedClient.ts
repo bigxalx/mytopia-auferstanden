@@ -39,6 +39,15 @@ export type NarrativeAttachmentDto =
     missionTitle?: string;
     title?: string;
     imageUrl?: string;
+    questions?: {
+      questionText: string;
+      options: string[];
+    }[];
+    gpsConfig?: {
+      latitude: number;
+      longitude: number;
+      radiusMeters: number;
+    };
   }
   | {
     _type: 'submissionAttachment';
@@ -345,6 +354,8 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       ...(typeof raw.missionTitle === 'string' ? { missionTitle: raw.missionTitle } : {}),
       ...(typeof raw.title === 'string' && raw.title.length > 0 ? { title: raw.title } : {}),
       ...(typeof raw.imageUrl === 'string' && raw.imageUrl.length > 0 ? { imageUrl: raw.imageUrl } : {}),
+      ...(Array.isArray(raw.questions) ? { questions: raw.questions } : {}),
+      ...(raw.gpsConfig && typeof raw.gpsConfig === 'object' ? { gpsConfig: raw.gpsConfig as any } : {}),
     };
   }
 

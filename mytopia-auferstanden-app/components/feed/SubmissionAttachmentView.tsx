@@ -23,9 +23,12 @@ export function SubmissionAttachmentView({
 }) {
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="flag-outline" size={12} color={theme.colors.cardTextSecondary} />
-        <Text style={styles.headerTitle}>{missionTitle}</Text>
+      <View style={styles.quoteContainer}>
+        <View style={styles.quoteIndicator} />
+        <View style={styles.quoteContent}>
+          <Text style={styles.quoteLabel}>Antwort auf Mission</Text>
+          <Text style={styles.quoteTitle} numberOfLines={1}>{missionTitle}</Text>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -108,17 +111,31 @@ const styles = StyleSheet.create({
     minWidth: 200,
     gap: 8,
   } as ViewStyle,
-  header: {
+  quoteContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    opacity: 0.7,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 4,
   } as ViewStyle,
-  headerTitle: {
-    fontSize: 11,
+  quoteIndicator: {
+    width: 3,
+    backgroundColor: theme.colors.orange,
+  } as ViewStyle,
+  quoteContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  } as ViewStyle,
+  quoteLabel: {
+    fontSize: 9,
     fontFamily: 'NunitoSans_700Bold',
-    color: theme.colors.cardTextSecondary,
+    color: theme.colors.orange,
     textTransform: 'uppercase',
+  } as TextStyle,
+  quoteTitle: {
+    fontSize: 12,
+    fontFamily: 'NunitoSans_400Regular',
+    color: theme.colors.cardTextPrimary,
   } as TextStyle,
   content: {
     borderRadius: 8,

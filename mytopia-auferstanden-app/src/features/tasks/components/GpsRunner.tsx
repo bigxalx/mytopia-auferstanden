@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
@@ -14,12 +14,13 @@ type GpsTarget = {
 
 type GpsRunnerProps = {
     embedded?: boolean;
+    compact?: boolean;
     missionId: string;
     onComplete: () => Promise<{ earned: number }>;
     target: GpsTarget;
 };
 
-export function GpsRunner({ embedded = false, missionId: _missionId, onComplete, target }: GpsRunnerProps) {
+export function GpsRunner({ embedded = false, compact = false, missionId: _missionId, onComplete, target }: GpsRunnerProps) {
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [distance, setDistance] = useState<number | null>(null);
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -108,7 +109,7 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
         );
 
         return embedded
-            ? <View>{content}</View>
+            ? <View style={compact ? styles.compactResult : null}>{content}</View>
             : <SectionCard title="Check-in erfolgreich">{content}</SectionCard>;
     }
 
@@ -128,7 +129,7 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
         );
 
         return embedded
-            ? <View>{content}</View>
+            ? <View style={compact ? styles.compactPadding : null}>{content}</View>
             : <SectionCard title="Standortzugriff benötigt">{content}</SectionCard>;
     }
 
@@ -146,6 +147,74 @@ export function GpsRunner({ embedded = false, missionId: _missionId, onComplete,
         } finally {
             setIsSubmitting(false);
         }
+    }
+
+    if (compact) {
+        return (
+            <View style={styles.compactContainer}>
+                <View style={styles.compactMainRow}>
+                    <View style={styles.compactMapWrap}>
+                        <GpsMap
+                            radiusMeters={target.radiusMeters}
+                            targetLatitude={target.latitude}
+                            targetLongitude={target.longitude}
+                            userLatitude={userCoords?.latitude}
+                            userLongitude={userCoords?.longitude}
+                        />
+                    </View>
+
+                    <View style={styles.compactDetails}>
+                        <View style={styles.compactTextRow}>
+                            <Text style={styles.compactDistance}>
+                                {distance !== null ? formatDistance(distance) : '…'}
+                            </Text>
+                            {isInRange ? (
+                                <Text style={styles.compactStatusText}>✅ Ziel!</Text>
+                            ) : distance !== null ? (
+                                <Text style={[styles.compactStatusText, { color: theme.colors.destructiveText }]}>
+                                    Zu weit entfernt
+                                </Text>
+                            ) : (
+                                <Text style={[styles.compactStatusText, { color: '#666' }]}>Ortung läuft…</Text>
+                            )}
+                        </View>
+
+                        {!isInRange && distance !== null && (
+                            <Pressable
+                                onPress={() => {
+                                    const url = `https://www.google.com/maps/dir/?api=1&destination=${target.latitude},${target.longitude}`;
+                                    Linking.openURL(url);
+                                }}
+                                style={({ pressed }) => [
+                                    styles.directionsButton,
+                                    pressed && { opacity: 0.7 }
+                                ]}
+                            >
+                                <Text style={styles.directionsButtonText}>Wegbeschreibung</Text>
+                            </Pressable>
+                        )}
+                    </View>
+                </View>
+
+                <Pressable
+                    disabled={!isInRange || isSubmitting}
+                    onPress={handleCheckIn}
+                    style={({ pressed }) => [
+                        styles.compactCheckInButton,
+                        (!isInRange || isSubmitting) ? styles.checkInButtonDisabled : null,
+                        pressed && { opacity: 0.7 }
+                    ]}
+                >
+                    {isSubmitting ? (
+                        <ActivityIndicator size="small" color="white" />
+                    ) : (
+                        <Text style={styles.compactCheckInButtonText}>Einchecken</Text>
+                    )}
+                </Pressable>
+
+                {error ? <Text style={styles.compactErrorText}>{error}</Text> : null}
+            </View>
+        );
     }
 
     return (
@@ -249,25 +318,52 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     detailsBlock: {
-        gap: 12,
-    },
-    distanceContainer: {
-        alignItems: 'center',
         gap: 4,
     },
+    distanceContainer: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 8,
+    },
     distanceLabel: {
-        color: theme.colors.cardTextPrimary,
+        color: theme.colors.cardTextMuted,
         fontSize: 12,
     },
     distanceValue: {
         color: theme.colors.cardTextPrimary,
-        fontSize: 32,
-        fontWeight: '800',
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 24,
     },
     errorText: {
-        color: theme.colors.errorText,
-        fontSize: 13,
-        fontWeight: '500',
+        color: theme.colors.destructiveText,
+        fontSize: 14,
+        textAlign: 'center',
+    },
+    inRangeBadge: {
+        alignItems: 'center',
+        backgroundColor: 'rgba(52, 199, 89, 0.1)',
+        borderRadius: 8,
+        paddingVertical: 8,
+    },
+    inRangeText: {
+        color: theme.colors.successText,
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 14,
+    },
+    loadingText: {
+        color: theme.colors.cardTextMuted,
+        fontSize: 14,
+        fontStyle: 'italic',
+    },
+    mapWrap: {
+        borderRadius: 12,
+        height: 200,
+        overflow: 'hidden',
+    },
+    outOfRangeText: {
+        color: theme.colors.destructiveText,
+        fontFamily: 'NunitoSans_400Regular',
+        fontSize: 14,
     },
     hintText: {
         color: theme.colors.cardTextPrimary,
@@ -275,36 +371,8 @@ const styles = StyleSheet.create({
         lineHeight: 18,
         marginTop: 4,
     },
-    inRangeBadge: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.successSurface,
-        borderRadius: 8,
-        paddingVertical: 8,
-    },
-    inRangeText: {
-        color: theme.colors.cardTextPrimary,
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    loadingText: {
-        color: theme.colors.cardTextPrimary,
-        fontSize: 13,
-        textAlign: 'center',
-    },
-    mapWrap: {
-        borderRadius: 14,
-        overflow: 'hidden',
-    },
-    outOfRangeText: {
-        color: theme.colors.cardTextPrimary,
-        fontSize: 13,
-        textAlign: 'center',
-    },
     permissionContainer: {
         gap: 8,
-    },
-    resultContainer: {
-        gap: 12,
     },
     settingsButton: {
         alignItems: 'center',
@@ -316,6 +384,9 @@ const styles = StyleSheet.create({
     settingsButtonText: {
         ...theme.typography.button,
     },
+    resultContainer: {
+        gap: 12,
+    },
     successCircle: {
         alignItems: 'center',
         alignSelf: 'center',
@@ -325,21 +396,96 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         width: 100,
     },
+    successNumber: {
+        color: theme.colors.cardTextPrimary,
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 24,
+    },
     successLabel: {
         color: theme.colors.cardTextPrimary,
         fontSize: 12,
-        fontWeight: '600',
-        opacity: 0.8,
-    },
-    successNumber: {
-        color: theme.colors.cardTextPrimary,
-        fontSize: 28,
-        fontWeight: '800',
+        fontFamily: 'NunitoSans_600SemiBold',
     },
     successText: {
         color: theme.colors.cardTextPrimary,
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: 'NunitoSans_600SemiBold',
         textAlign: 'center',
     },
+    // Compact styles
+    compactContainer: {
+        gap: 12,
+        padding: 4,
+    },
+    compactMainRow: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+    },
+    compactMapWrap: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.1)',
+    },
+    compactDetails: {
+        flex: 1,
+        gap: 4,
+    },
+    compactTextRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    compactDistance: {
+        fontSize: 16,
+        fontFamily: 'NunitoSans_700Bold',
+        color: theme.colors.cardTextPrimary,
+    },
+    compactStatusText: {
+        fontSize: 12,
+        fontFamily: 'NunitoSans_700Bold',
+        textTransform: 'uppercase',
+    },
+    directionsButton: {
+        alignSelf: 'flex-start',
+        borderWidth: 1,
+        borderColor: theme.colors.orange,
+        borderRadius: 15,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    directionsButtonText: {
+        fontSize: 11,
+        fontFamily: 'NunitoSans_700Bold',
+        color: theme.colors.orange,
+        textTransform: 'uppercase',
+    },
+    compactCheckInButton: {
+        backgroundColor: theme.colors.orange,
+        borderRadius: 20,
+        paddingVertical: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    compactCheckInButtonText: {
+        color: 'white',
+        fontSize: 13,
+        fontFamily: 'Nunito_700Bold',
+        textTransform: 'uppercase',
+    },
+    compactErrorText: {
+        fontSize: 10,
+        color: theme.colors.destructiveText,
+        textAlign: 'center',
+    },
+    compactResult: {
+        paddingVertical: 4,
+    },
+    compactPadding: {
+        paddingVertical: 8,
+    },
 });
+

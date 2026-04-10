@@ -28,14 +28,18 @@ import { TextRunner } from '@/src/features/tasks/components/TextRunner';
 import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { AppImage } from '@/src/shared/ui/AppImage';
+import { Pressable } from 'react-native';
 
 export default function TaskDetailScreen() {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { user, selectedMode } = useSession();
+  const { focusedMissionId, setFocus } = useActiveMission();
+  const isFocused = focusedMissionId === taskId;
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
@@ -225,6 +229,24 @@ export default function TaskDetailScreen() {
             {missionBody}
           </>
         ) : null}
+
+        {missionStatus === 'available' && (
+          <Pressable
+            style={[styles.startButton, isFocused && styles.startButtonActive]}
+            onPress={async () => {
+              if (isFocused) {
+                 router.back();
+                 return;
+              }
+              await setFocus(mission._id);
+              router.back();
+            }}
+          >
+            <Text style={styles.startButtonText}>
+              {isFocused ? 'AKTIVE MISSION' : 'MISSION STARTEN'}
+            </Text>
+          </Pressable>
+        )}
       </SectionCard>
 
       <View style={styles.infoCard}>
@@ -544,5 +566,25 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_700Bold',
     fontSize: 15,
     textAlign: 'center',
+  },
+  startButton: {
+    backgroundColor: theme.colors.orange,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  startButtonActive: {
+    backgroundColor: 'transparent',
+    borderColor: theme.colors.orange,
+  },
+  startButtonText: {
+    color: 'white',
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 15,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

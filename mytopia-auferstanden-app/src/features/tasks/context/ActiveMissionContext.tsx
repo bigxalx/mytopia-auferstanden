@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { fetchMissions, getCachedMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
@@ -12,19 +13,21 @@ import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStat
  */
 const ENABLE_NATIVE_BOTTOM_ACCESSORY = true;
 
+const FOCUS_STORAGE_KEY = 'mytopia_focused_mission_id';
+
 /**
  * Shared state for ActiveMissionBar to support dual-instance rendering
  * (regular + inline placements in native bottom accessory).
- * 
- * State MUST be lifted outside the bottom accessory component per Expo Router docs:
- * "You must store state outside the accessory component using props, context, or external state management.
- * Two instances of the bottom accessory component are rendered simultaneously (one for each placement)
- * and state is not shared between them."
  */
 
 type ActiveMissionContextValue = {
-  activeMission: MissionListItem | null;
+  activeMission: MissionListItem | null; // The currently focused mission (or first available if none focused)
+  availableMissions: MissionListItem[];   // All missions currently in 'available' state
+  focusedMissionId: string | null;
   isLoading: boolean;
+  setFocus: (missionId: string | null) => Promise<void>;
+  scrollToMessage: (missionId: string) => void;
+  registerScrollHandler: (handler: ((missionId: string) => void) | null) => void;
 };
 
 const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(null);
@@ -33,8 +36,25 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   const { selectedMode, user } = useSession();
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
+  const [focusedMissionId, setFocusedMissionId] = useState<string | null>(null);
+  const scrollHandlerRef = React.useRef<((missionId: string) => void) | null>(null);
+
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
+
+  // Load focused mission ID from storage
+  useEffect(() => {
+    if (!user) {
+      setFocusedMissionId(null);
+      return;
+    }
+
+    AsyncStorage.getItem(`${FOCUS_STORAGE_KEY}:${user.id}`)
+      .then((val) => {
+        if (val) setFocusedMissionId(val);
+      })
+      .catch((err) => console.warn('Failed to load focusedMissionId:', err));
+  }, [user]);
 
   useEffect(() => {
     let active = true;
@@ -61,17 +81,51 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     return () => { active = false; };
   }, [selectedMode]);
 
-  const activeMission = useMemo(() => {
-    const openMissions = missions.filter(
+  const availableMissions = useMemo(() => {
+    return missions.filter(
       (mission) => getMissionLifecycleStatus(mission, completedMissions, submissionStates) === 'available'
     );
-
-    return openMissions[0] || null;
   }, [completedMissions, missions, submissionStates]);
 
+  const activeMission = useMemo(() => {
+    if (focusedMissionId) {
+      const found = availableMissions.find(m => m._id === focusedMissionId);
+      if (found) return found;
+    }
+    return availableMissions[0] || null;
+  }, [availableMissions, focusedMissionId]);
+
+  const setFocus = async (missionId: string | null) => {
+    setFocusedMissionId(missionId);
+    if (user) {
+      const key = `${FOCUS_STORAGE_KEY}:${user.id}`;
+      if (missionId) {
+        await AsyncStorage.setItem(key, missionId);
+      } else {
+        await AsyncStorage.removeItem(key);
+      }
+    }
+  };
+
+  const registerScrollHandler = (handler: ((missionId: string) => void) | null) => {
+    scrollHandlerRef.current = handler;
+  };
+
+  const scrollToMessage = (missionId: string) => {
+    scrollHandlerRef.current?.(missionId);
+  };
+
   const value = useMemo(
-    () => ({ activeMission, isLoading }),
-    [activeMission, isLoading]
+    () => ({ 
+      activeMission, 
+      availableMissions,
+      focusedMissionId,
+      isLoading,
+      setFocus,
+      scrollToMessage,
+      registerScrollHandler
+    }),
+    [activeMission, availableMissions, focusedMissionId, isLoading]
   );
 
   return (
