@@ -104,6 +104,8 @@ export type MissionDto = {
         questionText: string;
       }>;
       title: string;
+      feedbackCorrect?: string;
+      feedbackIncorrect?: string;
 };
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';

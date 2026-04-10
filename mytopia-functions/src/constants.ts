@@ -57,6 +57,15 @@ export const SANITY_BUNDLE_PROJECTION = `
         "missionKind": mission->kind,
         "missionPoints": mission->points,
         "imageUrl": mission->image.asset->url,
+        "questions": mission->quizConfig.questions[]{
+          questionText,
+          "options": options[].text
+        },
+        "gpsConfig": mission->gpsConfig{
+          "latitude": location.lat,
+          "longitude": location.lng,
+          radiusMeters
+        },
         title,
         excerpt
       }
@@ -102,7 +111,9 @@ export const MISSION_DETAIL_PROJECTION = `
     questionText,
     "optionCount": count(options),
     "options": options[].text
-  }
+  },
+  feedbackCorrect,
+  feedbackIncorrect
 `;
 
 export const MISSION_SCORING_PROJECTION = `
@@ -115,5 +126,7 @@ export const MISSION_SCORING_PROJECTION = `
   "questions": quizConfig.questions[]{
     questionText,
     "options": options[]{text, isCorrect}
-  }
+  },
+  feedbackCorrect,
+  feedbackIncorrect
 `;

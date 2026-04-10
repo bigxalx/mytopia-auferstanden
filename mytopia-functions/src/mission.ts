@@ -186,6 +186,9 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       status: 'approved',
       awarded: true,
       awardedAt: FieldValue.serverTimestamp(),
+      moderatorNote: correctCount === questions.length 
+        ? (mission.feedbackCorrect || 'Hervorragend! Alles richtig.') 
+        : (mission.feedbackIncorrect || 'Nicht ganz perfekt, aber okay!'),
     });
 
     await batch.commit();
@@ -303,6 +306,7 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
       status: 'approved',
       awarded: true,
       awardedAt: FieldValue.serverTimestamp(),
+      moderatorNote: mission.feedbackCorrect || 'Standort verifiziert! Gute Arbeit.',
     });
 
     await batch.commit();
