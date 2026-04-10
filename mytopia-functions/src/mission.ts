@@ -173,9 +173,8 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     batch.set(submissionRef, {
       createdAt: FieldValue.serverTimestamp(),
       idempotencyKey,
-      metadata: {
-        missionTitle: mission.title,
-      },
+      metadata: { missionTitle: mission.title },
+      mode,
       ownerUid: uid,
       payload: {
         correctCount,
@@ -295,9 +294,8 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     batch.set(submissionRef, {
       createdAt: FieldValue.serverTimestamp(),
       idempotencyKey,
-      metadata: {
-        missionTitle: mission.title,
-      },
+      metadata: { missionTitle: mission.title },
+      mode,
       ownerUid: uid,
       payload: {}, // No specific payload needed for GPS yet, just the pin is enough
       sourceId: missionId,

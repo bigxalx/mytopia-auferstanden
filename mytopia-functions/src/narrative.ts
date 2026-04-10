@@ -28,11 +28,13 @@ import {
 import { applySanityImageTransforms, sanityQuery, verifySanitySignature } from './sanity.js';
 import { handleDeleteAccount, verifyFirebaseUser } from './auth.js';
 import {
+    AttachmentDto,
     BundleDto, FeedCursor,
     FirebaseResponse,
     MessageDto,
     NarrativeMode, NarrativeStateEventType,
-    SanityWebhookPayload
+    SanityWebhookPayload,
+    SubmissionDto
 } from './types.js';
 export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
       const path = normalizeRequestPath(req.path);
@@ -346,7 +348,7 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
     // Fetch narrative bundles and player submissions in parallel
     const [sanityBundles, playerSubmissions] = await Promise.all([
       getReleasedFeedBundles({ cursor, limit, mode }),
-      getPlayerFeedSubmissions({ cursor, limit, uid: decodedToken.uid }),
+      getPlayerFeedSubmissions({ cursor, limit, uid: decodedToken.uid, mode }),
     ]);
 
     // Map submissions to virtual bundles
@@ -354,7 +356,7 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
       _id: sub.idempotencyKey,
       isUser: true,
       messages: [mapSubmissionToMessage(sub)],
-      releaseAt: sub.createdAt.toDate().toISOString(),
+      releaseAt: (sub.createdAt as any)?.toDate ? (sub.createdAt as any).toDate().toISOString() : new Date().toISOString(),
       title: 'Deine Aktivität',
     }));
 
@@ -370,26 +372,31 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
       .slice(0, limit);
 
     const nextCursor = combined.length === limit ? createNextCursor(combined[combined.length - 1] as any) : null;
+    
+    console.log(`FeedProxy [${mode}]: Combined ${combined.length} items (Sanity: ${sanityBundles.length}, Player: ${submissionBundles.length}). Final nextCursor present: ${!!nextCursor}`);
 
     res.status(200).json({ bundles: combined, mode, nextCursor });
-    } catch (error) {
+  } catch (error) {
     logger.error('feedProxy failed', error);
     sendError(res, error);
-    }
+  }
 }
 
 async function getPlayerFeedSubmissions({
   cursor,
   limit,
   uid,
+  mode,
 }: {
-  cursor: FeedCursor | null;
+  cursor?: FeedCursor | null;
   limit: number;
   uid: string;
+  mode: NarrativeMode;
 }) {
   let query = firestore
     .collection(V2_SUBMISSIONS_COLLECTION_PATH)
     .where('ownerUid', '==', uid)
+    .where('mode', '==', mode)
     .orderBy('createdAt', 'desc')
     .orderBy('idempotencyKey', 'desc');
 

@@ -9,7 +9,15 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "mode",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "idempotencyKey",
           "order": "DESCENDING"
         }
       ]

@@ -114,6 +114,7 @@ export type SubmissionDto = {
     metadata: {
         missionTitle: string;
     };
+    mode: 'production' | 'dev';
     ownerUid: string;
     payload: any;
     sourceId: string;
