@@ -57,6 +57,12 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   }, [user]);
 
   useEffect(() => {
+    if (!user) {
+      setMissions([]);
+      setIsLoading(false);
+      return;
+    }
+
     let active = true;
     const cached = getCachedMissions(selectedMode);
 
@@ -79,7 +85,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }
     load();
     return () => { active = false; };
-  }, [selectedMode]);
+  }, [selectedMode, user]);
 
   const availableMissions = useMemo(() => {
     return missions.filter(

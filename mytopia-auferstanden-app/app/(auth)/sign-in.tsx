@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import { useState } from 'react';
+import { Link, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
@@ -8,12 +8,20 @@ import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
 
 export default function SignInScreen() {
-  const { sendPasswordReset, signInWithEmail } = useSession();
+  const router = useRouter();
+  const { sendPasswordReset, signInWithEmail, user } = useSession();
   const [email, setEmail] = useState('survivor@mytopia.app');
   const [password, setPassword] = useState('');
   const [feedback, setFeedback] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Navigate away once the session establishes a user (after Firebase hydration completes)
+  useEffect(() => {
+    if (user) {
+      router.replace('/');
+    }
+  }, [user, router]);
 
   async function handleSignIn() {
     const normalizedEmail = email.trim();
@@ -36,9 +44,7 @@ export default function SignInScreen() {
         return;
       }
 
-      if (result.message) {
-        setFeedback({ text: result.message, tone: 'success' });
-      }
+      // Navigation is handled reactively by the useEffect watching `user`
     } finally {
       setIsSubmitting(false);
     }
