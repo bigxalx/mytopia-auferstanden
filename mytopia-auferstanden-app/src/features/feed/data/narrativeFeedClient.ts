@@ -52,7 +52,7 @@ export type NarrativeAttachmentDto =
   | {
     _type: 'submissionAttachment';
     submissionId: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
     kind: 'gps' | 'quiz' | 'text' | 'photo';
     payload: any;
     missionTitle: string;

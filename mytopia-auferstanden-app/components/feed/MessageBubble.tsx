@@ -82,6 +82,11 @@ export function MessageBubble({
               {message.actor.name}
             </Text>
           )}
+          {message.text && (
+            <Text style={[styles.messageText, isUser && styles.messageTextUser]}>
+              {message.text}
+            </Text>
+          )}
           {message.attachment && (
             <AttachmentView
               attachment={message.attachment}
@@ -89,11 +94,6 @@ export function MessageBubble({
               onImagePress={onImagePress}
               userInteraction={userInteraction}
             />
-          )}
-          {message.text && (
-            <Text style={[styles.messageText, isUser && styles.messageTextUser]}>
-              {message.text}
-            </Text>
           )}
         </View>
         {(effectiveShowAvatar || isUser) && <BubbleTail isUser={isUser} />}
@@ -130,14 +130,14 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   messageBubble: {
     backgroundColor: theme.colors.beige,
-    borderRadius: 12,
-    padding: 8,
+    borderRadius: 16,
+    padding: 10,
     gap: 8,
     maxWidth: '100%',
   } as ViewStyle,
   messageBubbleUser: {
     backgroundColor: theme.colors.accent,
-    borderBottomRightRadius: 4, // Stylized corner
+    borderBottomRightRadius: 8, // Less aggressive rounding to prevent overlap with tail area
   } as ViewStyle,
   lastInGroup: {} as ViewStyle,
   tailWrap: {

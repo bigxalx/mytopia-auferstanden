@@ -1,11 +1,19 @@
 import React from 'react';
-import { StyleSheet, View, Text, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { AppImage } from '@/src/shared/ui/AppImage';
+import { MISSION_KIND_METADATA, type MissionKind } from '@/src/features/tasks/data/missionRepository';
 
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type SubmissionStatus = 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
 
+/**
+ * A unified look for mission submissions ("sent" messages).
+ * Structure:
+ * 1. Unified header with mission info
+ * 2. User's specific answer (text, photo, quiz result, or GPS pin)
+ * 3. Status indicator
+ */
 export function SubmissionAttachmentView({
   submissionId,
   status,
@@ -16,89 +24,149 @@ export function SubmissionAttachmentView({
 }: {
   submissionId: string;
   status: SubmissionStatus;
-  kind: 'gps' | 'quiz' | 'text' | 'photo';
+  kind: MissionKind;
   payload: any;
   missionTitle: string;
   moderatorNote?: string;
 }) {
+  const meta = MISSION_KIND_METADATA[kind] || { emoji: '🎯', label: 'Mission' };
+
   return (
     <View style={styles.container}>
-      <View style={styles.quoteContainer}>
-        <View style={styles.quoteIndicator} />
-        <View style={styles.quoteContent}>
-          <Text style={styles.quoteLabel}>Antwort auf Mission</Text>
-          <Text style={styles.quoteTitle} numberOfLines={1}>{missionTitle}</Text>
+      {/* 1. Unified Header (The referenced mission) */}
+      <View style={styles.header}>
+        <View style={styles.headerIndicator} />
+        <View style={styles.headerContent}>
+          <View style={styles.row}>
+            <Text style={styles.missionEmoji}>{meta.emoji}</Text>
+            <View>
+              <Text style={styles.missionLabel}>{meta.label.toUpperCase()}</Text>
+              <Text style={styles.missionTitle} numberOfLines={1}>
+                {missionTitle}
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
 
-      <View style={styles.content}>
-        {kind === 'gps' && <GpsPreview />}
-        {kind === 'photo' && (typeof payload === 'string' || payload?.photoUrl) && (
-          <AppImage 
-            uri={typeof payload === 'string' ? payload : payload.photoUrl} 
-            style={styles.photo} 
-            contentFit="cover" 
-          />
+      {/* 2. Answer Content */}
+      <View style={styles.answerArea}>
+        {/* Text Answer */}
+        {kind === 'text' && (
+          <Text style={styles.answerText}>{payload?.text || ''}</Text>
         )}
-        {kind === 'quiz' && (
-          <View style={styles.quizBox}>
-            <Text style={styles.quizScore}>
-              {payload?.correctCount} / {payload?.totalCount} richtig
-            </Text>
-            <Text style={styles.quizSub}>Punkte erhalten!</Text>
+
+        {/* Photo Answer */}
+        {kind === 'photo' && (typeof payload === 'string' || payload?.photoUrl || payload?.photoPath) && (
+          <View style={styles.photoContainer}>
+            <AppImage 
+              uri={typeof payload === 'string' ? payload : (payload.photoUrl || payload.photoPath)} 
+              style={styles.photo} 
+              contentFit="cover" 
+            />
           </View>
         )}
+
+        {/* Quiz Answer or Result */}
+        {kind === 'quiz' && (
+          <View style={styles.quizBox}>
+            {payload?.answerText ? (
+              <View style={styles.quizAnswerRow}>
+                <Ionicons name="radio-button-on" size={14} color={theme.colors.cardTextSecondary} />
+                <Text style={styles.answerText}>{payload.answerText}</Text>
+              </View>
+            ) : (
+              <View style={styles.quizResultBox}>
+                <Text style={styles.quizScore}>
+                  {payload?.correctCount ?? payload?.correct ?? '?'} / {payload?.totalCount ?? payload?.total ?? '?'}
+                </Text>
+                <Text style={styles.quizSub}>RICHTIG BEANTWORTET</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* GPS Answer */}
+        {kind === 'gps' && <GpsPinSection status={status} />}
       </View>
 
+      {/* Feedback Note (if any) */}
       {moderatorNote && (
         <View style={styles.noteBox}>
-          <Text style={styles.noteLabel}>Feedback:</Text>
+          <View style={styles.noteHeader}>
+            <Feather name="message-circle" size={10} color={theme.colors.orange} />
+            <Text style={styles.noteLabel}>FEEDBACK VOM MODERATOR</Text>
+          </View>
           <Text style={styles.noteText}>{moderatorNote}</Text>
         </View>
       )}
 
+      {/* 3. Status Footer */}
       <View style={styles.footer}>
-        <StatusIndicator status={status} />
+        <StatusIndicator status={status} payload={payload} />
       </View>
     </View>
   );
 }
 
-function GpsPreview() {
+function GpsPinSection({ status }: { status: SubmissionStatus }) {
+  const isDone = status === 'approved';
+  const isError = status === 'error';
+  
   return (
-    <View style={styles.gpsBox}>
-      <View style={styles.gpsIconCircle}>
-        <Ionicons name="location" size={24} color="#fff" />
+    <View style={styles.gpsPinContainer}>
+      <View style={[
+        styles.gpsPinCircle, 
+        isDone && { backgroundColor: theme.colors.successText },
+        isError && { backgroundColor: theme.colors.destructiveText }
+      ]}>
+        <Ionicons name={isError ? "alert" : "location"} size={20} color="white" />
       </View>
-      <View style={styles.gpsTextColumn}>
-        <Text style={styles.gpsMainText}>Standort bestätigt</Text>
-        <Text style={styles.gpsSubText}>Check-in erfolgreich</Text>
+      <View>
+        <Text style={styles.gpsPinMain}>Standort {isDone ? 'bestätigt' : isError ? 'Fehler' : 'wird geprüft'}</Text>
+        <Text style={styles.gpsPinSub}>{isDone ? 'Check-in erfolgreich' : 'GPS-Pin gesetzt'}</Text>
       </View>
     </View>
   );
 }
 
-function StatusIndicator({ status }: { status: SubmissionStatus }) {
+function StatusIndicator({ status, payload }: { status: SubmissionStatus; payload?: any }) {
   switch (status) {
+    case 'sending':
+      return (
+        <View style={styles.statusRow}>
+          <Text style={styles.statusText}>Übermittlung...</Text>
+          <ActivityIndicator size="small" color="#666" style={{ transform: [{ scale: 0.6 }] }} />
+        </View>
+      );
     case 'pending':
       return (
         <View style={styles.statusRow}>
           <Text style={styles.statusText}>In Prüfung</Text>
-          <Feather name="clock" size={14} color="#666" />
+          <Feather name="clock" size={12} color="#666" />
         </View>
       );
     case 'approved':
       return (
         <View style={styles.statusRow}>
           <Text style={[styles.statusText, { color: theme.colors.successText }]}>Bestätigt</Text>
-          <Ionicons name="checkmark-done" size={16} color={theme.colors.successText} />
+          <Ionicons name="checkmark-done" size={14} color={theme.colors.successText} />
         </View>
       );
     case 'rejected':
       return (
         <View style={styles.statusRow}>
           <Text style={[styles.statusText, { color: theme.colors.destructiveText }]}>Abgelehnt</Text>
-          <Ionicons name="close-circle" size={16} color={theme.colors.destructiveText} />
+          <Ionicons name="close-circle" size={14} color={theme.colors.destructiveText} />
+        </View>
+      );
+    case 'error':
+      return (
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusText, { color: theme.colors.destructiveText }]}>
+            {typeof payload === 'string' ? payload : 'Fehler'}
+          </Text>
+          <Ionicons name="alert-circle" size={14} color={theme.colors.destructiveText} />
         </View>
       );
     default:
@@ -108,106 +176,155 @@ function StatusIndicator({ status }: { status: SubmissionStatus }) {
 
 const styles = StyleSheet.create({
   container: {
-    minWidth: 200,
-    gap: 8,
+    minWidth: 220,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 14,
+    overflow: 'hidden',
   } as ViewStyle,
-  quoteContainer: {
+  header: {
     flexDirection: 'row',
     backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    padding: 8,
+    gap: 8,
   } as ViewStyle,
-  quoteIndicator: {
+  headerIndicator: {
     width: 3,
     backgroundColor: theme.colors.orange,
+    borderRadius: 2,
   } as ViewStyle,
-  quoteContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  headerContent: {
+    flex: 1,
   } as ViewStyle,
-  quoteLabel: {
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  } as ViewStyle,
+  missionEmoji: {
+    fontSize: 20,
+  } as TextStyle,
+  missionLabel: {
     fontSize: 9,
     fontFamily: 'NunitoSans_700Bold',
-    color: theme.colors.orange,
-    textTransform: 'uppercase',
+    color: '#4b5563',
+    letterSpacing: 0.5,
   } as TextStyle,
-  quoteTitle: {
-    fontSize: 12,
+  missionTitle: {
+    fontSize: 13,
+    fontFamily: 'NunitoSans_700Bold',
+    color: '#111827',
+  } as TextStyle,
+  answerArea: {
+    padding: 12,
+  } as ViewStyle,
+  answerText: {
+    fontSize: 15,
     fontFamily: 'NunitoSans_400Regular',
-    color: theme.colors.cardTextPrimary,
+    color: '#1f2937',
+    lineHeight: 20,
   } as TextStyle,
-  content: {
-    borderRadius: 8,
+  photoContainer: {
+    borderRadius: 10,
     overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   } as ViewStyle,
   photo: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
   } as ImageStyle,
-  gpsBox: {
+  quizBox: {
+    gap: 8,
+  } as ViewStyle,
+  quizAnswerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    padding: 12,
-    borderRadius: 12,
-    gap: 12,
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    padding: 8,
+    borderRadius: 8,
   } as ViewStyle,
-  gpsIconCircle: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: theme.colors.blue,
-      alignItems: 'center',
-      justifyContent: 'center',
-  } as ViewStyle,
-  gpsTextColumn: {
-      flex: 1,
-  } as ViewStyle,
-  gpsMainText: {
-      fontSize: 14,
-      fontFamily: 'NunitoSans_700Bold',
-      color: '#1f2937',
-  } as TextStyle,
-  gpsSubText: {
-      fontSize: 12,
-      fontFamily: 'NunitoSans_400Regular',
-      color: '#4b5563',
-  } as TextStyle,
-  quizBox: {
-    padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    borderRadius: 12,
+  quizResultBox: {
     alignItems: 'center',
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 10,
   } as ViewStyle,
   quizScore: {
-    fontSize: 18,
-    fontFamily: 'NunitoSans_700Bold',
-    color: '#1f2937',
+    fontSize: 24,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    color: '#111827',
   } as TextStyle,
   quizSub: {
-    fontSize: 12,
-    color: '#4b5563',
-  } as TextStyle,
-  noteBox: {
-    backgroundColor: 'rgba(255,0,0,0.05)',
-    padding: 8,
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: theme.colors.destructiveText,
-  } as ViewStyle,
-  noteLabel: {
     fontSize: 10,
     fontFamily: 'NunitoSans_700Bold',
-    color: theme.colors.destructiveText,
+    color: '#4b5563',
+    letterSpacing: 0.5,
+  } as TextStyle,
+  gpsPinContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    padding: 10,
+    borderRadius: 12,
+  } as ViewStyle,
+  gpsPinCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  } as ViewStyle,
+  gpsPinMain: {
+    fontSize: 14,
+    fontFamily: 'NunitoSans_700Bold',
+    color: '#111827',
+  } as TextStyle,
+  gpsPinSub: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontFamily: 'NunitoSans_400Regular',
+  } as TextStyle,
+  noteBox: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: 'rgba(249, 115, 22, 0.08)',
+    padding: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.orange,
+  } as ViewStyle,
+  noteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  } as ViewStyle,
+  noteLabel: {
+    fontSize: 8,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    color: theme.colors.orange,
+    letterSpacing: 0.5,
   } as TextStyle,
   noteText: {
     fontSize: 12,
-    color: '#1f2937',
+    color: '#4b5563',
     fontStyle: 'italic',
+    lineHeight: 16,
   } as TextStyle,
   footer: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
     alignItems: 'flex-end',
   } as ViewStyle,
   statusRow: {
@@ -218,6 +335,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 10,
     fontFamily: 'NunitoSans_700Bold',
-    color: '#666',
+    color: '#6b7280',
   } as TextStyle,
 });

@@ -383,6 +383,7 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
       metadata: {
         missionTitle: mission.title,
       },
+      mode,
       ownerUid: uid,
       payload: text,
       sourceId: missionId,
@@ -457,6 +458,7 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
       metadata: {
         missionTitle: mission.title,
       },
+      mode,
       ownerUid: uid,
       payload: photoPath,
       sourceId: missionId,

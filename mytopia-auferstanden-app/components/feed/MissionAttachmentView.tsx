@@ -20,7 +20,7 @@ export function MissionAttachmentView({
   attachment: Extract<NarrativeAttachmentDto, { _type: 'missionAttachment' }>;
   userInteraction?: boolean;
 }) {
-  const { focusedMissionId, setFocus } = useActiveMission();
+  const { focusedMissionId, setFocus, startMission } = useActiveMission();
   const { user } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
@@ -122,9 +122,9 @@ export function MissionAttachmentView({
     </View>
   );
 
-  if (isFocused) {
+  if (isAvailable) {
     return (
-      <View style={styles.orangeFocused}>
+      <Pressable style={styles.orange} onPress={() => startMission(attachment.missionId)}>
         {attachment.imageUrl && (
           <AppImage
             uri={attachment.imageUrl}
@@ -133,7 +133,7 @@ export function MissionAttachmentView({
           />
         )}
         {content}
-      </View>
+      </Pressable>
     );
   }
 

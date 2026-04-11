@@ -9,17 +9,7 @@ import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/t
 import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
-/**
- * Feature flag: Enable native iOS 18+ bottom accessory with liquid glass effect.
- * 
- * TESTING: Temporarily enabled with proper state lifting to fix:
- * 1. Duplicate/offset text on navigation back (caused by dual-instance rendering)
- * 2. minimizeBehavior="onScrollUp" not re-expanding on scroll down
- * 
- * State is now lifted to ActiveMissionContext per Expo Router requirements.
- * If issues persist, disable and continue with fallback.
- */
-const ENABLE_NATIVE_BOTTOM_ACCESSORY = true;
+import { FEATURES } from '@/src/config/features';
 
 export default function TabLayout() {
   return <TabLayoutInner />;
@@ -29,7 +19,7 @@ function TabLayoutInner() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
   const { unreadCount } = useNarrativeSignal();
   const { focusedMissionId } = useActiveMission();
-  const supportsNativeBottomAccessory = ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
+  const supportsNativeBottomAccessory = FEATURES.ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
 
   if (!isHydrated) {
     return (
@@ -55,7 +45,7 @@ function TabLayoutInner() {
         // @ts-ignore — nativeContainerStyle passes through to Tabs.Host (react-native-screens)
         nativeContainerStyle={{ backgroundColor: theme.colors.background }}
         backgroundColor={theme.colors.background}
-        minimizeBehavior={supportsNativeBottomAccessory ? 'onScrollUp' : undefined}
+
         blurEffect="systemThickMaterialDark"
         indicatorColor="#3b83f646"
         rippleColor="transparent"
@@ -129,14 +119,14 @@ function TabLayoutInner() {
 
         <NativeTabs.Trigger name="index" hidden />
 
-        {supportsNativeBottomAccessory && !focusedMissionId && (
+        {FEATURES.SHOW_ACTIVE_MISSION_BAR && supportsNativeBottomAccessory && !focusedMissionId && (
           <NativeTabs.BottomAccessory>
             <NativeActiveMissionBar />
           </NativeTabs.BottomAccessory>
         )}
       </NativeTabs>
 
-      {!supportsNativeBottomAccessory && !focusedMissionId && <FallbackActiveMissionBar />}
+      {FEATURES.SHOW_ACTIVE_MISSION_BAR && !supportsNativeBottomAccessory && !focusedMissionId && <FallbackActiveMissionBar />}
     </View>
   );
 }
