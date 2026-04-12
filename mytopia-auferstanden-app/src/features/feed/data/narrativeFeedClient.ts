@@ -56,6 +56,7 @@ export type NarrativeAttachmentDto =
     kind: 'gps' | 'quiz' | 'text' | 'photo';
     payload: any;
     missionTitle: string;
+    missionId?: string;
     moderatorNote?: string;
   };
 
@@ -372,6 +373,7 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       kind: raw.kind as any,
       payload: raw.payload,
       missionTitle: asNonEmptyString(raw.missionTitle) ?? '',
+      missionId: asNonEmptyString(raw.missionId) ?? undefined,
       moderatorNote: asNonEmptyString(raw.moderatorNote) ?? undefined,
     };
   }

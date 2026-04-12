@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import Animated, { 
+  useAnimatedStyle, 
+  interpolateColor, 
+  useSharedValue, 
+  withTiming, 
+  withSequence,
+  withDelay
+} from 'react-native-reanimated';
 import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 const TAIL_WIDTH = 20;
 const TAIL_HEIGHT = 12;
@@ -45,18 +54,48 @@ export function MessageBubble({
   userInteraction?: boolean;
 }) {
   const isUser = message.isUser;
-  // Don't show avatars for user messages to look like WhatsApp/Telegram
   const effectiveShowAvatar = showAvatar && !isUser;
-  // Don't show name for user unless specifically requested
   const effectiveShowName = showName && !isUser;
 
+  const { highlightedMissionId } = useActiveMission();
+  const highlightProgress = useSharedValue(0);
+
+  const isTargetMission = 
+    message.attachment?._type === 'missionAttachment' && 
+    (
+      (message.attachment as any).missionId === highlightedMissionId || 
+      (message.attachment as any).missionTitle === highlightedMissionId
+    );
+
+  useEffect(() => {
+    if (isTargetMission) {
+      // Single elegant pulse
+      highlightProgress.value = withSequence(
+        withTiming(1, { duration: 500 }),
+        withDelay(1500, withTiming(0, { duration: 800 }))
+      );
+    } else {
+      highlightProgress.value = withTiming(0, { duration: 200 });
+    }
+  }, [isTargetMission, highlightProgress]);
+
+  const animatedBubbleStyle = useAnimatedStyle(() => {
+    const defaultColor = isUser ? theme.colors.accent : theme.colors.beige;
+    // Highlight effect: light amber for user, standard gray pulse for mission
+    // Highlight effect: more prominent orange pulse
+    const highlightColor = isUser ? '#facc15' : '#f97316'; // Solid orange pulse for mission
+    
+    return {
+      backgroundColor: interpolateColor(
+        highlightProgress.value,
+        [0, 1],
+        [defaultColor, highlightColor]
+      ) as string
+    };
+  });
+
   return (
-    <View style={[
-      styles.messageRow, 
-      isUser && styles.messageRowUser,
-      containerStyle, 
-      effectiveShowAvatar && { paddingBottom: 24 }
-    ]}>
+    <View style={[styles.messageRow, isUser && styles.messageRowUser, containerStyle]}>
       {effectiveShowAvatar && (
         <View style={styles.avatarColumn}>
           <ActorAvatar actor={message.actor} />
@@ -67,9 +106,10 @@ export function MessageBubble({
         styles.bubbleContainer,
         isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC
       ]}>
-        <View style={[
+        <Animated.View style={[
           styles.messageBubble, 
           isUser && styles.messageBubbleUser,
+          animatedBubbleStyle,
           effectiveShowAvatar && styles.lastInGroup
         ]}>
           {effectiveShowName && (
@@ -96,7 +136,7 @@ export function MessageBubble({
               userInteraction={userInteraction}
             />
           )}
-        </View>
+        </Animated.View>
         {(effectiveShowAvatar || isUser) && <BubbleTail isUser={isUser} />}
       </View>
     </View>
@@ -107,10 +147,11 @@ const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    position: 'relative'
+    position: 'relative',
+    marginBottom: 12,
   } as ViewStyle,
   messageRowUser: {
-    paddingLeft: 40, // Ensure user messages don't touch left edge fully either
+    paddingLeft: 40,
   } as ViewStyle,
   avatarColumn: {
     position: 'absolute',
@@ -138,7 +179,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   messageBubbleUser: {
     backgroundColor: theme.colors.accent,
-    borderBottomRightRadius: 8, // Less aggressive rounding to prevent overlap with tail area
+    borderBottomRightRadius: 8,
   } as ViewStyle,
   lastInGroup: {} as ViewStyle,
   tailWrap: {
@@ -165,6 +206,6 @@ const styles = StyleSheet.create({
     lineHeight: 20
   } as TextStyle,
   messageTextUser: {
-    color: '#1f2937', // Slightly darker text for contrast on accent background
+    color: '#1f2937',
   } as TextStyle,
 });

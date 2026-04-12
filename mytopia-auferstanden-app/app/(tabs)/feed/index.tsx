@@ -59,7 +59,7 @@ export default function FeedScreen() {
   const { selectedMode, user } = useSession();
   const { lastSeenTime, markAsRead, pulse } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
-  const { focusedMissionId, registerScrollHandler, registerOptimisticHandler } = useActiveMission();
+  const { focusedMissionId, registerScrollHandler, registerOptimisticHandler, highlightMission } = useActiveMission();
   const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
 
   const requestVersionRef = useRef(0);
@@ -309,23 +309,35 @@ export default function FeedScreen() {
   }, [loadFirstPage, pulse, user]);
 
   useEffect(() => {
-    const handleScrollToMessage = (missionId: string) => {
+    const handleScrollToMessage = (missionIdOrTitle: string) => {
       hasUserInteractedRef.current = true;
-      const targetIndex = localFeedItems.findIndex(item => 
-        item.type === 'message' && 
-        (item.data.message.attachment?._type === 'missionAttachment' && (item.data.message.attachment as any).missionId === missionId)
-      );
+      const targetIndex = localFeedItems.findIndex(item => {
+        if (item.type !== 'message') return false;
+        const attachment = item.data.message.attachment;
+        if (attachment?._type !== 'missionAttachment') return false;
+        
+        const m = attachment as any;
+        // Match by ID primarily, or Title as fallback
+        return m.missionId === missionIdOrTitle || m.missionTitle === missionIdOrTitle;
+      });
+
       if (targetIndex === -1) return;
       listRef.current?.scrollToIndex({
         animated: true,
         index: targetIndex,
-        viewOffset: 40,
-        viewPosition: 0,
+        viewOffset: 60,
+        viewPosition: 0.5,
       });
+      
+      // Also trigger highlight in the context if we found it
+      const foundMissionId = (localFeedItems[targetIndex].data.message.attachment as any)?.missionId;
+      if (foundMissionId) {
+        highlightMission(foundMissionId);
+      }
     };
     registerScrollHandler(handleScrollToMessage);
     return () => registerScrollHandler(null);
-  }, [localFeedItems, registerScrollHandler]);
+  }, [localFeedItems, registerScrollHandler, highlightMission]);
 
   useEffect(() => {
     registerOptimisticHandler(setBundles);

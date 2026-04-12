@@ -76,7 +76,7 @@ export const MissionChatInput: React.FC = () => {
     const newAnswers = [...quizAnswers, index];
     
     // Insert answer bubble
-    insertQuizAnswerBubble(activeMission.title, text);
+    insertQuizAnswerBubble(activeMission._id, activeMission.title, text);
     
     if (isLast) {
       setQuizAnswers(newAnswers);

@@ -37,9 +37,11 @@ type ActiveMissionContextValue = {
   startMission: (missionId: string) => Promise<void>;
   completeMission: (missionId: string, result: any) => Promise<void>;
   scrollToMessage: (missionId: string) => void;
+  highlightedMissionId: string | null;
+  highlightMission: (missionId: string) => void;
   registerScrollHandler: (handler: ((missionId: string) => void) | null) => void;
   registerOptimisticHandler: (handler: ((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null) => void;
-  insertQuizAnswerBubble: (questionText: string, answerText: string) => void;
+  insertQuizAnswerBubble: (missionId: string, missionTitle: string, answerText: string) => void;
 };
 
 const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(null);
@@ -49,6 +51,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [focusedMissionId, setFocusedMissionId] = useState<string | null>(null);
+  const [highlightedMissionId, setHighlightedMissionId] = useState<string | null>(null);
   const scrollHandlerRef = React.useRef<((missionId: string) => void) | null>(null);
   const optimisticHandlerRef = React.useRef<((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null>(null);
 
@@ -172,7 +175,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }
   };
 
-  const insertQuizAnswerBubble = (missionTitle: string, answerText: string) => {
+  const insertQuizAnswerBubble = (missionId: string, missionTitle: string, answerText: string) => {
     const id = `quiz-ans-${Date.now()}`;
     const bundle: NarrativeBundleDto = {
       _id: id,
@@ -185,6 +188,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
           attachment: {
             _type: 'submissionAttachment',
             kind: 'quiz',
+            missionId: missionId,
             missionTitle: missionTitle,
             payload: { answerText },
             status: 'approved',
@@ -215,6 +219,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             _type: 'submissionAttachment',
             kind: mission.kind as any,
             missionTitle: mission.title,
+            missionId: missionId,
             payload: result,
             status: 'sending',
             submissionId: idempotencyId,
@@ -304,8 +309,16 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     scrollHandlerRef.current = handler;
   };
 
+  const highlightMission = (missionId: string) => {
+    setHighlightedMissionId(missionId);
+    setTimeout(() => {
+      setHighlightedMissionId(null);
+    }, 3000); // Highlight for 3 seconds
+  };
+
   const scrollToMessage = (missionId: string) => {
     scrollHandlerRef.current?.(missionId);
+    highlightMission(missionId);
   };
 
   const value = useMemo(
@@ -318,11 +331,13 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       startMission,
       completeMission,
       scrollToMessage,
+      highlightedMissionId,
+      highlightMission,
       registerScrollHandler,
       registerOptimisticHandler,
       insertQuizAnswerBubble
     }),
-    [activeMission, availableMissions, focusedMissionId, isLoading]
+    [activeMission, availableMissions, focusedMissionId, isLoading, highlightedMissionId]
   );
 
   return (

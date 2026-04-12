@@ -1,16 +1,16 @@
-import React from 'react';
-import { StyleSheet, View, Text, ActivityIndicator, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { AppImage } from '@/src/shared/ui/AppImage';
-import { MISSION_KIND_METADATA, type MissionKind } from '@/src/features/tasks/data/missionRepository';
+import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 export type SubmissionStatus = 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
 
 /**
  * A unified look for mission submissions ("sent" messages).
  * Structure:
- * 1. Unified header with mission info
+ * 1. Unified header with mission info (Tappable to jump to mission)
  * 2. User's specific answer (text, photo, quiz result, or GPS pin)
  * 3. Status indicator
  */
@@ -20,6 +20,7 @@ export function SubmissionAttachmentView({
   kind,
   payload,
   missionTitle,
+  missionId,
   moderatorNote,
   messageText,
 }: {
@@ -28,29 +29,35 @@ export function SubmissionAttachmentView({
   kind: MissionKind;
   payload: any;
   missionTitle: string;
+  missionId?: string;
   moderatorNote?: string;
   messageText?: string;
 }) {
-  const meta = MISSION_KIND_METADATA[kind] || { emoji: '🎯', label: 'Mission' };
+  const { scrollToMessage } = useActiveMission();
   const effectiveText = payload?.text || messageText;
+
+  const handlePressReference = () => {
+    // Try scrolling by ID if we have it, otherwise fallback to Title
+    scrollToMessage(missionId || missionTitle);
+  };
 
   return (
     <View style={styles.container}>
       {/* 1. Unified Header (The referenced mission) */}
-      <View style={styles.header}>
+      <Pressable 
+        style={({ pressed }) => [
+          styles.header,
+          pressed && { backgroundColor: 'rgba(0,0,0,0.1)' }
+        ]} 
+        onPress={handlePressReference}
+      >
         <View style={styles.headerIndicator} />
         <View style={styles.headerContent}>
-          <View style={styles.row}>
-            <Text style={styles.missionEmoji}>{meta.emoji}</Text>
-            <View>
-              <Text style={styles.missionLabel}>{meta.label.toUpperCase()}</Text>
-              <Text style={styles.missionTitle} numberOfLines={1}>
-                {missionTitle}
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.missionTitle} numberOfLines={1}>
+            {missionTitle}
+          </Text>
         </View>
-      </View>
+      </Pressable>
 
       {/* 2. Answer Content Area */}
       <View style={styles.answerArea}>
@@ -183,72 +190,58 @@ const styles = StyleSheet.create({
   container: {
     minWidth: 220,
     alignSelf: 'stretch',
-    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 14,
     overflow: 'hidden',
   } as ViewStyle,
   header: {
     flexDirection: 'row',
     backgroundColor: 'rgba(0,0,0,0.05)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-    padding: 8,
+    borderRadius: 14,
+    padding: 6,
     gap: 8,
   } as ViewStyle,
   headerIndicator: {
     width: 3,
     backgroundColor: theme.colors.orange,
-    borderRadius: 2,
+    borderTopLeftRadius: 4,
+    borderBottomLeftRadius: 4,
   } as ViewStyle,
   headerContent: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 4,
+    justifyContent: 'center',
   } as ViewStyle,
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   } as ViewStyle,
-  missionEmoji: {
-    fontSize: 20,
-  } as TextStyle,
-  missionLabel: {
-    fontSize: 9,
-    fontFamily: 'NunitoSans_700Bold',
-    color: '#4b5563',
-    letterSpacing: 0.5,
-  } as TextStyle,
   missionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'NunitoSans_700Bold',
-    color: '#111827',
+    color: 'rgba(0,0,0,0.6)',
   } as TextStyle,
   answerArea: {
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 2,
     gap: 8,
   } as ViewStyle,
   textAnswerBox: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    padding: 10,
-    borderRadius: 12,
+    // Background removed as requested
   } as ViewStyle,
   answerText: {
-    fontSize: 14,
-    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 16,
+    fontFamily: 'NunitoSans_400Regular',
     color: '#1f2937',
-    lineHeight: 18,
+    lineHeight: 22,
   } as TextStyle,
   photoContainer: {
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: 'rgba(0,0,0,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
   } as ViewStyle,
   photo: {
     width: '100%',
-    height: 200,
+    height: 220,
   } as ImageStyle,
   quizBox: {
     gap: 8,
@@ -257,18 +250,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    padding: 8,
-    borderRadius: 8,
+    paddingVertical: 4,
   } as ViewStyle,
   quizResultBox: {
     alignItems: 'center',
-    padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 10,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 12,
   } as ViewStyle,
   quizScore: {
-    fontSize: 24,
+    fontSize: 28,
     fontFamily: 'NunitoSans_800ExtraBold',
     color: '#111827',
   } as TextStyle,
@@ -282,9 +273,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    padding: 10,
-    borderRadius: 12,
+    paddingVertical: 4,
   } as ViewStyle,
   gpsPinCircle: {
     width: 40,
@@ -293,11 +282,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.blue,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   } as ViewStyle,
   gpsPinMain: {
     fontSize: 14,
@@ -310,8 +294,7 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_400Regular',
   } as TextStyle,
   noteBox: {
-    marginHorizontal: 12,
-    marginBottom: 8,
+    marginVertical: 8,
     backgroundColor: 'rgba(249, 115, 22, 0.08)',
     padding: 8,
     borderRadius: 8,
@@ -337,8 +320,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   } as TextStyle,
   footer: {
-    paddingHorizontal: 12,
-    paddingBottom: 8,
+    paddingBottom: 2,
     alignItems: 'flex-end',
   } as ViewStyle,
   statusRow: {
