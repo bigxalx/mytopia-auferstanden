@@ -54,6 +54,18 @@ export const quizQuestion = defineType({
             description: 'Trage mindestens zwei Antwortoptionen ein. Genau eine muss als richtig markiert sein.',
             validation: (rule) => rule.required().min(2).max(6),
         }),
+        defineField({
+            name: 'feedbackCorrect',
+            title: 'Feedback (Richtig)',
+            description: 'Spezifisches Feedback für diese Frage.',
+            type: 'string',
+        }),
+        defineField({
+            name: 'feedbackIncorrect',
+            title: 'Feedback (Falsch)',
+            description: 'Spezifisches Feedback für diese Frage.',
+            type: 'string',
+        }),
     ],
     validation: (rule) =>
         rule.custom((value) => {
@@ -96,6 +108,18 @@ export const mission = defineType({
     type: 'document',
     icon: TargetIcon,
     fields: [
+        defineField({
+            name: 'feedbackCorrect',
+            title: 'Feedback (Richtig)',
+            description: 'Wird angezeigt, wenn der Benutzer die Mission erfolgreich abschließt.',
+            type: 'string',
+        }),
+        defineField({
+            name: 'feedbackIncorrect',
+            title: 'Feedback (Falsch)',
+            description: 'Wird angezeigt, wenn der Benutzer die Mission nicht erfolgreich abschließt (z.B. Quiz nicht bestanden).',
+            type: 'string',
+        }),
         defineField({
             name: 'title',
             title: 'Titel',

@@ -9,6 +9,7 @@ import {
   videoAttachment,
 } from './narrativeBundle';
 import { sammelaufgabe } from './sammelaufgabe';
+import { siteSettings } from './siteSettings';
 
 export const schemaTypes = [
   mission,
@@ -22,4 +23,5 @@ export const schemaTypes = [
   narrativeMessage,
   narrativeBundle,
   sammelaufgabe,
+  siteSettings,
 ];

@@ -134,6 +134,7 @@ export function MessageBubble({
               gallerySources={gallerySources}
               onImagePress={onImagePress}
               userInteraction={userInteraction}
+              actor={message.actor}
             />
           )}
         </Animated.View>

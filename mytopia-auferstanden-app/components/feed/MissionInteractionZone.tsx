@@ -4,13 +4,14 @@ import { theme } from '@/src/shared/ui/theme';
 import { type MissionKind, submitQuizCompletion, submitTextMission, submitGpsCompletion } from '@/src/features/tasks/data/missionRepository';
 import { useSession } from '@/src/core/session/SessionContext';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
 
 interface Props {
   missionId: string;
   kind: MissionKind;
   questions?: {
     questionText: string;
-    options: string[];
+    options: { text: string; isCorrect: boolean }[];
   }[];
   onSuccess?: () => void;
   showStartOnly?: boolean; // New prop to force "Start Only" mode if needed
@@ -20,14 +21,15 @@ interface Props {
     radiusMeters: number;
   };
   compact?: boolean;
+  actor: NarrativeMessageDto['actor'];
 }
 
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
 import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
 
-export function MissionInteractionZone({ missionId, kind, questions, onSuccess, showStartOnly, gpsConfig, compact = false }: Props) {
+export function MissionInteractionZone({ missionId, kind, questions, onSuccess, showStartOnly, gpsConfig, actor, compact = false }: Props) {
   const { selectedMode } = useSession();
-  const { focusedMissionId, setFocus, activeMission, scrollToMessage } = useActiveMission();
+  const { focusedMissionId, setFocus, activeMission, scrollToMessage, startChatQuiz } = useActiveMission();
   const isFocused = focusedMissionId === missionId;
   const missionTitle = activeMission?._id === missionId ? activeMission.title : 'Mission';
 
@@ -37,7 +39,14 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
   const handleStartMission = async () => {
     setIsSubmitting(true);
     try {
-      await setFocus(missionId);
+      if (kind === 'quiz') {
+        await startChatQuiz(missionId, actor, {
+          title: missionTitle,
+          questions: questions,
+        });
+      } else {
+        await setFocus(missionId);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -128,14 +137,10 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
       {renderReference()}
       
       <View style={styles.interactionArea}>
-        {kind === 'quiz' && questions && questions[0] && (
-          <QuizRunner
-            embedded
-            missionId={missionId}
-            missionTitle="Quiz"
-            questions={questions}
-            onComplete={(answers) => submitQuizCompletion(missionId, answers, selectedMode)}
-          />
+        {kind === 'quiz' && (
+           <View style={styles.chatFlowInfo}>
+             <Text style={styles.chatFlowText}>Quiz läuft im Chat...</Text>
+           </View>
         )}
 
         {kind === 'text' && (
@@ -328,5 +333,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  chatFlowInfo: {
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 12,
+  },
+  chatFlowText: {
+    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 14,
+    color: '#666',
   },
 });

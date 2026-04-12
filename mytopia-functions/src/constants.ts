@@ -59,7 +59,14 @@ export const SANITY_BUNDLE_PROJECTION = `
         "imageUrl": mission->image.asset->url,
         "questions": mission->quizConfig.questions[]{
           questionText,
-          "options": options[].text
+          "options": options[]{text, isCorrect}
+        },
+        "feedbackCorrect": mission->feedbackCorrect,
+        "feedbackIncorrect": mission->feedbackIncorrect,
+        "questionsFeedback": mission->quizConfig.questions[]{
+          questionText,
+          feedbackCorrect,
+          feedbackIncorrect
         },
         "gpsConfig": mission->gpsConfig{
           "latitude": location.lat,
@@ -110,7 +117,9 @@ export const MISSION_DETAIL_PROJECTION = `
   "questions": quizConfig.questions[]{
     questionText,
     "optionCount": count(options),
-    "options": options[].text
+    "options": options[]{text, isCorrect},
+    feedbackCorrect,
+    feedbackIncorrect
   },
   feedbackCorrect,
   feedbackIncorrect
@@ -125,7 +134,9 @@ export const MISSION_SCORING_PROJECTION = `
   expiresAt,
   "questions": quizConfig.questions[]{
     questionText,
-    "options": options[]{text, isCorrect}
+    "options": options[]{text, isCorrect},
+    feedbackCorrect,
+    feedbackIncorrect
   },
   feedbackCorrect,
   feedbackIncorrect

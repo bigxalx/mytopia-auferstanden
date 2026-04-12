@@ -2,6 +2,7 @@ import { defineConfig } from 'sanity';
 import { structureTool } from 'sanity/structure';
 import { googleMapsInput } from '@sanity/google-maps-input';
 import { colorInput } from '@sanity/color-input';
+import { CogIcon } from '@sanity/icons';
 
 import { schemaTypes } from './schemas';
 
@@ -44,6 +45,14 @@ export default defineConfig({
                     S.documentTypeListItem('mission').title('Alle Einzelmissionen'),
                     S.documentTypeListItem('sammelaufgabe').title('Sammelaufgaben (Mission-Gruppen)'),
                   ])
+              ),
+            S.listItem()
+              .title('Einstellungen')
+              .icon(CogIcon)
+              .child(
+                S.document()
+                  .schemaType('siteSettings')
+                  .documentId('siteSettings')
               ),
           ]),
     }),

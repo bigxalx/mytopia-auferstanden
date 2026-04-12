@@ -102,6 +102,8 @@ export type MissionDto = {
       questions?: Array<{
         options: Array<{ isCorrect: boolean; text: string }>;
         questionText: string;
+        feedbackCorrect?: string;
+        feedbackIncorrect?: string;
       }>;
       title: string;
       feedbackCorrect?: string;

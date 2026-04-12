@@ -12,6 +12,14 @@
 - When asked for "today's task", check Linear first (assigned issues, due dates, and status).
 - Prefer Linear issue identifiers (for example `MYT-9`) in updates and commit/PR context.
 
+## Quality Assurance (QA)
+
+- **Verification:** Always verify significant changes by running `bun run lint` and checking for TypeScript errors (`tsc`).
+- **Workspace Specifics:**
+  - In `mytopia-auferstanden-app/`, use `bun run lint` (runs `expo lint`).
+  - In `mytopia-functions/`, use `bun run build` (runs `tsc`).
+- **Reminders:** Ensure no new lint warnings or type errors are introduced before concluding a task.
+
 ## Tooling
 
 - **Always use `bun`** as the package manager (`bun install`, `bun add`, `bun run`, etc.).

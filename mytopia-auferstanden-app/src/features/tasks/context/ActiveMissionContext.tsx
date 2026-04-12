@@ -2,8 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
-import { type AppMode } from '@/src/core/session/appMode';
-import * as authUtils from '@react-native-firebase/auth';
 import { 
   fetchMissions, 
   getCachedMissions, 
@@ -11,10 +9,13 @@ import {
   submitGpsCompletion, 
   submitPhotoMission, 
   submitQuizCompletion, 
-  submitTextMission 
+  submitTextMission,
+  fetchSettings
 } from '@/src/features/tasks/data/missionRepository';
-import { type NarrativeBundleDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { type NarrativeBundleDto, type NarrativeAttachmentDto, type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { AppMode, useAppMode } from '@/src/core/session/appMode';
 import { useSession } from '@/src/core/session/SessionContext';
+import { resolveMessageDelayMs } from '@/src/features/feed/utils/playback';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStatus';
@@ -42,6 +43,25 @@ type ActiveMissionContextValue = {
   registerScrollHandler: (handler: ((missionId: string) => void) | null) => void;
   registerOptimisticHandler: (handler: ((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null) => void;
   insertQuizAnswerBubble: (missionId: string, missionTitle: string, answerText: string) => void;
+
+  // Quiz Conversation Flow
+  quizSession: QuizSession | null;
+  setQuizSession: (session: QuizSession | null) => void;
+  clearQuizMessages: () => void;
+  startChatQuiz: (missionId: string, actor: NarrativeMessageDto['actor'], data?: any) => Promise<void>;
+  submitQuizStep: (optionIndex: number) => Promise<void>;
+};
+
+type QuizSession = {
+  missionId: string;
+  currentIndex: number;
+  actor: NarrativeMessageDto['actor'];
+  answers: number[];
+  isFinished: boolean;
+  totalQuestions: number;
+  questions: any[]; // Store questions directly to avoid list lookup issues
+  missionTitle: string;
+  showPicker: boolean; // Timing control for UI
 };
 
 const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(null);
@@ -57,6 +77,17 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
+
+  // Conversation Flow State
+  const [quizSession, setQuizSession] = useState<QuizSession | null>(null);
+  const [siteSettings, setSiteSettings] = useState<any>(null);
+
+  // Fetch Site Settings on mount
+  useEffect(() => {
+    fetchSettings(selectedMode)
+      .then(setSiteSettings)
+      .catch(err => console.error('[ActiveMission] Failed to fetch settings:', err));
+  }, [selectedMode]);
 
   // Load focused mission ID from storage
   useEffect(() => {
@@ -155,9 +186,66 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       title: 'Notfallkanal',
     };
 
-    // We use a custom flag or convention for system messages in the DTO if needed,
-    // but for now we'll just insert a bubble that MessageBubble will render.
     upsertOptimisticBundle(virtualBundle);
+  };
+  
+  const clearQuizMessages = () => {
+    const handler = optimisticHandlerRef.current;
+    if (handler) {
+      handler((prev) => prev.filter(b => 
+        !b._id.startsWith('npc-msg-') && 
+        !b._id.startsWith('user-msg-')
+      ));
+    }
+  };
+
+  const insertUserMessage = (actor: NarrativeMessageDto['actor'], text: string, releaseOffsetMs: number = 0) => {
+    const id = `user-msg-${Date.now()}`;
+    const releaseAt = new Date(Date.now() + releaseOffsetMs).toISOString();
+    
+    const virtualBundle: NarrativeBundleDto = {
+      _id: id,
+      messages: [{
+        _key: id,
+        text,
+        actor,
+        isUser: true,
+        messageId: id,
+      }],
+      releaseAt,
+      title: 'Besucher',
+      isUser: true,
+    };
+
+    upsertOptimisticBundle(virtualBundle);
+  };
+
+  const insertNpcMessage = (actor: NarrativeMessageDto['actor'], text: string, attachment?: NarrativeAttachmentDto, releaseOffsetMs: number = 0) => {
+    const id = `npc-msg-${Date.now() + releaseOffsetMs}`; // Slight offset for ID uniqueness
+    const releaseAt = new Date(Date.now() + releaseOffsetMs).toISOString();
+
+    const virtualBundle: NarrativeBundleDto = {
+      _id: id,
+      messages: [{
+        _key: id,
+        text,
+        actor,
+        attachment,
+        messageId: id,
+      }],
+      releaseAt,
+      title: 'Notfallkanal',
+    };
+
+    upsertOptimisticBundle(virtualBundle);
+
+    // Calculate how long this message takes to "play"
+    return resolveMessageDelayMs({ 
+      text, 
+      attachment, 
+      actor, 
+      messageId: id 
+    });
   };
 
   const upsertOptimisticBundle = (bundle: NarrativeBundleDto) => {
@@ -176,30 +264,141 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   };
 
   const insertQuizAnswerBubble = (missionId: string, missionTitle: string, answerText: string) => {
-    const id = `quiz-ans-${Date.now()}`;
-    const bundle: NarrativeBundleDto = {
-      _id: id,
-      isUser: true,
-      messages: [
-        {
-          actor: { name: user?.displayName || 'Ich' },
-          messageId: `${id}-msg`,
-          isUser: true,
-          attachment: {
-            _type: 'submissionAttachment',
-            kind: 'quiz',
-            missionId: missionId,
-            missionTitle: missionTitle,
-            payload: { answerText },
-            status: 'approved',
-            submissionId: id,
-          },
-        },
-      ],
-      releaseAt: new Date().toISOString(),
-      title: 'Quiz Antwort',
-    };
-    upsertOptimisticBundle(bundle);
+    insertUserMessage({ name: user?.displayName || 'Ich' }, answerText);
+  };
+
+  const startChatQuiz = async (
+    missionId: string, 
+    actor: NarrativeMessageDto['actor'],
+    data?: { title?: string; questions?: any[]; description?: string; imageUrl?: string }
+  ) => {
+    if (quizSession?.missionId === missionId) return;
+    clearQuizMessages();
+    const cached = missions.find(m => m._id === missionId);
+    const mission = { ...cached, ...data };
+
+    if (!mission || !mission.questions) return;
+
+    scrollToMessage('bottom');
+    await new Promise(resolve => setTimeout(resolve, 400));
+
+    setQuizSession({
+      missionId,
+      currentIndex: 0,
+      actor,
+      answers: [],
+      isFinished: false,
+      totalQuestions: mission.questions.length,
+      questions: mission.questions,
+      missionTitle: mission.title || 'Mission',
+      showPicker: false,
+    });
+
+    // 1. Mission Intro (Image + Description)
+    const introText = mission.description || `Bist du bereit für die Mission: ${mission.title}?`;
+    const introDelay = insertNpcMessage(
+      actor, 
+      introText, 
+      mission.imageUrl ? {
+        _type: 'imageAttachment',
+        url: mission.imageUrl,
+        caption: mission.title,
+      } : undefined, 
+      0
+    );
+
+    // 2. First Question (Staggered)
+    setTimeout(() => {
+      const qText = mission.questions![0].questionText;
+      const qDelay = insertNpcMessage(actor, qText, undefined, 0);
+
+      setTimeout(() => {
+        setQuizSession(prev => prev ? { ...prev, showPicker: true } : null);
+        scrollToMessage('bottom');
+      }, qDelay + 200);
+    }, introDelay + 250);
+  };
+
+  const submitQuizStep = async (optionIndex: number) => {
+    const session = quizSession;
+    if (!session) return;
+    
+    const choice = quizSession?.questions[session.currentIndex].options[optionIndex];
+    if (!choice) return;
+    const isCorrect = choice.isCorrect;
+    const isLastQuestion = session.currentIndex === session.totalQuestions - 1;
+    const newAnswers = [...session.answers, optionIndex];
+
+    setQuizSession(prev => prev ? { ...prev, answers: newAnswers, showPicker: false } : null);
+
+    // 1. User Message
+    insertUserMessage(session.actor, choice.text, 0);
+
+    // 2. Feedback (Short Delay)
+    setTimeout(() => {
+      const mission = missions.find(m => m._id === session.missionId);
+      const question = mission?.questions?.[session.currentIndex];
+      
+      const feedback = isCorrect 
+        ? (question?.feedbackCorrect || mission?.feedbackCorrect || siteSettings?.defaultQuizFeedbackCorrect || 'Richtig!')
+        : (question?.feedbackIncorrect || mission?.feedbackIncorrect || siteSettings?.defaultQuizFeedbackIncorrect || 'Leider nicht richtig.');
+      
+      const fDelay = insertNpcMessage(session.actor, feedback, undefined, 0);
+
+      if (isLastQuestion) {
+        setTimeout(() => {
+          completeMission(session.missionId, newAnswers);
+          setQuizSession(null);
+        }, fDelay + 500);
+      } else {
+        setTimeout(() => {
+          const nextIdx = session.currentIndex + 1;
+          const qDelay = insertNpcMessage(session.actor, session.questions[nextIdx].questionText, undefined, 0);
+
+          setTimeout(() => {
+            setQuizSession(prev => prev ? { ...prev, currentIndex: nextIdx, showPicker: true } : null);
+            scrollToMessage('bottom');
+          }, qDelay + 200);
+        }, fDelay + 300);
+      }
+    }, 400);
+  };
+
+
+  const finalizeQuiz = async (mission: MissionListItem, answers: number[]) => {
+    try {
+      const apiResult = await submitQuizCompletion(mission._id, answers, selectedMode);
+      
+      // Inject Scorecard Bubble
+      const id = `scorecard-${Date.now()}`;
+      const bundle: NarrativeBundleDto = {
+        _id: id,
+        messages: [
+          {
+            actor: quizSession?.actor ?? { name: 'System' },
+            messageId: `${id}-msg`,
+            attachment: {
+               _type: 'scorecardAttachment',
+               correct: apiResult.correctCount ?? apiResult.correct ?? 0,
+               total: apiResult.totalCount ?? apiResult.total ?? mission.questions?.length ?? 0,
+            },
+          }
+        ],
+        releaseAt: new Date().toISOString(),
+        title: 'Scorecard',
+      };
+      upsertOptimisticBundle(bundle);
+
+      if (apiResult.earned > 0) {
+        insertSystemMessage(`+${apiResult.earned} Punkte erhalten`, 0, 'prominent');
+      }
+      
+      setQuizSession(null);
+    } catch (err) {
+      console.warn('[ActiveMission] Finalize quiz failed:', err);
+      insertSystemMessage('⚠️ Fehler beim Senden des Quiz-Ergebnisses.');
+      setQuizSession(null);
+    }
   };
 
   const completeMission = async (missionId: string, result: any) => {
@@ -248,7 +447,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       } else if (mission.kind === 'gps') {
         apiResult = await submitGpsCompletion(missionId, selectedMode);
       } else if (mission.kind === 'quiz') {
-        apiResult = await submitQuizCompletion(missionId, result.answers, selectedMode);
+        apiResult = await submitQuizCompletion(missionId, Array.isArray(result) ? result : result.answers, selectedMode);
       }
 
       // 4.5. Update status to pending (or approved/rejected if API returned it)
@@ -335,9 +534,31 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       highlightMission,
       registerScrollHandler,
       registerOptimisticHandler,
-      insertQuizAnswerBubble
+      insertQuizAnswerBubble,
+      quizSession,
+      startChatQuiz,
+      submitQuizStep,
+      setQuizSession,
+      clearQuizMessages,
     }),
-    [activeMission, availableMissions, focusedMissionId, isLoading, highlightedMissionId]
+    [
+      activeMission, 
+      availableMissions, 
+      focusedMissionId, 
+      isLoading, 
+      highlightedMissionId, 
+      quizSession, 
+      startChatQuiz, 
+      submitQuizStep,
+      completeMission,
+      insertQuizAnswerBubble,
+      scrollToMessage,
+      setFocus,
+      startMission,
+      highlightMission,
+      registerScrollHandler,
+      registerOptimisticHandler
+    ]
   );
 
   return (

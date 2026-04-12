@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { Link } from 'expo-router';
 import { theme } from '@/src/shared/ui/theme';
-import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { type NarrativeAttachmentDto, type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { type MissionKind, MISSION_KIND_METADATA } from '@/src/features/tasks/data/missionRepository';
 import { AppImage } from '@/src/shared/ui/AppImage';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
@@ -16,11 +16,13 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 export function MissionAttachmentView({
   attachment,
   userInteraction = false,
+  actor,
 }: {
   attachment: Extract<NarrativeAttachmentDto, { _type: 'missionAttachment' }>;
   userInteraction?: boolean;
+  actor: NarrativeMessageDto['actor'];
 }) {
-  const { focusedMissionId, setFocus, startMission } = useActiveMission();
+  const { focusedMissionId, setFocus, startChatQuiz } = useActiveMission();
   const { user } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
@@ -57,6 +59,7 @@ export function MissionAttachmentView({
           questions={attachment.questions}
           gpsConfig={attachment.gpsConfig}
           onSuccess={handleSuccess}
+          actor={actor}
         />
      );
   }
@@ -88,6 +91,7 @@ export function MissionAttachmentView({
           questions={attachment.questions}
           gpsConfig={attachment.gpsConfig}
           onSuccess={handleSuccess}
+          actor={actor}
         />
       )}
 
@@ -122,9 +126,17 @@ export function MissionAttachmentView({
     </View>
   );
 
-  if (isAvailable) {
+  if (isAvailable && attachment.missionKind === 'quiz') {
     return (
-      <Pressable style={styles.orange} onPress={() => startMission(attachment.missionId)}>
+      <Pressable 
+        style={styles.orange} 
+        onPress={() => startChatQuiz(attachment.missionId, actor, {
+          title: attachment.missionTitle || attachment.title,
+          questions: attachment.questions,
+          description: attachment.excerpt,
+          imageUrl: attachment.imageUrl,
+        })}
+      >
         {attachment.imageUrl && (
           <AppImage
             uri={attachment.imageUrl}

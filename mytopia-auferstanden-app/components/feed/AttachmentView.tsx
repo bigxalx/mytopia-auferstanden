@@ -5,6 +5,7 @@ import { VideoAttachmentView } from './VideoAttachmentView';
 import { AudioAttachmentView } from './AudioAttachmentView';
 import { MissionAttachmentView } from './MissionAttachmentView';
 import { SubmissionAttachmentView } from './SubmissionAttachmentView';
+import { ScorecardBubble } from './ScorecardBubble';
 import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { AppImage } from '@/src/shared/ui/AppImage';
 
@@ -14,12 +15,14 @@ export function AttachmentView({
   onImagePress,
   userInteraction,
   messageText,
+  actor,
 }: {
   attachment: NarrativeAttachmentDto;
   gallerySources: { uri: string }[];
   onImagePress: (index: number) => void;
   userInteraction?: boolean;
   messageText?: string;
+  actor: NarrativeMessageDto['actor'];
 }) {
   switch (attachment._type) {
     case 'imageAttachment': {
@@ -40,9 +43,11 @@ export function AttachmentView({
     case 'audioAttachment':
       return <AudioAttachmentView attachment={attachment} />;
     case 'missionAttachment':
-      return <MissionAttachmentView attachment={attachment} userInteraction={userInteraction} />;
+      return <MissionAttachmentView attachment={attachment} userInteraction={userInteraction} actor={actor} />;
     case 'submissionAttachment':
       return <SubmissionAttachmentView {...attachment} messageText={messageText} />;
+    case 'scorecardAttachment':
+      return <ScorecardBubble correct={attachment.correct} total={attachment.total} />;
     default:
       return null;
   }

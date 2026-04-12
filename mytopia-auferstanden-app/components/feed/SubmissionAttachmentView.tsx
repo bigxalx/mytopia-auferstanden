@@ -135,8 +135,8 @@ function GpsPinSection({ status }: { status: SubmissionStatus }) {
         <Ionicons name={isError ? "alert" : "location"} size={20} color="white" />
       </View>
       <View>
-        <Text style={styles.gpsPinMain}>Standort {isDone ? 'bestätigt' : isError ? 'Fehler' : 'wird geprüft'}</Text>
-        <Text style={styles.gpsPinSub}>{isDone ? 'Check-in erfolgreich' : 'GPS-Pin gesetzt'}</Text>
+        <Text style={styles.gpsPinMain}>Standort {isDone ? 'bestätigt' : isError ? 'Fehler' : 'In Prüfung'}</Text>
+        <Text style={styles.gpsPinSub}>{isDone ? 'Erfolgreich eingereicht' : 'GPS-Check an diesem Ort'}</Text>
       </View>
     </View>
   );
@@ -147,7 +147,7 @@ function StatusIndicator({ status, payload }: { status: SubmissionStatus; payloa
     case 'sending':
       return (
         <View style={styles.statusRow}>
-          <Text style={styles.statusText}>Übermittlung...</Text>
+          <Text style={styles.statusText}>Sende...</Text>
           <ActivityIndicator size="small" color="#666" style={{ transform: [{ scale: 0.6 }] }} />
         </View>
       );
@@ -161,14 +161,14 @@ function StatusIndicator({ status, payload }: { status: SubmissionStatus; payloa
     case 'approved':
       return (
         <View style={styles.statusRow}>
-          <Text style={[styles.statusText, { color: theme.colors.successText }]}>Bestätigt</Text>
+          <Text style={[styles.statusText, { color: theme.colors.successText }]}>Erfolgreich</Text>
           <Ionicons name="checkmark-done" size={14} color={theme.colors.successText} />
         </View>
       );
     case 'rejected':
       return (
         <View style={styles.statusRow}>
-          <Text style={[styles.statusText, { color: theme.colors.destructiveText }]}>Abgelehnt</Text>
+          <Text style={[styles.statusText, { color: theme.colors.destructiveText }]}>Gescheitert</Text>
           <Ionicons name="close-circle" size={14} color={theme.colors.destructiveText} />
         </View>
       );
@@ -176,7 +176,7 @@ function StatusIndicator({ status, payload }: { status: SubmissionStatus; payloa
       return (
         <View style={styles.statusRow}>
           <Text style={[styles.statusText, { color: theme.colors.destructiveText }]}>
-            {typeof payload === 'string' ? payload : 'Fehler'}
+            Fehler: {typeof payload === 'string' ? payload : 'Unbekannt'}
           </Text>
           <Ionicons name="alert-circle" size={14} color={theme.colors.destructiveText} />
         </View>

@@ -35,6 +35,7 @@ import {
 import { useActiveMission, useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
 import { SystemMessage } from '@/components/feed/SystemMessage';
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
+import { MissionChoicePicker } from '@/components/feed/MissionChoicePicker';
 
 const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
@@ -59,7 +60,7 @@ export default function FeedScreen() {
   const { selectedMode, user } = useSession();
   const { lastSeenTime, markAsRead, pulse } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
-  const { focusedMissionId, registerScrollHandler, registerOptimisticHandler, highlightMission } = useActiveMission();
+  const { focusedMissionId, registerScrollHandler, registerOptimisticHandler, highlightMission, quizSession } = useActiveMission();
   const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
 
   const requestVersionRef = useRef(0);
@@ -97,7 +98,7 @@ export default function FeedScreen() {
   const scrollToEndIconOpacity = useRef(new Animated.Value(0)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
-  const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP) + ((isMissionBarVisible || focusedMissionId) ? 110 : 0);
+  const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP) + (quizSession ? 260 : (isMissionBarVisible || focusedMissionId) ? 140 : 0);
   const scrollToEndButtonBottom = isNativeMissionBar
     ? Math.max(insets.bottom + 16, 24)
     : isMissionBarVisible
@@ -311,6 +312,12 @@ export default function FeedScreen() {
   useEffect(() => {
     const handleScrollToMessage = (missionIdOrTitle: string) => {
       hasUserInteractedRef.current = true;
+
+      if (missionIdOrTitle === 'bottom') {
+        scrollToBottom();
+        return;
+      }
+
       const targetIndex = localFeedItems.findIndex(item => {
         if (item.type !== 'message') return false;
         const attachment = item.data.message.attachment;
@@ -356,14 +363,17 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (visibleMessages.length > prevVisibleCountRef.current) {
-      if (!isAtBottomRef.current && didInitialScrollRef.current && isPositionedRef.current) {
+      if (quizSession) {
+        // Force auto-scroll during active quiz sessions to follow conversation
+        requestAnimationFrame(() => scrollToBottom());
+      } else if (!isAtBottomRef.current && didInitialScrollRef.current && isPositionedRef.current) {
         setShowNewMessagesBadge(true);
       } else if (didInitialScrollRef.current) {
         requestAnimationFrame(() => scrollToBottom());
       }
       prevVisibleCountRef.current = visibleMessages.length;
     }
-  }, [scrollToBottom, visibleMessages.length]);
+  }, [scrollToBottom, visibleMessages.length, !!quizSession]);
 
   useEffect(() => {
     if (!didInitialScrollRef.current && !isLoadingInitial && visibleMessages.length > 0 && !isPositionedRef.current) {
@@ -582,7 +592,11 @@ export default function FeedScreen() {
         contentContainerStyle={styles.scrollContent}
       />
 
-      <MissionChatInput />
+      {quizSession ? (
+        <MissionChoicePicker />
+      ) : (
+        <MissionChatInput />
+      )}
 
       {isLoadingInitial && (
         <View style={styles.positioningOverlay}>

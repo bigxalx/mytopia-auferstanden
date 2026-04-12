@@ -48,6 +48,11 @@ export const missionApi = onRequest({ cors: true, region: 'europe-west1' }, asyn
         return;
       }
 
+      if (path === '/settings') {
+        await handleGetSettings(req, res);
+        return;
+      }
+
       res.status(404).json({ error: 'Route not found.' });
     });
 
@@ -78,9 +83,15 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing answers array.');
     }
 
-    // Fetch mission with correct answers from Sanity
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{${MISSION_SCORING_PROJECTION}}`;
-    const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
+    // Fetch mission and global settings from Sanity
+    const query = `{
+      "mission": *[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{${MISSION_SCORING_PROJECTION}},
+      "settings": *[_type == "siteSettings" && !(_id in path("drafts.**"))][0]{
+        defaultQuizFeedbackCorrect,
+        defaultQuizFeedbackIncorrect
+      }
+    }`;
+    const { mission, settings } = await sanityQuery<{ mission: MissionDto | null; settings: any }>(query, { missionId }, mode);
 
     if (!mission) {
       throw new HttpError(404, 'Mission not found.');
@@ -187,8 +198,8 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       awarded: true,
       awardedAt: FieldValue.serverTimestamp(),
       moderatorNote: correctCount === questions.length 
-        ? (mission.feedbackCorrect || 'Hervorragend! Alles richtig.') 
-        : (mission.feedbackIncorrect || 'Nicht ganz perfekt, aber okay!'),
+        ? (mission.feedbackCorrect || settings?.defaultQuizFeedbackCorrect || 'Hervorragend! Alles richtig.') 
+        : (mission.feedbackIncorrect || settings?.defaultQuizFeedbackIncorrect || 'Nicht ganz perfekt, aber okay!'),
     });
 
     await batch.commit();
@@ -472,6 +483,26 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
     logger.error('photoSubmit failed', error);
     sendError(res, error);
     }
+}
+
+export async function handleGetSettings(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const query = `*[_type == "siteSettings" && !(_id in path("drafts.**"))][0]{
+      defaultQuizFeedbackCorrect,
+      defaultQuizFeedbackIncorrect
+    }`;
+    const settings = await sanityQuery<any>(query, {}, mode);
+    res.status(200).json(settings || {});
+  } catch (error) {
+    logger.error('handleGetSettings failed', error);
+    sendError(res, error);
+  }
 }
 
 function assertMissionNotExpired(mission: MissionDto) {

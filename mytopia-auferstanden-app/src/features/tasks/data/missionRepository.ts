@@ -37,6 +37,8 @@ export type MissionListItem = {
     questionCount?: number;
     questions?: QuizQuestion[];
     title: string;
+    feedbackCorrect?: string;
+    feedbackIncorrect?: string;
 };
 
 type MissionCacheEntry = {
@@ -48,8 +50,10 @@ const missionCache = new Map<AppMode, MissionCacheEntry>();
 const inFlightMissionRequests = new Map<AppMode, Promise<MissionListItem[]>>();
 
 export type QuizQuestion = {
-    options: string[];
+    options: { text: string; isCorrect: boolean }[];
     questionText: string;
+    feedbackCorrect?: string;
+    feedbackIncorrect?: string;
 };
 
 export type QuizCompleteResult = {
@@ -139,6 +143,30 @@ async function loadMissionsFromApi(mode: AppMode): Promise<MissionListItem[]> {
     });
 
     return missions;
+}
+
+export async function fetchSettings(mode: AppMode = 'production'): Promise<any> {
+    if (!hasConfiguredMissionApi()) {
+        throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
+    }
+
+    const idToken = await ensureIdToken();
+    const baseUrl = normalizeBaseUrl(env.missionApiBaseUrl);
+    const url = `${baseUrl}settings?mode=${mode}`;
+
+    const response = await fetchWithTimeout(url, {
+        headers: {
+            Authorization: `Bearer ${idToken}`,
+        },
+        method: 'GET',
+    });
+
+    if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Settings fetch failed (${response.status}): ${body}`);
+    }
+
+    return (await response.json());
 }
 
 // ---------------------------------------------------------------------------

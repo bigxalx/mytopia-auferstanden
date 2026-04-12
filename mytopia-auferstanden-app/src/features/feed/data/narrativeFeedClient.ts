@@ -41,8 +41,10 @@ export type NarrativeAttachmentDto =
     imageUrl?: string;
     questions?: {
       questionText: string;
-      options: string[];
+      options: { text: string; isCorrect: boolean }[];
     }[];
+    feedbackCorrect?: string;
+    feedbackIncorrect?: string;
     gpsConfig?: {
       latitude: number;
       longitude: number;
@@ -58,6 +60,11 @@ export type NarrativeAttachmentDto =
     missionTitle: string;
     missionId?: string;
     moderatorNote?: string;
+  }
+  | {
+    _type: 'scorecardAttachment';
+    correct: number;
+    total: number;
   };
 
 export type NarrativeMessageDto = {
@@ -375,6 +382,14 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       missionTitle: asNonEmptyString(raw.missionTitle) ?? '',
       missionId: asNonEmptyString(raw.missionId) ?? undefined,
       moderatorNote: asNonEmptyString(raw.moderatorNote) ?? undefined,
+    };
+  }
+
+  if (raw._type === 'scorecardAttachment') {
+    return {
+      _type: 'scorecardAttachment',
+      correct: typeof raw.correct === 'number' ? raw.correct : 0,
+      total: typeof raw.total === 'number' ? raw.total : 0,
     };
   }
 
