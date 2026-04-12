@@ -4,20 +4,18 @@ import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
+  type LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Text,
   type TextStyle,
   View,
   type ViewStyle,
-  type ViewToken,
   Animated,
-  LayoutAnimation,
   Platform,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import Svg, { Path } from 'react-native-svg';
 import { theme } from '@/src/shared/ui/theme';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -42,13 +40,9 @@ const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
 const SCROLL_TO_END_BOTTOM_GAP = 108;
 const STICKY_DATE_HIDE_DELAY_MS = 700;
+const ENABLE_STICKY_DATE_HEADERS = false; // Feature flag to disable sticky behavior
 const FEED_CACHE_VERSION = 1;
 const FEED_CACHE_LIMIT = 80;
-const OLDER_MESSAGES_THRESHOLD_PX = 140;
-const IS_GLASS_EFFECT_ENABLED =
-  Platform.OS === 'ios' &&
-  isGlassEffectAPIAvailable() &&
-  isLiquidGlassAvailable();
 
 type FeedCachePayload = {
   bundles: NarrativeBundleDto[];
@@ -57,11 +51,15 @@ type FeedCachePayload = {
   version: number;
 };
 
+type FeedItem =
+  | { type: 'message'; data: PlaybackMessage; key: string }
+  | { type: 'header'; title: string; key: string };
+
 export default function FeedScreen() {
   const { selectedMode, user } = useSession();
-  const { lastSeenTime, markAsRead, pulse, refreshKey } = useNarrativeSignal();
+  const { lastSeenTime, markAsRead, pulse } = useNarrativeSignal();
   const insets = useSafeAreaInsets();
-  const { focusedMissionId, setFocus, registerScrollHandler, registerOptimisticHandler } = useActiveMission();
+  const { focusedMissionId, registerScrollHandler, registerOptimisticHandler } = useActiveMission();
   const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
 
   const requestVersionRef = useRef(0);
@@ -69,8 +67,7 @@ export default function FeedScreen() {
   const activeRefreshLoadsRef = useRef(0);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const latestSignalTokenRef = useRef<string | null>(null);
-  const initialRefreshKeyRef = useRef(refreshKey);
-  const listRef = useRef<FlashList<any>>(null);
+  const listRef = useRef<FlashListRef<FeedItem>>(null);
   const isAtBottomRef = useRef(true);
   const prevVisibleCountRef = useRef(0);
   const didInitialScrollRef = useRef(false);
@@ -79,7 +76,7 @@ export default function FeedScreen() {
   const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPullToRefreshActiveRef = useRef(false);
   const didHydrateCacheRef = useRef(false);
-  const isPositioningInProgressRef = useRef(false);
+  const scrollMetricsRef = useRef({ contentHeight: 0, offsetY: 0, viewportHeight: 0 });
 
   const navigation = useNavigation<any>();
   const [clockMs, setClockMs] = useState(() => Date.now());
@@ -93,11 +90,12 @@ export default function FeedScreen() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [showNewMessagesBadge, setShowNewMessagesBadge] = useState(false);
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(false);
-  const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [isPositioned, setIsPositioned] = useState(false);
+  const [isStickyHeaderShown, setIsStickyHeaderShown] = useState(false);
   const newMessagesOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndIconOpacity = useRef(new Animated.Value(0)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
 
   const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP) + ((isMissionBarVisible || focusedMissionId) ? 110 : 0);
   const scrollToEndButtonBottom = isNativeMissionBar
@@ -126,7 +124,7 @@ export default function FeedScreen() {
    * Index 0 is the latest message.
    */
   const localFeedItems = useMemo(() => {
-    const items: Array<{ type: 'message'; data: PlaybackMessage; key: string } | { type: 'header'; title: string; key: string }> = [];
+    const items: FeedItem[] = [];
     
     // Sort visible messages by time ascending (oldest first for standard top-to-bottom list)
     const sorted = [...visibleMessages].sort((a, b) => a.revealAtMs - b.revealAtMs);
@@ -150,6 +148,7 @@ export default function FeedScreen() {
   }, [visibleMessages]);
 
   const stickyHeaderIndices = useMemo(() => {
+    if (!ENABLE_STICKY_DATE_HEADERS) return [];
     return localFeedItems
       .map((item, index) => (item.type === 'header' ? index : -1))
       .filter((index) => index !== -1);
@@ -160,6 +159,8 @@ export default function FeedScreen() {
       .filter((m) => m.message.attachment?._type === 'imageAttachment')
       .map((m) => ({ uri: (m.message.attachment as any).url }));
   }, [visibleMessages]);
+
+
 
   const loadFirstPage = useCallback(
     async (mode: 'initial' | 'refresh' | 'silent') => {
@@ -392,6 +393,38 @@ export default function FeedScreen() {
     Animated.timing(scrollToEndIconOpacity, { toValue: showScrollToEndButton ? 1 : 0, duration: 220, useNativeDriver: true }).start();
   }, [showScrollToEndButton, scrollToEndOpacity, scrollToEndIconOpacity]);
 
+  const clearStickyHeaderHideTimeout = useCallback(() => {
+    if (stickyDateHideTimeoutRef.current) {
+      clearTimeout(stickyDateHideTimeoutRef.current);
+      stickyDateHideTimeoutRef.current = null;
+    }
+  }, []);
+
+  const showStickyHeader = useCallback(() => {
+    clearStickyHeaderHideTimeout();
+    setIsStickyHeaderShown(true);
+    Animated.timing(headerOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  }, [clearStickyHeaderHideTimeout, headerOpacity]);
+
+  const scheduleStickyHeaderHide = useCallback(() => {
+    clearStickyHeaderHideTimeout();
+    stickyDateHideTimeoutRef.current = setTimeout(() => {
+      Animated.timing(headerOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(({ finished }) => {
+        if (finished) {
+          setIsStickyHeaderShown(false);
+        }
+      });
+    }, STICKY_DATE_HIDE_DELAY_MS);
+  }, [clearStickyHeaderHideTimeout, headerOpacity]);
+
+  useEffect(() => {
+    return () => {
+      clearStickyHeaderHideTimeout();
+    };
+  }, [clearStickyHeaderHideTimeout]);
+
+
+
   useEffect(() => {
     const now = Date.now();
     let nextRevealAtMs = Number.POSITIVE_INFINITY;
@@ -414,22 +447,22 @@ export default function FeedScreen() {
     return unsubscribe;
   }, [navigation, scrollToBottom]);
 
-  const renderItem = useCallback(({ item }: { item: any }) => {
+  const renderItem = useCallback(({ item, target }: ListRenderItemInfo<FeedItem>) => {
     if (item.type === 'header') {
       return (
-        <View style={styles.daySeparatorWrap}>
-          <View style={[styles.daySeparatorLine, styles.daySeparatorLineHidden]} />
-          <View style={styles.daySeparatorPill}>
-            <Text style={styles.daySeparatorText}>{item.title}</Text>
-          </View>
-          <View style={styles.daySeparatorLine} />
-        </View>
+        <FeedDateHeader
+          headerKey={item.key}
+          headerOpacity={headerOpacity}
+          isStickyHeaderShown={isStickyHeaderShown}
+          target={target}
+          title={item.title}
+        />
       );
     }
 
     const playbackMessage: PlaybackMessage = item.data;
-    const isPlayer = playbackMessage.message.senderType === 'player';
-    const isSystem = playbackMessage.message.senderType === 'system';
+    const isPlayer = Boolean(playbackMessage.message.isUser);
+    const isSystem = !isPlayer && playbackMessage.message.actor.name === 'System';
 
     if (isSystem) {
       return (
@@ -456,7 +489,7 @@ export default function FeedScreen() {
         />
       </View>
     );
-  }, [imageSources]);
+  }, [headerOpacity, imageSources, isStickyHeaderShown]);
 
   const ListHeader = useMemo(() => (
     <View>
@@ -486,7 +519,6 @@ export default function FeedScreen() {
         data={localFeedItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.key}
-        estimatedItemSize={120}
         stickyHeaderIndices={stickyHeaderIndices}
         onLoad={() => {
           if (!isPositionedRef.current) {
@@ -496,13 +528,16 @@ export default function FeedScreen() {
         }}
         onScroll={(event) => {
           const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+          scrollMetricsRef.current.contentHeight = contentSize.height;
+          scrollMetricsRef.current.offsetY = contentOffset.y;
+          scrollMetricsRef.current.viewportHeight = layoutMeasurement.height;
           const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
           const isCloseToBottom = distanceFromBottom <= 100;
           
           isAtBottomRef.current = isCloseToBottom;
           
           // Show button when NOT at the bottom (scrolled up)
-          setShowScrollToEndButton(distanceFromBottom > 200);
+          setShowScrollToEndButton(distanceFromBottom > SCROLL_TO_END_SHOW_THRESHOLD_PX);
 
           if (isCloseToBottom && showNewMessagesBadge) {
             setShowNewMessagesBadge(false);
@@ -513,16 +548,31 @@ export default function FeedScreen() {
           if (nextCursor && !isLoadingMore && !isLoadingInitial && !isRefreshing) loadMore();
         }}
         onEndReachedThreshold={0.5}
+        onLayout={(event) => {
+          scrollMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
+        }}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={<View style={{ height: bottomSpacerHeight }} />}
-        onScrollBeginDrag={() => { hasUserInteractedRef.current = true; }}
-        style={[styles.scrollView, { opacity: isPositioned ? 1 : 0 }]}
+        onScrollBeginDrag={() => {
+          hasUserInteractedRef.current = true;
+          showStickyHeader();
+        }}
+        onMomentumScrollBegin={() => {
+          showStickyHeader();
+        }}
+        onScrollEndDrag={() => {
+          scheduleStickyHeaderHide();
+        }}
+        onMomentumScrollEnd={() => {
+          scheduleStickyHeaderHide();
+        }}
+        style={StyleSheet.flatten([styles.scrollView, { opacity: isPositioned ? 1 : 0 }])}
         contentContainerStyle={styles.scrollContent}
       />
 
       <MissionChatInput />
 
-      {!isPositioned && (
+      {isLoadingInitial && (
         <View style={styles.positioningOverlay}>
           <ActivityIndicator size="large" color={theme.colors.orange} />
         </View>
@@ -558,11 +608,20 @@ const styles = StyleSheet.create({
   errorText: { color: theme.colors.errorText, fontSize: 13, lineHeight: 18 } as TextStyle,
   stateBox: { alignItems: 'center', backgroundColor: theme.colors.headerBackground, borderRadius: 12, gap: 8, padding: 20 } as ViewStyle,
   stateText: { color: theme.colors.textSecondary, fontSize: 14 } as TextStyle,
-  daySeparatorWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, marginTop: 28 } as ViewStyle,
+  daySeparatorWrap: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    gap: 10, 
+    marginBottom: 16, 
+    marginTop: 28, 
+    backgroundColor: 'transparent',
+    // Ensure height is consistent to prevent layout jumps
+    height: 32,
+  } as ViewStyle,
   daySeparatorLine: { flex: 1, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.08)' } as ViewStyle,
-  daySeparatorLineHidden: { backgroundColor: 'transparent' } as ViewStyle,
-  daySeparatorPill: { backgroundColor: '#3D4344', borderColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6 } as ViewStyle,
-  daySeparatorText: { color: 'rgba(238, 242, 239, 0.88)', fontFamily: 'NunitoSans_700Bold', fontSize: 12, letterSpacing: 0.2 } as TextStyle,
+  daySeparatorPill: { backgroundColor: '#3D4344', borderColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, minWidth: 100, alignItems: 'center', justifyContent: 'center' } as ViewStyle,
+  daySeparatorText: { color: 'rgba(238, 242, 239, 0.88)', fontFamily: 'NunitoSans_700Bold', fontSize: 12, letterSpacing: 0.2, textAlign: 'center' } as TextStyle,
   newMessagesContainer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 100 } as ViewStyle,
   newMessagesButton: { backgroundColor: theme.colors.orange, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, gap: 8, elevation: 8 } as ViewStyle,
   newMessagesText: { color: 'white', fontSize: 14, fontWeight: '700', fontFamily: 'Nunito_700Bold' } as TextStyle,
@@ -612,6 +671,8 @@ function mergeOlderBundles(current: NarrativeBundleDto[], incoming: NarrativeBun
   return Array.from(map.values());
 }
 
+
+
 function FeedDownArrowIcon({ color, size, variant }: { color: string; size: number; variant: 'outline' | 'bold' }) {
   return (
     <Svg color={color} fill="none" height={size} viewBox="0 0 24 24" width={size}>
@@ -623,5 +684,62 @@ function FeedDownArrowIcon({ color, size, variant }: { color: string; size: numb
         strokeWidth={variant === 'bold' ? "3.25" : "2.4"}
       />
     </Svg>
+  );
+}
+
+function FeedDateHeader({
+  headerKey,
+  headerOpacity,
+  isStickyHeaderShown,
+  target,
+  title,
+}: {
+  headerKey: string;
+  headerOpacity: Animated.Value;
+  isStickyHeaderShown: boolean;
+  target: ListRenderItemInfo<FeedItem>['target'];
+  title: string;
+}) {
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+
+  const isSticky = target === 'StickyHeader';
+  const kind = isSticky ? 'sticky' : target === 'Cell' ? 'regular' : 'measurement';
+
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height, width, x, y } = event.nativeEvent.layout;
+  }, [headerKey, kind, target, title]);
+
+  // Both 'sticky' and 'regular' now share the EXACT same layout structure and styles.
+  // The only difference is how opacity is handled.
+  return (
+    <Animated.View
+      onLayout={handleLayout}
+      pointerEvents={isSticky ? 'none' : 'auto'}
+      style={[
+        styles.daySeparatorWrap,
+        isSticky && { 
+          opacity: headerOpacity,
+          // When stuck at top, we don't want the margin-top to push it down
+          marginTop: 0,
+          marginBottom: 0,
+          // But we need to keep the content position consistent
+          paddingTop: 28,
+          // Use solid background to mask the lines of the 'Cell' underneath
+          backgroundColor: theme.colors.background,
+          // Ensure it covers full width to mask lines
+          width: '100%',
+        }
+      ]}
+    >
+      {/* Side lines are hidden in the sticky header version */}
+      <View style={[styles.daySeparatorLine, isSticky && { opacity: 0 }]} />
+      
+      <View style={styles.daySeparatorPill}>
+        <Text style={styles.daySeparatorText}>{title}</Text>
+      </View>
+
+      <View style={[styles.daySeparatorLine, isSticky && { opacity: 0 }]} />
+    </Animated.View>
   );
 }

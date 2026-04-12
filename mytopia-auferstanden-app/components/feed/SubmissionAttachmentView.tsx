@@ -21,6 +21,7 @@ export function SubmissionAttachmentView({
   payload,
   missionTitle,
   moderatorNote,
+  messageText,
 }: {
   submissionId: string;
   status: SubmissionStatus;
@@ -28,8 +29,10 @@ export function SubmissionAttachmentView({
   payload: any;
   missionTitle: string;
   moderatorNote?: string;
+  messageText?: string;
 }) {
   const meta = MISSION_KIND_METADATA[kind] || { emoji: '🎯', label: 'Mission' };
+  const effectiveText = payload?.text || messageText;
 
   return (
     <View style={styles.container}>
@@ -49,11 +52,13 @@ export function SubmissionAttachmentView({
         </View>
       </View>
 
-      {/* 2. Answer Content */}
+      {/* 2. Answer Content Area */}
       <View style={styles.answerArea}>
         {/* Text Answer */}
         {kind === 'text' && (
-          <Text style={styles.answerText}>{payload?.text || ''}</Text>
+          <View style={styles.textAnswerBox}>
+            <Text style={styles.answerText}>{effectiveText || ''}</Text>
+          </View>
         )}
 
         {/* Photo Answer */}
@@ -177,6 +182,7 @@ function StatusIndicator({ status, payload }: { status: SubmissionStatus; payloa
 const styles = StyleSheet.create({
   container: {
     minWidth: 220,
+    alignSelf: 'stretch',
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 14,
     overflow: 'hidden',
@@ -196,6 +202,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   headerContent: {
     flex: 1,
+    paddingRight: 8,
   } as ViewStyle,
   row: {
     flexDirection: 'row',
@@ -217,13 +224,20 @@ const styles = StyleSheet.create({
     color: '#111827',
   } as TextStyle,
   answerArea: {
-    padding: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    gap: 8,
+  } as ViewStyle,
+  textAnswerBox: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    padding: 10,
+    borderRadius: 12,
   } as ViewStyle,
   answerText: {
-    fontSize: 15,
-    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 14,
+    fontFamily: 'NunitoSans_600SemiBold',
     color: '#1f2937',
-    lineHeight: 20,
+    lineHeight: 18,
   } as TextStyle,
   photoContainer: {
     borderRadius: 10,

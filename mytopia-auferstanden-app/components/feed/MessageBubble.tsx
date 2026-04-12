@@ -82,7 +82,7 @@ export function MessageBubble({
               {message.actor.name}
             </Text>
           )}
-          {message.text && (
+          {message.text && (message.attachment?._type !== 'submissionAttachment') && (
             <Text style={[styles.messageText, isUser && styles.messageTextUser]}>
               {message.text}
             </Text>
@@ -90,6 +90,7 @@ export function MessageBubble({
           {message.attachment && (
             <AttachmentView
               attachment={message.attachment}
+              messageText={message.text}
               gallerySources={gallerySources}
               onImagePress={onImagePress}
               userInteraction={userInteraction}

@@ -248,15 +248,20 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
       // 4.5. Update status to pending (or approved/rejected if API returned it)
       const finalStatus = apiResult?.scored ? 'approved' : 'pending';
+      const submissionAttachment = virtualBundle.messages[0].attachment;
+      if (!submissionAttachment || submissionAttachment._type !== 'submissionAttachment') {
+        throw new Error('Expected optimistic submission attachment.');
+      }
+
       const updatedBundle = {
         ...virtualBundle,
         messages: [
           {
             ...virtualBundle.messages[0],
             attachment: {
-              ...virtualBundle.messages[0].attachment!,
+              ...submissionAttachment,
               status: finalStatus as any,
-              payload: { ...virtualBundle.messages[0].attachment!.payload, ...apiResult },
+              payload: { ...submissionAttachment.payload, ...apiResult },
             },
           },
         ],
@@ -273,13 +278,18 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     } catch (err) {
       console.error('[ActiveMission] Submission failed:', err);
       // Update optimistic bundle to show error
+      const submissionAttachment = virtualBundle.messages[0].attachment;
+      if (!submissionAttachment || submissionAttachment._type !== 'submissionAttachment') {
+        throw new Error('Expected optimistic submission attachment.');
+      }
+
       const errorBundle = {
         ...virtualBundle,
         messages: [
           {
             ...virtualBundle.messages[0],
             attachment: {
-              ...virtualBundle.messages[0].attachment!,
+              ...submissionAttachment,
               status: 'error' as any,
               payload: 'Übertragung fehlgeschlagen', // Replaces preview with error message text
             },
