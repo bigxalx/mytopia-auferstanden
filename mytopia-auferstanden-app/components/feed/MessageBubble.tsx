@@ -7,7 +7,7 @@ import Animated, {
   useSharedValue,
   withTiming,
   withSequence,
-  withDelay
+  withDelay,
 } from 'react-native-reanimated';
 import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
@@ -56,8 +56,10 @@ export function MessageBubble({
   isLastInGroup?: boolean;
 }) {
   const isUser = message.isUser;
-  const effectiveShowAvatar = showAvatar && !isUser;
-  const effectiveShowName = showName && !isUser;
+  const isCentered = message.attachment?._type === 'missionResultAttachment';
+  
+  const effectiveShowAvatar = showAvatar && !isUser && !isCentered;
+  const effectiveShowName = showName && !isUser && !isCentered;
 
   const { highlightedMissionId } = useActiveMission();
   const highlightProgress = useSharedValue(0);
@@ -106,14 +108,17 @@ export function MessageBubble({
 
       <View style={[
         styles.bubbleContainer,
-        isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC
+        isCentered ? styles.bubbleContainerCentered : (isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC)
       ]}>
-        <Animated.View style={[
-          styles.messageBubble,
-          isUser && styles.messageBubbleUser,
-          animatedBubbleStyle,
-          effectiveShowAvatar && styles.lastInGroup
-        ]}>
+        <Animated.View
+          style={[
+            styles.messageBubble,
+            isUser && styles.messageBubbleUser,
+            isCentered && styles.messageBubbleCentered,
+            animatedBubbleStyle,
+            effectiveShowAvatar && styles.lastInGroup
+          ]}
+        >
           {effectiveShowName && (
             <Text
               style={[
@@ -140,7 +145,7 @@ export function MessageBubble({
             />
           )}
         </Animated.View>
-        {(isLastInGroup) && <BubbleTail isUser={isUser} />}
+        {(isLastInGroup && !isCentered) && <BubbleTail isUser={isUser} />}
       </View>
     </View>
   );
@@ -167,6 +172,10 @@ const styles = StyleSheet.create({
   bubbleContainerNPC: {
     marginLeft: 60,
   } as ViewStyle,
+  bubbleContainerCentered: {
+    alignItems: 'center',
+    marginHorizontal: 12,
+  } as ViewStyle,
   bubbleContainerUser: {
     marginLeft: 20,
     marginRight: 10,
@@ -182,6 +191,13 @@ const styles = StyleSheet.create({
   messageBubbleUser: {
     backgroundColor: theme.colors.accent,
     borderBottomRightRadius: 8,
+  } as ViewStyle,
+  messageBubbleCentered: {
+    backgroundColor: 'transparent',
+    maxWidth: '100%',
+    padding: 0,
+    elevation: 0,
+    shadowOpacity: 0,
   } as ViewStyle,
   lastInGroup: {} as ViewStyle,
   tailWrap: {

@@ -28,7 +28,8 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 12,
+    marginTop: 24,
+    marginBottom: 12,
     paddingHorizontal: 20,
     width: '100%',
   } as ViewStyle,

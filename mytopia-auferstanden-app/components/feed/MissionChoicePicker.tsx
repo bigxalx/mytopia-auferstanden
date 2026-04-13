@@ -4,13 +4,14 @@ import { theme } from '@/src/shared/ui/theme';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInUp, FadeOutDown, Easing } from 'react-native-reanimated';
 
 /**
  * Modern selection UI for quiz choices that appears at the bottom of the feed.
  * Replaces the standard chat input during a quiz session.
  */
 export const MissionChoicePicker: React.FC = () => {
-  const { quizSession, submitQuizStep, setQuizSession, clearQuizMessages } = useActiveMission();
+  const { quizSession, submitQuizStep, pauseQuiz } = useActiveMission();
   const insets = useSafeAreaInsets();
 
   if (!quizSession || !quizSession.showPicker) return null;
@@ -19,15 +20,18 @@ export const MissionChoicePicker: React.FC = () => {
   if (!currentQuestion) return null;
 
   const handleClose = () => {
-    setQuizSession(null);
-    clearQuizMessages();
+    pauseQuiz();
   };
 
   // Position it above the tab bar consistent with MissionChatInput
   const bottomOffset = insets.bottom + (Platform.OS === 'android' ? 70 : 54);
 
   return (
-    <View style={[styles.wrapper, { bottom: bottomOffset }]}>
+    <Animated.View 
+      entering={FadeInUp.duration(400).easing(Easing.out(Easing.quad))}
+      exiting={FadeOutDown.duration(300)}
+      style={[styles.wrapper, { bottom: bottomOffset }]}
+    >
       <View style={styles.container}>
         <View style={styles.header}>
             <View style={styles.headerPlaceholder} />
@@ -63,7 +67,7 @@ export const MissionChoicePicker: React.FC = () => {
           })}
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 

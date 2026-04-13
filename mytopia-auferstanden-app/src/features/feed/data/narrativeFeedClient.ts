@@ -10,6 +10,10 @@ const FEED_REQUEST_TIMEOUT_MS = 15000;
 
 export type NarrativeAttachmentDto =
   | {
+    _type: 'systemAttachment';
+    kind: 'neutral' | 'prominent';
+  }
+  | {
     _type: 'imageAttachment';
     caption?: string;
     url: string;
@@ -65,6 +69,14 @@ export type NarrativeAttachmentDto =
     _type: 'scorecardAttachment';
     correct: number;
     total: number;
+  }
+  | {
+    _type: 'missionResultAttachment';
+    missionId: string;
+    missionTitle: string;
+    kind: string;
+    payload: any;
+    earnedPoints?: number;
   };
 
 export type NarrativeMessageDto = {
@@ -308,6 +320,13 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
 
   const raw = value as Record<string, unknown>;
 
+  if (raw._type === 'systemAttachment') {
+    return {
+      _type: 'systemAttachment',
+      kind: raw.kind === 'prominent' ? 'prominent' : 'neutral',
+    };
+  }
+
   if (raw._type === 'imageAttachment') {
     const url = asNonEmptyString(raw.url);
     if (!url) {
@@ -390,6 +409,17 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       _type: 'scorecardAttachment',
       correct: typeof raw.correct === 'number' ? raw.correct : 0,
       total: typeof raw.total === 'number' ? raw.total : 0,
+    };
+  }
+
+  if (raw._type === 'missionResultAttachment') {
+    return {
+      _type: 'missionResultAttachment',
+      missionId: asNonEmptyString(raw.missionId) ?? '',
+      missionTitle: asNonEmptyString(raw.missionTitle) ?? '',
+      kind: asNonEmptyString(raw.kind) ?? '',
+      payload: raw.payload,
+      earnedPoints: typeof raw.earnedPoints === 'number' ? raw.earnedPoints : undefined,
     };
   }
 

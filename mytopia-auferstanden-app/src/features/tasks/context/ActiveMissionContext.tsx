@@ -44,8 +44,9 @@ type ActiveMissionContextValue = {
 
   // Quiz Conversation Flow
   quizSession: QuizSession | null;
+  persistedSessions: Record<string, QuizSession>;
   setQuizSession: (session: QuizSession | null) => void;
-  clearQuizMessages: () => void;
+  pauseQuiz: () => void;
   startChatQuiz: (missionId: string, actor: NarrativeMessageDto['actor'], data?: any) => Promise<void>;
   submitQuizStep: (optionIndex: number) => Promise<void>;
 };
@@ -84,6 +85,9 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   const [persistedSessions, setPersistedSessions] = useState<Record<string, QuizSession>>({});
   const initialLoadRef = useRef(false);
   const [siteSettings, setSiteSettings] = useState<any>(null);
+  const pauseQuizRef = useRef<() => void>(() => {});
+  const scrollToMessageRef = useRef<(missionId: string) => void>(() => {});
+  const completeMissionRef = useRef<(missionId: string, result: any) => Promise<void>>(async () => {});
 
   // Fetch Site Settings on mount or when user changes
   useEffect(() => {
@@ -195,134 +199,24 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     return availableMissions[0] || null;
   }, [availableMissions, focusedMissionId]);
 
-  const setFocus = useCallback(async (missionId: string | null) => {
-    // Detect paused quiz session before moving focus
-    if (focusedMissionId && missionId !== focusedMissionId) {
-      const activeQuiz = quizSession || persistedSessions[focusedMissionId];
-      if (activeQuiz && !activeQuiz.isFinished) {
-        insertSystemMessage('Quiz pausiert. Du kannst es jederzeit fortsetzen.', 0, 'neutral');
-      }
-    }
-
-    setFocusedMissionId(missionId);
-    if (user) {
-      const key = `${FOCUS_STORAGE_KEY}:${user.id}`;
-      if (missionId) {
-        await AsyncStorage.setItem(key, missionId);
-      } else {
-        await AsyncStorage.removeItem(key);
-      }
-    }
-  }, [focusedMissionId, quizSession, persistedSessions, insertSystemMessage, user]);
-
-  const startMission = useCallback(async (missionId: string) => {
-    await setFocus(missionId);
-    scrollToMessage(missionId);
-  }, [setFocus, scrollToMessage]);
-
   const registerOptimisticHandler = useCallback((
     handler: ((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null
   ) => {
     optimisticHandlerRef.current = handler;
   }, []);
 
-  const insertSystemMessage = useCallback((text: string, releaseOffsetMs: number = 0, kind: 'neutral' | 'prominent' = 'neutral') => {
-    const systemId = `system-${Date.now() + releaseOffsetMs}`;
-    const virtualBundle: NarrativeBundleDto = {
-      _id: systemId,
-      messages: [
-        {
-          actor: { name: 'System' },
-          messageId: `${systemId}-msg`,
-          text,
-          attachment: kind ? { _type: 'systemAttachment', kind } : undefined,
-        },
-      ],
-      releaseAt: new Date(Date.now() + releaseOffsetMs).toISOString(),
-      title: 'Notfallkanal',
-    };
+  const lastScheduledReleaseAtMsRef = useRef<number>(0);
 
-    upsertOptimisticBundle(virtualBundle);
-  }, [upsertOptimisticBundle]);
-  
-  const clearQuizMessages = () => {
-    const handler = optimisticHandlerRef.current;
-    if (handler) {
-      handler((prev) => prev.filter(b => 
-        !b._id.startsWith('npc-msg-') && 
-        !b._id.startsWith('user-msg-')
-      ));
-    }
-  };
-
-  const insertUserMessage = useCallback((actor: NarrativeMessageDto['actor'], text: string, releaseOffsetMs: number = 0) => {
-    const id = `user-msg-${Date.now()}`;
-    const releaseAt = new Date(Date.now() + releaseOffsetMs).toISOString();
-    
-    const virtualBundle: NarrativeBundleDto = {
-      _id: id,
-      messages: [{
-        _key: id,
-        text,
-        actor,
-        isUser: true,
-        messageId: id,
-      }],
-      releaseAt,
-      title: 'Besucher',
-      isUser: true,
-    };
-
-    upsertOptimisticBundle(virtualBundle);
-    
-    // Add to quiz session bundles if active
-    setQuizSession(prev => {
-      if (prev) {
-        const updated = { ...prev, bundles: [virtualBundle, ...prev.bundles] };
-        updatePersistedSession(updated);
-        return updated;
-      }
-      return null;
-    });
-  }, [updatePersistedSession, upsertOptimisticBundle]);
-
-  const insertNpcMessage = useCallback((actor: NarrativeMessageDto['actor'], text: string, attachment?: NarrativeAttachmentDto, releaseOffsetMs: number = 0) => {
-    const id = `npc-msg-${Date.now() + releaseOffsetMs}`; // Slight offset for ID uniqueness
-    const releaseAt = new Date(Date.now() + releaseOffsetMs).toISOString();
-
-    const virtualBundle: NarrativeBundleDto = {
-      _id: id,
-      messages: [{
-        _key: id,
-        text,
-        actor,
-        attachment,
-        messageId: id,
-      }],
-      releaseAt,
-      title: 'Notfallkanal',
-    };
-
-    upsertOptimisticBundle(virtualBundle);
-
-    // Add to quiz session bundles if active
-    setQuizSession(prev => {
-      if (prev) {
-        const updated = { ...prev, bundles: [virtualBundle, ...prev.bundles] };
-        updatePersistedSession(updated);
-        return updated;
-      }
-      return null;
-    });
-
-    // Calculate how long this message takes to "play"
-    return resolveMessageDelayMs({ 
-      text, 
-      attachment, 
-      actor, 
-      messageId: id 
-    });
-  }, [updatePersistedSession, upsertOptimisticBundle]);
+  /**
+   * Helper to calculate the exact delay from 'now' until the current 
+   * NPC typing queue is fully empty, plus an optional buffer.
+   * This ensures uniform timing between message completion and UI reveal.
+   */
+  const getRemainingQueueDelay = useCallback((bufferMs: number = 300) => {
+    const now = Date.now();
+    const remaining = lastScheduledReleaseAtMsRef.current - now;
+    return Math.max(0, remaining) + bufferMs;
+  }, []);
 
   const upsertOptimisticBundle = useCallback((bundle: NarrativeBundleDto) => {
     const handler = optimisticHandlerRef.current;
@@ -339,6 +233,113 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
+  /**
+   * Internal helper to create and upsert an optimistic bundle.
+   * Handles ID generation, automatic release time calculation (staggering),
+   * and persistence to active quiz sessions.
+   */
+  const insertMessageBundle = useCallback((params: {
+    actor: NarrativeMessageDto['actor'];
+    text?: string;
+    attachment?: NarrativeAttachmentDto;
+    isUser?: boolean;
+    isSystem?: boolean;
+    releaseOffsetMs?: number;
+    title?: string;
+  }) => {
+    const { actor, text, attachment, isUser, isSystem, releaseOffsetMs = 0, title } = params;
+    
+    const now = Date.now();
+    // For staggering: if we have a future message scheduled, we append to its end.
+    // Otherwise, we start from now.
+    const baseTime = Math.max(now, lastScheduledReleaseAtMsRef.current) + releaseOffsetMs;
+    
+    // ID generation
+    const prefix = isSystem ? 'sys' : (isUser ? 'user' : 'npc');
+    const bundleId = `${prefix}-opt-${baseTime}-${Math.floor(Math.random() * 1000)}`;
+    const messageId = `${bundleId}-m1`;
+    
+    const releaseAt = new Date(baseTime).toISOString();
+    
+    const bundle: NarrativeBundleDto = {
+      _id: bundleId,
+      messages: [{
+        text,
+        actor,
+        attachment,
+        isUser,
+        messageId,
+      }],
+      releaseAt,
+      title: title || (isUser ? 'Besucher' : 'Notfallkanal'),
+      isUser,
+    };
+
+    // Calculate playback duration to update the queue tracker
+    const delay = resolveMessageDelayMs(bundle.messages[0], isUser);
+    
+    // System messages don't block the NPC typing queue by default
+    if (!isSystem) {
+      lastScheduledReleaseAtMsRef.current = baseTime + delay;
+    }
+
+    // Push to feed UI
+    upsertOptimisticBundle(bundle);
+
+    // Persistence for Active Quiz (so history survives restarts/focus changes)
+    setQuizSession(prev => {
+      if (prev) {
+        const updated = { ...prev, bundles: [bundle, ...prev.bundles] };
+        updatePersistedSession(updated);
+        return updated;
+      }
+      return prev;
+    });
+
+    return delay;
+  }, [updatePersistedSession, upsertOptimisticBundle]);
+
+  const insertSystemMessage = useCallback((text: string, releaseOffsetMs: number = 0, kind: 'neutral' | 'prominent' = 'neutral') => {
+    const actor = { name: 'System' };
+    insertMessageBundle({
+      actor,
+      text,
+      attachment: kind ? { _type: 'systemAttachment', kind } : undefined,
+      isSystem: true,
+      releaseOffsetMs,
+    });
+  }, [insertMessageBundle]);
+
+  const insertUserMessage = useCallback((actor: NarrativeMessageDto['actor'], text: string, releaseOffsetMs: number = 0) => {
+    insertMessageBundle({
+      actor,
+      text,
+      isUser: true,
+      releaseOffsetMs,
+    });
+  }, [insertMessageBundle]);
+
+  const insertNpcMessage = useCallback((actor: NarrativeMessageDto['actor'], text: string, attachment?: NarrativeAttachmentDto, releaseOffsetMs: number = 0) => {
+    return insertMessageBundle({
+      actor,
+      text,
+      attachment,
+      isUser: false,
+      releaseOffsetMs,
+    });
+  }, [insertMessageBundle]);
+
+  const pauseQuiz = useCallback(() => {
+    if (quizSession && !quizSession.isFinished) {
+      insertSystemMessage('Quiz pausiert. Du kannst es jederzeit fortsetzen.', 0, 'neutral');
+      setQuizSession(null);
+    }
+  }, [quizSession, insertSystemMessage]);
+
+  useEffect(() => {
+    pauseQuizRef.current = pauseQuiz;
+  }, [pauseQuiz]);
+
   const insertQuizAnswerBubble = useCallback((missionId: string, missionTitle: string, answerText: string) => {
     insertUserMessage({ name: user?.displayName || 'Ich' }, answerText);
   }, [insertUserMessage, user?.displayName]);
@@ -351,7 +352,14 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     if (quizSession?.missionId === missionId) return;
     
     const cached = missions.find(m => m._id === missionId);
-    const mission = { ...cached, ...data };
+    const mission = {
+      ...data,
+      ...cached,
+      title: cached?.title ?? data?.title ?? 'Mission',
+      description: cached?.description ?? data?.description,
+      imageUrl: cached?.imageUrl ?? data?.imageUrl,
+      questions: cached?.questions ?? data?.questions,
+    };
     if (!mission || !mission.questions) return;
 
     // Check if we already have a session for this mission
@@ -365,10 +373,10 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       }
 
       // Resume Existing Session
-      setQuizSession({ ...saved, showPicker: true });
+      // We initially keep the picker hidden to show the status message and question re-reveal
+      setQuizSession({ ...saved, showPicker: false });
       
       // Re-rehydrate history to the feed (only if they aren't already there)
-      // This is crucial for surviving app restarts since optimistic bundles are volatile
       const handler = optimisticHandlerRef.current;
       if (handler) {
         handler(prev => {
@@ -378,13 +386,35 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         });
       }
 
-      scrollToMessage('bottom');
+      scrollToMessageRef.current('bottom');
+      
+      // Resume sequence starts immediately
+      insertSystemMessage('Mission fortgesetzt', 0, 'neutral');
+      
+      // Re-reveal first un-answered question so the user has context
+      const currentQ = saved.questions[saved.currentIndex].questionText;
+      insertNpcMessage(actor, currentQ);
+
+      // Show picker after the question finishes typing
+      setTimeout(() => {
+        setQuizSession(prev => {
+          if (!prev) return null;
+          const updated = { ...prev, showPicker: true };
+          updatePersistedSession(updated);
+          return updated;
+        });
+        scrollToMessageRef.current('bottom');
+      }, getRemainingQueueDelay(300));
+
       return;
     }
 
     // Initialize New Session
-    scrollToMessage('bottom');
-    await new Promise(resolve => setTimeout(resolve, 400));
+    scrollToMessageRef.current('bottom');
+    // 0. Status message: Mission started
+    const startDelay = getRemainingQueueDelay(100);
+    await new Promise(resolve => setTimeout(resolve, startDelay));
+    insertSystemMessage('Mission gestartet', 0, 'neutral');
 
     const newSession: QuizSession = {
       missionId,
@@ -403,34 +433,35 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     updatePersistedSession(newSession);
 
     // 1. Mission Intro (Image + Description)
-    const introText = mission.description || `Bist du bereit für die Mission: ${mission.title}?`;
-    const introDelay = insertNpcMessage(
+    // Ensure we have a default text if description is missing
+    const introText = mission.description
+      ? `${mission.title}\n\n${mission.description}`
+      : mission.title;
+    insertNpcMessage(
       actor, 
       introText, 
       mission.imageUrl ? {
         _type: 'imageAttachment',
         url: mission.imageUrl,
         caption: mission.title,
-      } : undefined, 
-      0
+      } : undefined
     );
 
-    // 2. First Question (Staggered)
-    setTimeout(() => {
-      const qText = mission.questions![0].questionText;
-      const qDelay = insertNpcMessage(actor, qText, undefined, 0);
+    // 2. First Question (Already staggered because of lastScheduledReleaseAtMsRef)
+    const qText = mission.questions![0].questionText;
+    insertNpcMessage(actor, qText);
 
-      setTimeout(() => {
-        setQuizSession(prev => {
-          if (!prev) return null;
-          const updated = { ...prev, showPicker: true };
-          updatePersistedSession(updated);
-          return updated;
-        });
-        scrollToMessage('bottom');
-      }, qDelay + 200);
-    }, introDelay + 250);
-  }, [quizSession, missions, persistedSessions, insertSystemMessage, removePersistedSession, scrollToMessage, updatePersistedSession, insertNpcMessage]);
+    // We only show the picker AFTER the intro AND question have played
+    setTimeout(() => {
+      setQuizSession(prev => {
+        if (!prev) return null;
+        const updated = { ...prev, showPicker: true };
+        updatePersistedSession(updated);
+        return updated;
+      });
+      scrollToMessageRef.current('bottom');
+    }, getRemainingQueueDelay(300)); 
+  }, [quizSession, missions, persistedSessions, insertSystemMessage, removePersistedSession, updatePersistedSession, insertNpcMessage, getRemainingQueueDelay]);
 
   const submitQuizStep = useCallback(async (optionIndex: number) => {
     const session = quizSession;
@@ -445,43 +476,41 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     setQuizSession(prev => prev ? { ...prev, answers: newAnswers, showPicker: false } : null);
 
     // 1. User Message
-    insertUserMessage(session.actor, choice.text, 0);
+    insertUserMessage(session.actor, choice.text);
 
-    // 2. Feedback (Short Delay)
-    setTimeout(() => {
-      const mission = missions.find(m => m._id === session.missionId);
-      const question = mission?.questions?.[session.currentIndex];
-      
-      const feedback = isCorrect 
-        ? (question?.feedbackCorrect || mission?.feedbackCorrect || siteSettings?.defaultQuizFeedbackCorrect || 'Richtig!')
-        : (question?.feedbackIncorrect || mission?.feedbackIncorrect || siteSettings?.defaultQuizFeedbackIncorrect || 'Leider nicht richtig.');
-      
-      const fDelay = insertNpcMessage(session.actor, feedback, undefined, 0);
+    // 2. Feedback (Automatic Staggering)
+    const mission = missions.find(m => m._id === session.missionId);
+    const question = mission?.questions?.[session.currentIndex];
+    
+    const feedback = isCorrect 
+      ? (question?.feedbackCorrect || mission?.feedbackCorrect || siteSettings?.defaultQuizFeedbackCorrect || 'Richtig!')
+      : (question?.feedbackIncorrect || mission?.feedbackIncorrect || siteSettings?.defaultQuizFeedbackIncorrect || 'Leider nicht richtig.');
+    
+    insertNpcMessage(session.actor, feedback, undefined, 200);
 
-      if (isLastQuestion) {
-        setTimeout(() => {
-          completeMission(session.missionId, newAnswers);
-          removePersistedSession(session.missionId);
-          setQuizSession(null);
-        }, fDelay + 500);
-      } else {
-        setTimeout(() => {
-          const nextIdx = session.currentIndex + 1;
-          const qDelay = insertNpcMessage(session.actor, session.questions[nextIdx].questionText, undefined, 0);
+    if (isLastQuestion) {
+      // Delay finishing state until feedback has played
+      setTimeout(() => {
+        void completeMissionRef.current(session.missionId, newAnswers);
+        removePersistedSession(session.missionId);
+        setQuizSession(null);
+      }, getRemainingQueueDelay(500));
+    } else {
+      const nextIdx = session.currentIndex + 1;
+      insertNpcMessage(session.actor, session.questions[nextIdx].questionText);
 
-          setTimeout(() => {
-            setQuizSession(prev => {
-              if (!prev) return null;
-              const updated = { ...prev, currentIndex: nextIdx, showPicker: true };
-              updatePersistedSession(updated);
-              return updated;
-            });
-            scrollToMessage('bottom');
-          }, qDelay + 200);
-        }, fDelay + 300);
-      }
-    }, 400);
-  }, [quizSession, insertUserMessage, missions, siteSettings, insertNpcMessage, completeMission, removePersistedSession, scrollToMessage, updatePersistedSession]);
+      // Show picker after question finishes "typing"
+      setTimeout(() => {
+        setQuizSession(prev => {
+          if (!prev) return null;
+          const updated = { ...prev, showPicker: true, currentIndex: nextIdx };
+          updatePersistedSession(updated);
+          return updated;
+        });
+        scrollToMessageRef.current('bottom');
+      }, getRemainingQueueDelay(300));
+    }
+  }, [quizSession, insertUserMessage, missions, siteSettings, insertNpcMessage, removePersistedSession, updatePersistedSession, getRemainingQueueDelay]);
 
 
 
@@ -489,7 +518,11 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     const mission = missions.find((m) => m._id === missionId);
     if (!mission) return;
 
-    const idempotencyId = `submit-${missionId}-${Date.now()}`;
+    // Backend typically expects clean IDs. If a draft ID is passed, it will correctly 404 
+    // per user rules (drafts should not be visible/activatable).
+    const cleanMissionId = missionId;
+
+    const idempotencyId = `submit-${cleanMissionId}-${Date.now()}`;
     
     // 1. Create virtual bundle for user submission
     const virtualBundle: NarrativeBundleDto = {
@@ -502,7 +535,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             _type: 'submissionAttachment',
             kind: mission.kind as any,
             missionTitle: mission.title,
-            missionId: missionId,
+            missionId: cleanMissionId,
             payload: result,
             status: 'sending',
             submissionId: idempotencyId,
@@ -518,28 +551,38 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     // 2. Insert optimistically
     upsertOptimisticBundle(virtualBundle);
     
-    // 3. Clear focus
-    await setFocus(null);
+    // 3. Clear focus without re-triggering mission pause side effects
+    setFocusedMissionId(null);
+    if (user) {
+      await AsyncStorage.removeItem(`${FOCUS_STORAGE_KEY}:${user.id}`);
+    }
 
-    // 4. Submit to API
+    // 4. Submit to API using the clean ID
     try {
       let apiResult: any;
       if (mission.kind === 'text') {
-        apiResult = await submitTextMission(missionId, result.text, selectedMode);
+        apiResult = await submitTextMission(cleanMissionId, result.text, selectedMode);
       } else if (mission.kind === 'photo') {
-        apiResult = await submitPhotoMission(missionId, result.photoPath, selectedMode);
+        apiResult = await submitPhotoMission(cleanMissionId, result.photoPath, selectedMode);
       } else if (mission.kind === 'gps') {
-        apiResult = await submitGpsCompletion(missionId, selectedMode);
+        apiResult = await submitGpsCompletion(cleanMissionId, selectedMode);
       } else if (mission.kind === 'quiz') {
-        apiResult = await submitQuizCompletion(missionId, Array.isArray(result) ? result : result.answers, selectedMode);
+        apiResult = await submitQuizCompletion(cleanMissionId, Array.isArray(result) ? result : result.answers, selectedMode);
       }
 
-      // 4.5. Update status to pending (or approved/rejected if API returned it)
-      const finalStatus = apiResult?.scored ? 'approved' : 'pending';
+      const isImmediateMissionCompletion =
+        apiResult?.action === 'scored' ||
+        apiResult?.action === 'already_completed';
+      const finalStatus = isImmediateMissionCompletion ? 'approved' : 'pending';
       const submissionAttachment = virtualBundle.messages[0].attachment;
       if (!submissionAttachment || submissionAttachment._type !== 'submissionAttachment') {
         throw new Error('Expected optimistic submission attachment.');
       }
+
+      const moderatorNote =
+        typeof apiResult?.moderatorNote === 'string' && apiResult.moderatorNote.trim().length > 0
+          ? apiResult.moderatorNote.trim()
+          : undefined;
 
       const updatedBundle = {
         ...virtualBundle,
@@ -549,6 +592,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             attachment: {
               ...submissionAttachment,
               status: finalStatus as any,
+              moderatorNote,
               payload: { ...submissionAttachment.payload, ...apiResult },
             },
           },
@@ -556,11 +600,26 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       };
       upsertOptimisticBundle(updatedBundle);
 
-      // 5. If success, show points as system message
-      if (apiResult && typeof apiResult.earned === 'number' && apiResult.earned > 0) {
-        insertSystemMessage(`🎯 +${apiResult.earned} Punkte erhalten`);
-      } else if (apiResult?.scored) {
-        insertSystemMessage(`✅ Mission abgeschlossen`);
+      const showCard =
+        isImmediateMissionCompletion ||
+        typeof apiResult?.earned === 'number' ||
+        mission.kind === 'quiz' ||
+        mission.kind === 'gps';
+      
+      if (showCard) {
+        insertMessageBundle({
+          actor: { name: 'System' },
+          attachment: {
+            _type: 'missionResultAttachment',
+            missionId: cleanMissionId,
+            missionTitle: mission.title,
+            kind: mission.kind,
+            payload: apiResult,
+            earnedPoints: apiResult?.earned,
+          },
+          isSystem: true,
+          releaseOffsetMs: moderatorNote ? 1800 : 500,
+        });
       }
 
     } catch (err) {
@@ -586,7 +645,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       };
       upsertOptimisticBundle(errorBundle);
     }
-  }, [missions, user?.displayName, upsertOptimisticBundle, setFocus, selectedMode, insertSystemMessage]);
+  }, [missions, selectedMode, upsertOptimisticBundle, user, insertMessageBundle]);
 
   const registerScrollHandler = useCallback((handler: ((missionId: string) => void) | null) => {
     scrollHandlerRef.current = handler;
@@ -603,6 +662,35 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     scrollHandlerRef.current?.(missionId);
     highlightMission(missionId);
   }, [highlightMission]);
+
+  useEffect(() => {
+    scrollToMessageRef.current = scrollToMessage;
+  }, [scrollToMessage]);
+
+  useEffect(() => {
+    completeMissionRef.current = completeMission;
+  }, [completeMission]);
+
+  const setFocus = useCallback(async (missionId: string | null) => {
+    if (focusedMissionId && missionId !== focusedMissionId) {
+      pauseQuizRef.current();
+    }
+
+    setFocusedMissionId(missionId);
+    if (user) {
+      const key = `${FOCUS_STORAGE_KEY}:${user.id}`;
+      if (missionId) {
+        await AsyncStorage.setItem(key, missionId);
+      } else {
+        await AsyncStorage.removeItem(key);
+      }
+    }
+  }, [focusedMissionId, user]);
+
+  const startMission = useCallback(async (missionId: string) => {
+    await setFocus(missionId);
+    scrollToMessageRef.current(missionId);
+  }, [setFocus]);
 
   const value = useMemo(
     () => ({ 
@@ -621,10 +709,10 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       insertQuizAnswerBubble,
       quizSession,
       persistedSessions,
+      pauseQuiz,
       startChatQuiz,
       submitQuizStep,
       setQuizSession,
-      clearQuizMessages,
     }),
     [
       activeMission, 
@@ -634,6 +722,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       highlightedMissionId, 
       quizSession, 
       persistedSessions,
+      pauseQuiz,
       startChatQuiz, 
       submitQuizStep,
       completeMission,

@@ -85,7 +85,7 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
 
     // Fetch mission and global settings from Sanity
     const query = `{
-      "mission": *[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{${MISSION_SCORING_PROJECTION}},
+      "mission": *[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{${MISSION_SCORING_PROJECTION}},
       "settings": *[_type == "siteSettings" && !(_id in path("drafts.**"))][0]{
         defaultQuizFeedbackCorrect,
         defaultQuizFeedbackIncorrect
@@ -242,7 +242,7 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     }
 
     // Fetch mission from Sanity (no answers needed, just verify it exists)
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
@@ -362,7 +362,7 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing text payload.');
     }
 
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
@@ -437,7 +437,7 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing photoPath payload.');
     }
 
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {

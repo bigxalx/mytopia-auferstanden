@@ -5,6 +5,7 @@ import { VideoAttachmentView } from './VideoAttachmentView';
 import { AudioAttachmentView } from './AudioAttachmentView';
 import { MissionAttachmentView } from './MissionAttachmentView';
 import { SubmissionAttachmentView } from './SubmissionAttachmentView';
+import { MissionResultView } from './MissionResultView';
 import { ScorecardBubble } from './ScorecardBubble';
 import { 
   type NarrativeAttachmentDto,
@@ -49,6 +50,8 @@ export function AttachmentView({
       return <MissionAttachmentView attachment={attachment} userInteraction={userInteraction} actor={actor} />;
     case 'submissionAttachment':
       return <SubmissionAttachmentView {...attachment} messageText={messageText} />;
+    case 'missionResultAttachment':
+      return <MissionResultView {...attachment} />;
     case 'scorecardAttachment':
       return <ScorecardBubble correct={attachment.correct} total={attachment.total} />;
     default:

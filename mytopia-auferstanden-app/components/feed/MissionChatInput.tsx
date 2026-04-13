@@ -14,7 +14,6 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { theme } from '@/src/shared/ui/theme';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
-import { QuizChatStep } from './QuizChatStep';
 
 /**
  * The inline chat input card for active missions.
@@ -26,26 +25,20 @@ export const MissionChatInput: React.FC = () => {
     focusedMissionId, 
     setFocus, 
     completeMission, 
-    insertQuizAnswerBubble 
   } = useActiveMission();
   
   const insets = useSafeAreaInsets();
   const [textInput, setTextInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Quiz State
-  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
-  const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
-
   // Reset local state when mission changes
   useEffect(() => {
     setTextInput('');
-    setQuizAnswers([]);
-    setCurrentQuizIndex(0);
     setIsSubmitting(false);
   }, [focusedMissionId]);
 
   if (!focusedMissionId || !activeMission) return null;
+  if (activeMission.kind === 'quiz') return null;
 
   const handleClose = () => {
     setFocus(null);
@@ -58,8 +51,6 @@ export const MissionChatInput: React.FC = () => {
       if (!payload) {
         if (activeMission.kind === 'text') {
           payload = { text: textInput };
-        } else if (activeMission.kind === 'quiz') {
-           payload = { answers: quizAnswers };
         }
       }
       
@@ -68,22 +59,6 @@ export const MissionChatInput: React.FC = () => {
       console.warn('[MissionChatInput] Submit failed:', err);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleQuizOptionSelect = (index: number, text: string) => {
-    const isLast = currentQuizIndex === (activeMission.questions?.length || 1) - 1;
-    const newAnswers = [...quizAnswers, index];
-    
-    // Insert answer bubble
-    insertQuizAnswerBubble(activeMission._id, activeMission.title, text);
-    
-    if (isLast) {
-      setQuizAnswers(newAnswers);
-      void handleSubmit({ answers: newAnswers });
-    } else {
-      setQuizAnswers(newAnswers);
-      setCurrentQuizIndex(prev => prev + 1);
     }
   };
 
@@ -132,14 +107,6 @@ export const MissionChatInput: React.FC = () => {
                 )}
               </Pressable>
             </View>
-          )}
-
-          {activeMission.kind === 'quiz' && activeMission.questions && (
-            <QuizChatStep
-              question={activeMission.questions[currentQuizIndex]}
-              onSelect={handleQuizOptionSelect}
-              isSubmitting={isSubmitting}
-            />
           )}
 
           {activeMission.kind === 'photo' && (

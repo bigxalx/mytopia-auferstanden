@@ -93,6 +93,14 @@ export function resolveMessageDelayMs(message: NarrativeMessageDto, isUser?: boo
     return 100; // Minimal reveal delay for user messages
   }
 
+  if (message.attachment?._type === 'systemAttachment') {
+    return 250;
+  }
+
+  if (message.attachment?._type === 'missionResultAttachment') {
+    return 250;
+  }
+
   const textLength = message.text?.trim().length ?? 0;
   if (textLength > 0) {
     return Math.max(

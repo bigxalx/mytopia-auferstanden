@@ -11,8 +11,9 @@ import {
   type TextStyle,
   View,
   type ViewStyle,
-  Animated,
+  Animated as RNAnimated,
 } from 'react-native';
+import Reanimated, { FadeInUp, Easing } from 'react-native-reanimated';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -77,6 +78,7 @@ export default function FeedScreen() {
   const isPullToRefreshActiveRef = useRef(false);
   const didHydrateCacheRef = useRef(false);
   const scrollMetricsRef = useRef({ contentHeight: 0, offsetY: 0, viewportHeight: 0 });
+  const seenMessageKeysRef = useRef(new Set<string>());
 
   const navigation = useNavigation<any>();
   const [clockMs, setClockMs] = useState(() => Date.now());
@@ -92,10 +94,10 @@ export default function FeedScreen() {
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(false);
   const [isPositioned, setIsPositioned] = useState(false);
   const [isStickyHeaderShown, setIsStickyHeaderShown] = useState(false);
-  const newMessagesOpacity = useRef(new Animated.Value(0)).current;
-  const scrollToEndOpacity = useRef(new Animated.Value(0)).current;
-  const scrollToEndIconOpacity = useRef(new Animated.Value(0)).current;
-  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const newMessagesOpacity = useRef(new RNAnimated.Value(0)).current;
+  const scrollToEndOpacity = useRef(new RNAnimated.Value(0)).current;
+  const scrollToEndIconOpacity = useRef(new RNAnimated.Value(0)).current;
+  const headerOpacity = useRef(new RNAnimated.Value(0)).current;
 
   const bottomSpacerHeight = Math.max(72, insets.bottom + SCROLL_TO_END_BOTTOM_GAP) + (quizSession ? 260 : (isMissionBarVisible || focusedMissionId) ? 140 : 0);
   const scrollToEndButtonBottom = isNativeMissionBar
@@ -294,6 +296,10 @@ export default function FeedScreen() {
   }, [cacheKey, loadFirstPage, user]);
 
   useEffect(() => {
+    seenMessageKeysRef.current.clear();
+  }, [cacheKey]);
+
+  useEffect(() => {
     if (!cacheKey || bundles.length === 0) return;
     const payload: FeedCachePayload = {
       bundles: bundles.slice(-FEED_CACHE_LIMIT),
@@ -417,12 +423,12 @@ export default function FeedScreen() {
   }, [isLoadingInitial, visibleMessages.length, localFeedItems, lastSeenTime]);
 
   useEffect(() => {
-    Animated.timing(newMessagesOpacity, { toValue: showNewMessagesBadge ? 1 : 0, duration: 220, useNativeDriver: true }).start();
+    RNAnimated.timing(newMessagesOpacity, { toValue: showNewMessagesBadge ? 1 : 0, duration: 220, useNativeDriver: true }).start();
   }, [showNewMessagesBadge, newMessagesOpacity]);
 
   useEffect(() => {
-    Animated.timing(scrollToEndOpacity, { toValue: showScrollToEndButton ? 1 : 0, duration: 220, useNativeDriver: true }).start();
-    Animated.timing(scrollToEndIconOpacity, { toValue: showScrollToEndButton ? 1 : 0, duration: 220, useNativeDriver: true }).start();
+    RNAnimated.timing(scrollToEndOpacity, { toValue: showScrollToEndButton ? 1 : 0, duration: 220, useNativeDriver: true }).start();
+    RNAnimated.timing(scrollToEndIconOpacity, { toValue: showScrollToEndButton ? 1 : 0, duration: 220, useNativeDriver: true }).start();
   }, [showScrollToEndButton, scrollToEndOpacity, scrollToEndIconOpacity]);
 
   const clearStickyHeaderHideTimeout = useCallback(() => {
@@ -435,13 +441,13 @@ export default function FeedScreen() {
   const showStickyHeader = useCallback(() => {
     clearStickyHeaderHideTimeout();
     setIsStickyHeaderShown(true);
-    Animated.timing(headerOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    RNAnimated.timing(headerOpacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
   }, [clearStickyHeaderHideTimeout, headerOpacity]);
 
   const scheduleStickyHeaderHide = useCallback(() => {
     clearStickyHeaderHideTimeout();
     stickyDateHideTimeoutRef.current = setTimeout(() => {
-      Animated.timing(headerOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(({ finished }) => {
+      RNAnimated.timing(headerOpacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(({ finished }) => {
         if (finished) {
           setIsStickyHeaderShown(false);
         }
@@ -494,13 +500,29 @@ export default function FeedScreen() {
 
     const playbackMessage: PlaybackMessage = item.data;
     const isPlayer = Boolean(playbackMessage.message.isUser);
-    const isSystem = !isPlayer && playbackMessage.message.actor.name === 'System';
+    const attachmentType = playbackMessage.message.attachment?._type;
+    const isSystem = attachmentType === 'systemAttachment';
+    const isResultCard = attachmentType === 'missionResultAttachment';
+    const shouldAnimate =
+      didInitialScrollRef.current &&
+      isPositionedRef.current &&
+      !seenMessageKeysRef.current.has(item.key);
+
+    if (!seenMessageKeysRef.current.has(item.key)) {
+      seenMessageKeysRef.current.add(item.key);
+    }
 
     if (isSystem) {
       return (
-        <View style={styles.messageRow}>
-          <SystemMessage text={playbackMessage.message.text || ''} />
-        </View>
+        <FeedAnimatedRow
+          shouldAnimate={shouldAnimate}
+          style={[styles.messageRow, styles.centeredMessageRow]}
+        >
+          <SystemMessage
+            text={playbackMessage.message.text || ''}
+            variant={(playbackMessage.message.attachment as Extract<PlaybackMessage['message']['attachment'], { _type: 'systemAttachment' }>)?.kind ?? 'neutral'}
+          />
+        </FeedAnimatedRow>
       );
     }
 
@@ -525,10 +547,17 @@ export default function FeedScreen() {
     const showName = isFirstInGroup && !isPlayer;
     const showAvatar = isLastInGroup && !isPlayer;
     const marginBottom = isLastInGroup ? 16 : 4;
-    // ------------------------------
+    const rowStyle = isResultCard
+      ? styles.centeredMessageRow
+      : isPlayer
+        ? styles.playerMessageRow
+        : styles.npcMessageRow;
 
     return (
-      <View style={[styles.messageRow, { marginBottom }, isPlayer ? styles.playerMessageRow : styles.npcMessageRow]}>
+      <FeedAnimatedRow
+        shouldAnimate={shouldAnimate}
+        style={[styles.messageRow, { marginBottom }, rowStyle]}
+      >
         <MessageBubble
           message={playbackMessage.message}
           showAvatar={showAvatar}
@@ -540,7 +569,7 @@ export default function FeedScreen() {
             setViewerVisible(true);
           }}
         />
-      </View>
+      </FeedAnimatedRow>
     );
   }, [headerOpacity, imageSources, isStickyHeaderShown, localFeedItems]);
 
@@ -635,20 +664,20 @@ export default function FeedScreen() {
         </View>
       )}
 
-      <Animated.View style={StyleSheet.flatten([styles.newMessagesContainer, { bottom: newMessagesBottom, opacity: newMessagesOpacity, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }])}>
+      <RNAnimated.View style={StyleSheet.flatten([styles.newMessagesContainer, { bottom: newMessagesBottom, opacity: newMessagesOpacity, pointerEvents: showNewMessagesBadge ? 'auto' : 'none' }])}>
         <Pressable style={styles.newMessagesButton} onPress={() => { scrollToBottom(); setShowNewMessagesBadge(false); }}>
           <FeedDownArrowIcon color="white" size={18} variant="bold" />
           <Text style={styles.newMessagesText}>Neue Nachrichten</Text>
         </Pressable>
-      </Animated.View>
+      </RNAnimated.View>
 
-      <Animated.View pointerEvents={showScrollToEndButton ? 'box-none' : 'none'} style={[styles.scrollToEndButtonWrap, { bottom: scrollToEndButtonBottom, opacity: scrollToEndOpacity }]}>
+      <RNAnimated.View pointerEvents={showScrollToEndButton ? 'box-none' : 'none'} style={[styles.scrollToEndButtonWrap, { bottom: scrollToEndButtonBottom, opacity: scrollToEndOpacity }]}>
         <Pressable accessibilityLabel="Zum Ende scrollen" onPress={() => scrollToBottom()} style={({ pressed }) => [styles.scrollToEndPressable, pressed && styles.scrollToEndPressed]}>
           <View style={[styles.scrollToEndButton, styles.scrollToEndButtonFallback]}>
             <FeedDownArrowIcon color={theme.colors.cardTextHeading} size={22} variant={SCROLL_TO_END_ICON_VARIANT} />
           </View>
         </Pressable>
-      </Animated.View>
+      </RNAnimated.View>
 
       <ImageView images={imageSources} imageIndex={viewerIndex} visible={viewerVisible} onRequestClose={() => setViewerVisible(false)} />
     </>
@@ -661,6 +690,7 @@ const styles = StyleSheet.create({
   messageRow: { marginBottom: 12 } as ViewStyle,
   playerMessageRow: { alignItems: 'flex-end' } as ViewStyle,
   npcMessageRow: { alignItems: 'flex-start' } as ViewStyle,
+  centeredMessageRow: { alignItems: 'center' } as ViewStyle,
   errorBanner: { backgroundColor: theme.colors.errorSurface, borderColor: theme.colors.errorBorder, borderRadius: 12, borderWidth: 1, padding: 12 } as ViewStyle,
   errorText: { color: theme.colors.errorText, fontSize: 13, lineHeight: 18 } as TextStyle,
   stateBox: { alignItems: 'center', backgroundColor: theme.colors.headerBackground, borderRadius: 12, gap: 8, padding: 20 } as ViewStyle,
@@ -690,6 +720,32 @@ const styles = StyleSheet.create({
   modeBadge: { color: theme.colors.orange, fontSize: 10, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 4, textTransform: 'uppercase' } as TextStyle,
   positioningOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center', zIndex: 1000 } as ViewStyle,
 });
+
+function FeedAnimatedRow({
+  children,
+  shouldAnimate,
+  style,
+}: {
+  children: React.ReactNode;
+  shouldAnimate: boolean;
+  style?: ViewStyle | ViewStyle[];
+}) {
+  return (
+    <Reanimated.View
+      entering={
+        shouldAnimate
+          ? FadeInUp
+              .duration(260)
+              .easing(Easing.out(Easing.cubic))
+              .withInitialValues({ opacity: 0, transform: [{ translateY: 10 }] })
+          : undefined
+      }
+      style={style}
+    >
+      {children}
+    </Reanimated.View>
+  );
+}
 
 function getDayKey(timestampMs: number) {
   const date = new Date(timestampMs);
@@ -752,7 +808,7 @@ function FeedDateHeader({
   title,
 }: {
   headerKey: string;
-  headerOpacity: Animated.Value;
+  headerOpacity: RNAnimated.Value;
   isStickyHeaderShown: boolean;
   target: ListRenderItemInfo<FeedItem>['target'];
   title: string;
@@ -769,7 +825,7 @@ function FeedDateHeader({
   // Both 'sticky' and 'regular' now share the EXACT same layout structure and styles.
   // The only difference is how opacity is handled.
   return (
-    <Animated.View
+    <RNAnimated.View
       onLayout={handleLayout}
       pointerEvents={isSticky ? 'none' : 'auto'}
       style={[
@@ -796,6 +852,6 @@ function FeedDateHeader({
       </View>
 
       <View style={[styles.daySeparatorLine, isSticky && { opacity: 0 }]} />
-    </Animated.View>
+    </RNAnimated.View>
   );
 }

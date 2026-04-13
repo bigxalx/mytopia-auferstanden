@@ -63,7 +63,7 @@ export function SubmissionAttachmentView({
           </View>
         )}
 
-        {/* Quiz Answer or Result */}
+        {/* Quiz submission state */}
         {kind === 'quiz' && (
           <View style={styles.quizBox}>
             {payload?.answerText ? (
@@ -72,11 +72,9 @@ export function SubmissionAttachmentView({
                 <Text style={styles.answerText}>{payload.answerText}</Text>
               </View>
             ) : (
-              <View style={styles.quizResultBox}>
-                <Text style={styles.quizScore}>
-                  {payload?.correctCount ?? payload?.correct ?? '?'} / {payload?.totalCount ?? payload?.total ?? '?'}
-                </Text>
-                <Text style={styles.quizSub}>RICHTIG BEANTWORTET</Text>
+              <View style={styles.quizSubmittedBox}>
+                <Ionicons name="checkmark-circle" size={18} color={theme.colors.successText} />
+                <Text style={styles.quizSubmittedText}>Antworten gesendet</Text>
               </View>
             )}
           </View>
@@ -232,6 +230,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.03)',
     borderRadius: 12,
   } as ViewStyle,
+  quizSubmittedBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  } as ViewStyle,
   quizScore: {
     fontSize: 28,
     fontFamily: 'NunitoSans_800ExtraBold',
@@ -242,6 +246,11 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_700Bold',
     color: '#4b5563',
     letterSpacing: 0.5,
+  } as TextStyle,
+  quizSubmittedText: {
+    fontSize: 14,
+    fontFamily: 'NunitoSans_700Bold',
+    color: '#111827',
   } as TextStyle,
   gpsPinContainer: {
     flexDirection: 'row',
