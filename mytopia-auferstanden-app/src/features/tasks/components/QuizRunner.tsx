@@ -5,7 +5,7 @@ import { theme } from '@/src/shared/ui/theme';
 import { QuizResultCard } from './QuizResultCard';
 
 type QuizQuestion = {
-    options: string[];
+    options: (string | { text: string; isCorrect: boolean })[];
     questionText: string;
 };
 
@@ -82,7 +82,7 @@ export function QuizRunner({ embedded = false, missionId: _missionId, missionTit
                             style={[styles.optionButton, isSelected ? styles.optionButtonSelected : null]}
                         >
                             <Text style={[styles.optionText, isSelected ? styles.optionTextSelected : null]}>
-                                {option}
+                                {typeof option === 'string' ? option : option.text}
                             </Text>
                         </Pressable>
                     );

@@ -6,7 +6,10 @@ import { AudioAttachmentView } from './AudioAttachmentView';
 import { MissionAttachmentView } from './MissionAttachmentView';
 import { SubmissionAttachmentView } from './SubmissionAttachmentView';
 import { ScorecardBubble } from './ScorecardBubble';
-import { type NarrativeAttachmentDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { 
+  type NarrativeAttachmentDto,
+  type NarrativeMessageDto,
+} from '@/src/features/feed/data/narrativeFeedClient';
 import { AppImage } from '@/src/shared/ui/AppImage';
 
 export function AttachmentView({

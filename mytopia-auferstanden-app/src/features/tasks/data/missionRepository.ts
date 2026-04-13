@@ -150,14 +150,20 @@ export async function fetchSettings(mode: AppMode = 'production'): Promise<any> 
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
     }
 
-    const idToken = await ensureIdToken();
+    // Global settings are public, so we only attach a token if a user is actually logged in.
+    const firebaseUser = getCurrentFirebaseUser();
+    const idToken = firebaseUser ? await getIdToken(firebaseUser) : null;
+
     const baseUrl = normalizeBaseUrl(env.missionApiBaseUrl);
     const url = `${baseUrl}settings?mode=${mode}`;
 
+    const headers: Record<string, string> = {};
+    if (idToken) {
+        headers['Authorization'] = `Bearer ${idToken}`;
+    }
+
     const response = await fetchWithTimeout(url, {
-        headers: {
-            Authorization: `Bearer ${idToken}`,
-        },
+        headers,
         method: 'GET',
     });
 

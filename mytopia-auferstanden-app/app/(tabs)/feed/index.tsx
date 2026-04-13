@@ -337,7 +337,8 @@ export default function FeedScreen() {
       });
       
       // Also trigger highlight in the context if we found it
-      const foundMissionId = (localFeedItems[targetIndex].data.message.attachment as any)?.missionId;
+      const targetItem = localFeedItems[targetIndex];
+      const foundMissionId = targetItem.type === 'message' ? (targetItem.data.message.attachment as any)?.missionId : null;
       if (foundMissionId) {
         highlightMission(foundMissionId);
       }
@@ -469,7 +470,7 @@ export default function FeedScreen() {
     return unsubscribe;
   }, [navigation, scrollToBottom]);
 
-  const renderItem = useCallback(({ item, target }: ListRenderItemInfo<FeedItem>) => {
+  const renderItem = useCallback(({ item, index, target }: ListRenderItemInfo<FeedItem>) => {
     if (item.type === 'header') {
       return (
         <FeedDateHeader
@@ -494,24 +495,45 @@ export default function FeedScreen() {
       );
     }
 
+    // --- Message Grouping Logic ---
+    const prevItem = localFeedItems[index - 1];
+    const nextItem = localFeedItems[index + 1];
+
+    const currentActorName = playbackMessage.message.actor.name;
+    const currentIsUser = isPlayer;
+
+    const prevData = prevItem?.type === 'message' ? prevItem.data as PlaybackMessage : null;
+    const nextData = nextItem?.type === 'message' ? nextItem.data as PlaybackMessage : null;
+
+    const isFirstInGroup = !prevData || 
+      prevData.message.actor.name !== currentActorName || 
+      Boolean(prevData.message.isUser) !== currentIsUser;
+
+    const isLastInGroup = !nextData || 
+      nextData.message.actor.name !== currentActorName || 
+      Boolean(nextData.message.isUser) !== currentIsUser;
+
+    const showName = isFirstInGroup && !isPlayer;
+    const showAvatar = isLastInGroup && !isPlayer;
+    const marginBottom = isLastInGroup ? 16 : 4;
+    // ------------------------------
+
     return (
-      <View style={[styles.messageRow, isPlayer ? styles.playerMessageRow : styles.npcMessageRow]}>
+      <View style={[styles.messageRow, { marginBottom }, isPlayer ? styles.playerMessageRow : styles.npcMessageRow]}>
         <MessageBubble
           message={playbackMessage.message}
-          showAvatar={!isPlayer}
-          showName={!isPlayer}
+          showAvatar={showAvatar}
+          showName={showName}
+          isLastInGroup={isLastInGroup}
           gallerySources={imageSources}
-          onImagePress={(imageUrl) => {
-            const index = imageSources.findIndex((s) => s.uri === imageUrl);
-            if (index !== -1) {
-              setViewerIndex(index);
-              setViewerVisible(true);
-            }
+          onImagePress={(idx) => {
+            setViewerIndex(idx);
+            setViewerVisible(true);
           }}
         />
       </View>
     );
-  }, [headerOpacity, imageSources, isStickyHeaderShown]);
+  }, [headerOpacity, imageSources, isStickyHeaderShown, localFeedItems]);
 
   const ListHeader = useMemo(() => (
     <View>
@@ -561,8 +583,8 @@ export default function FeedScreen() {
           // Show button when NOT at the bottom (scrolled up)
           setShowScrollToEndButton(distanceFromBottom > SCROLL_TO_END_SHOW_THRESHOLD_PX);
 
-          if (isCloseToBottom && showNewMessagesBadge) {
-            setShowNewMessagesBadge(false);
+          if (isCloseToBottom) {
+            if (showNewMessagesBadge) setShowNewMessagesBadge(false);
             void markAsRead();
           }
         }}

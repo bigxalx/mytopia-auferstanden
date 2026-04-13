@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import Animated, { 
-  useAnimatedStyle, 
-  interpolateColor, 
-  useSharedValue, 
-  withTiming, 
+import Animated, {
+  useAnimatedStyle,
+  interpolateColor,
+  useSharedValue,
+  withTiming,
   withSequence,
   withDelay
 } from 'react-native-reanimated';
@@ -21,10 +21,10 @@ const TAIL_HEIGHT = 12;
 function BubbleTail({ isUser }: { isUser?: boolean }) {
   return (
     <View style={[styles.tailWrap, isUser ? styles.tailWrapRight : styles.tailWrapLeft]}>
-      <Svg 
-        width={TAIL_WIDTH} 
-        height={TAIL_HEIGHT} 
-        viewBox="0 0 20 12" 
+      <Svg
+        width={TAIL_WIDTH}
+        height={TAIL_HEIGHT}
+        viewBox="0 0 20 12"
         style={isUser ? { transform: [{ scaleX: -1 }] } : undefined}
       >
         <Path
@@ -44,6 +44,7 @@ export function MessageBubble({
   onImagePress,
   containerStyle,
   userInteraction,
+  isLastInGroup,
 }: {
   message: NarrativeMessageDto;
   showAvatar: boolean;
@@ -52,6 +53,7 @@ export function MessageBubble({
   onImagePress: (index: number) => void;
   containerStyle?: ViewStyle;
   userInteraction?: boolean;
+  isLastInGroup?: boolean;
 }) {
   const isUser = message.isUser;
   const effectiveShowAvatar = showAvatar && !isUser;
@@ -60,10 +62,10 @@ export function MessageBubble({
   const { highlightedMissionId } = useActiveMission();
   const highlightProgress = useSharedValue(0);
 
-  const isTargetMission = 
-    message.attachment?._type === 'missionAttachment' && 
+  const isTargetMission =
+    message.attachment?._type === 'missionAttachment' &&
     (
-      (message.attachment as any).missionId === highlightedMissionId || 
+      (message.attachment as any).missionId === highlightedMissionId ||
       (message.attachment as any).missionTitle === highlightedMissionId
     );
 
@@ -84,7 +86,7 @@ export function MessageBubble({
     // Highlight effect: light amber for user, standard gray pulse for mission
     // Highlight effect: more prominent orange pulse
     const highlightColor = isUser ? '#facc15' : '#f97316'; // Solid orange pulse for mission
-    
+
     return {
       backgroundColor: interpolateColor(
         highlightProgress.value,
@@ -107,7 +109,7 @@ export function MessageBubble({
         isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC
       ]}>
         <Animated.View style={[
-          styles.messageBubble, 
+          styles.messageBubble,
           isUser && styles.messageBubbleUser,
           animatedBubbleStyle,
           effectiveShowAvatar && styles.lastInGroup
@@ -138,7 +140,7 @@ export function MessageBubble({
             />
           )}
         </Animated.View>
-        {(effectiveShowAvatar || isUser) && <BubbleTail isUser={isUser} />}
+        {(isLastInGroup) && <BubbleTail isUser={isUser} />}
       </View>
     </View>
   );
@@ -147,9 +149,8 @@ export function MessageBubble({
 const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'flex-end', // Changed from flex-start to align bubble bottom with avatar better
     position: 'relative',
-    marginBottom: 12,
   } as ViewStyle,
   messageRowUser: {
     paddingLeft: 40,
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
   avatarColumn: {
     position: 'absolute',
     left: 0,
-    bottom: 0,
+    bottom: -32, // Adjusted y-axis offset to be lower as requested
     width: 48,
   } as ViewStyle,
   bubbleContainer: {

@@ -22,12 +22,25 @@ interface Props {
   };
   compact?: boolean;
   actor: NarrativeMessageDto['actor'];
+  description?: string;
+  imageUrl?: string;
 }
 
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
 import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
 
-export function MissionInteractionZone({ missionId, kind, questions, onSuccess, showStartOnly, gpsConfig, actor, compact = false }: Props) {
+export function MissionInteractionZone({ 
+  missionId, 
+  kind, 
+  questions, 
+  onSuccess, 
+  showStartOnly, 
+  gpsConfig, 
+  actor, 
+  description,
+  imageUrl,
+  compact = false 
+}: Props) {
   const { selectedMode } = useSession();
   const { focusedMissionId, setFocus, activeMission, scrollToMessage, startChatQuiz } = useActiveMission();
   const isFocused = focusedMissionId === missionId;
@@ -43,6 +56,8 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
         await startChatQuiz(missionId, actor, {
           title: missionTitle,
           questions: questions,
+          description: description,
+          imageUrl: imageUrl,
         });
       } else {
         await setFocus(missionId);
@@ -66,7 +81,7 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
           onPress={handleStartMission}
         >
           {isSubmitting ? (
-            <ActivityIndicator color="white" size="small" />
+            <ActivityIndicator color={styles.actionButtonText.color} size="small" />
           ) : (
             <Text style={styles.actionButtonText}>MISSION STARTEN</Text>
           )}
@@ -76,7 +91,7 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
   }
 
   const renderReference = () => (
-    <Pressable 
+    <Pressable
       style={styles.quoteContainer}
       onPress={() => scrollToMessage(missionId)}
     >
@@ -135,12 +150,12 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
   return (
     <View style={[styles.inputWindow, compact && styles.compactInputWindow]}>
       {renderReference()}
-      
+
       <View style={styles.interactionArea}>
         {kind === 'quiz' && (
-           <View style={styles.chatFlowInfo}>
-             <Text style={styles.chatFlowText}>Quiz läuft im Chat...</Text>
-           </View>
+          <View style={styles.chatFlowInfo}>
+            <Text style={styles.chatFlowText}>Quiz läuft im Chat...</Text>
+          </View>
         )}
 
         {kind === 'text' && (
@@ -163,7 +178,7 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
               onPress={handleTextSubmit}
             >
               {isSubmitting ? (
-                <ActivityIndicator color="white" size="small" />
+                <ActivityIndicator color={styles.actionButtonText.color} size="small" />
               ) : (
                 <Text style={styles.actionButtonText}>SENDEN</Text>
               )}
@@ -195,7 +210,7 @@ export function MissionInteractionZone({ missionId, kind, questions, onSuccess, 
             onPress={handleGpsCheckIn}
           >
             {isSubmitting ? (
-              <ActivityIndicator color="white" size="small" />
+              <ActivityIndicator color={styles.actionButtonText.color} size="small" />
             ) : (
               <Text style={styles.actionButtonText}>EINCHECKEN (Legacy)</Text>
             )}
@@ -240,8 +255,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   compactInputWindow: {
-    borderRadius: 16,
-    padding: 8,
+    padding: 0,
     gap: 8,
     borderWidth: 0,
     backgroundColor: 'transparent',
@@ -301,21 +315,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    backgroundColor: theme.colors.orange,
-    borderRadius: 16,
+    backgroundColor: '#F77740',
+    borderRadius: 8,
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
   },
   rowButton: {
     flex: 1,
   },
   sendButton: {
-    backgroundColor: theme.colors.orange,
-    borderRadius: 12,
-    height: 44,
+    backgroundColor: '#F77740',
+    borderRadius: 8,
+    height: 48,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -328,11 +341,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.disabledSurface,
   },
   actionButtonText: {
-    color: 'white',
+    color: '#111827',
     fontFamily: 'Nunito_700Bold',
     fontSize: 14,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
   chatFlowInfo: {
     padding: 16,

@@ -82,12 +82,12 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null);
   const [siteSettings, setSiteSettings] = useState<any>(null);
 
-  // Fetch Site Settings on mount
+  // Fetch Site Settings on mount or when user changes
   useEffect(() => {
     fetchSettings(selectedMode)
       .then(setSiteSettings)
       .catch(err => console.error('[ActiveMission] Failed to fetch settings:', err));
-  }, [selectedMode]);
+  }, [selectedMode, user?.id]);
 
   // Load focused mission ID from storage
   useEffect(() => {

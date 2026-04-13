@@ -28,7 +28,7 @@ export function MissionAttachmentView({
   const submissionStates = useMissionSubmissionStates(user?.id);
 
   const isFocused = focusedMissionId === attachment.missionId;
-  
+
   // Create a mission object compatible with getMissionLifecycleStatus
   const missionObj = {
     _id: attachment.missionId,
@@ -52,16 +52,18 @@ export function MissionAttachmentView({
   };
 
   if (userInteraction) {
-     return (
-        <MissionInteractionZone
-          missionId={attachment.missionId}
-          kind={attachment.missionKind as MissionKind}
-          questions={attachment.questions}
-          gpsConfig={attachment.gpsConfig}
-          onSuccess={handleSuccess}
-          actor={actor}
-        />
-     );
+    return (
+      <MissionInteractionZone
+        missionId={attachment.missionId}
+        kind={attachment.missionKind as MissionKind}
+        questions={attachment.questions}
+        gpsConfig={attachment.gpsConfig}
+        onSuccess={handleSuccess}
+        actor={actor}
+        description={description}
+        imageUrl={attachment.imageUrl}
+      />
+    );
   }
 
   if (isFocused) {
@@ -76,24 +78,14 @@ export function MissionAttachmentView({
         {(attachment.title || attachment.missionTitle || 'Mission').toUpperCase()}
       </Text>
       {description && (
-        <Text 
-          style={styles.missionExcerpt} 
+        <Text
+          style={styles.missionExcerpt}
           numberOfLines={isFocused ? 1 : 3}
         >
           {description}
         </Text>
       )}
-      
-      {isAvailable && !isFocused && (
-        <MissionInteractionZone
-          missionId={attachment.missionId}
-          kind={attachment.missionKind as MissionKind}
-          questions={attachment.questions}
-          gpsConfig={attachment.gpsConfig}
-          onSuccess={handleSuccess}
-          actor={actor}
-        />
-      )}
+
 
       {!isAvailable && !isFocused && (
         <View style={styles.statusBadge}>
@@ -109,7 +101,7 @@ export function MissionAttachmentView({
               <Text style={styles.statusText}>In Prüfung</Text>
             </View>
           )}
-           {status === 'rejected' && (
+          {status === 'rejected' && (
             <View style={styles.statusRow}>
               <Ionicons name="alert-circle" size={16} color={theme.colors.destructiveText} />
               <Text style={[styles.statusText, { color: theme.colors.destructiveText }]}>Abgelehnt</Text>
@@ -126,48 +118,40 @@ export function MissionAttachmentView({
     </View>
   );
 
-  if (isAvailable && attachment.missionKind === 'quiz') {
-    return (
-      <Pressable 
-        style={styles.orange} 
-        onPress={() => startChatQuiz(attachment.missionId, actor, {
-          title: attachment.missionTitle || attachment.title,
-          questions: attachment.questions,
-          description: attachment.excerpt,
-          imageUrl: attachment.imageUrl,
-        })}
-      >
-        {attachment.imageUrl && (
-          <AppImage
-            uri={attachment.imageUrl}
-            style={styles.missionCardImage}
-            contentFit="cover"
-          />
-        )}
-        {content}
-      </Pressable>
-    );
-  }
-
   return (
-    <Link asChild href={`/tasks/${attachment.missionId}`}>
-      <Pressable style={styles.orange}>
-        {attachment.imageUrl && (
-          <AppImage
-            uri={attachment.imageUrl}
-            style={styles.missionCardImage}
-            contentFit="cover"
-          />
-        )}
-        {content}
-      </Pressable>
-    </Link>
+    <View style={styles.attachmentContainer}>
+      <Link asChild href={`/tasks/${attachment.missionId}`}>
+        <Pressable style={styles.orange}>
+          {attachment.imageUrl && (
+            <AppImage
+              uri={attachment.imageUrl}
+              style={styles.missionCardImage}
+              contentFit="cover"
+            />
+          )}
+          {content}
+        </Pressable>
+      </Link>
+      {isAvailable && !isFocused && (
+        <MissionInteractionZone
+          compact
+          missionId={attachment.missionId}
+          kind={attachment.missionKind as MissionKind}
+          questions={attachment.questions}
+          gpsConfig={attachment.gpsConfig}
+          onSuccess={handleSuccess}
+          actor={actor}
+          description={description}
+          imageUrl={attachment.imageUrl}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   orange: {
-    backgroundColor: theme.colors.orange,
+    backgroundColor: theme.colors.orangeAlpha,
     borderRadius: 10,
     padding: 5
   } as ViewStyle,
@@ -215,4 +199,7 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_700Bold',
     color: '#666',
   } as TextStyle,
+  attachmentContainer: {
+    gap: 8,
+  } as ViewStyle,
 });

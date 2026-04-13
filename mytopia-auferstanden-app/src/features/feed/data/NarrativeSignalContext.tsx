@@ -141,9 +141,14 @@ export const NarrativeSignalProvider: React.FC<{ children: React.ReactNode }> = 
 
   const markAsRead = async () => {
     if (!user) return;
-    const now = Date.now();
+    
+    // Optimization: Skip if everything is already marked as read
     const token = pulse?.token;
+    if (unreadCount === 0 && (token === undefined || token === lastSeenToken)) {
+      return;
+    }
 
+    const now = Date.now();
     setLastSeenTime(now);
     setUnreadCount(0);
     if (token) {
