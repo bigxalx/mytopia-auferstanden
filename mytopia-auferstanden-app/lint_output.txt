@@ -1,0 +1,49 @@
+$ expo lint
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/app/(modals)/tasks/[taskId].tsx
+   3:47  warning  '/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/node_modules/react-native/index.js' imported multiple times  import/no-duplicates
+  35:27  warning  '/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/node_modules/react-native/index.js' imported multiple times  import/no-duplicates
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/app/(tabs)/_layout.tsx
+  9:10  warning  'NarrativeSignalProvider' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/app/(tabs)/feed/index.tsx
+   15:3   warning  'Platform' is defined but never used                                                                                                                 @typescript-eslint/no-unused-vars
+  253:9   warning  'handleRefresh' is assigned a value but never used                                                                                                   @typescript-eslint/no-unused-vars
+  362:6   warning  React Hook useEffect has a missing dependency: 'scrollToBottom'. Either include it or remove the dependency array                                    react-hooks/exhaustive-deps
+  391:6   warning  React Hook useEffect has a missing dependency: 'quizSession'. Either include it or remove the dependency array                                       react-hooks/exhaustive-deps
+  391:47  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked             react-hooks/exhaustive-deps
+  772:13  warning  'height' is assigned a value but never used                                                                                                          @typescript-eslint/no-unused-vars
+  772:21  warning  'width' is assigned a value but never used                                                                                                           @typescript-eslint/no-unused-vars
+  772:28  warning  'x' is assigned a value but never used                                                                                                               @typescript-eslint/no-unused-vars
+  772:31  warning  'y' is assigned a value but never used                                                                                                               @typescript-eslint/no-unused-vars
+  773:6   warning  React Hook useCallback has unnecessary dependencies: 'headerKey', 'kind', 'target', and 'title'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/FocusedMissionOverlay.tsx
+  20:9  warning  'meta' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/MissionAttachmentView.tsx
+  27:39  warning  'startChatQuiz' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/MissionChatInput.tsx
+  1:27  warning  'useCallback' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/QuizChatStep.tsx
+  3:10  warning  'theme' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/ScorecardBubble.tsx
+  22:6  warning  React Hook useEffect has missing dependencies: 'opacity' and 'scale'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/SubmissionAttachmentView.tsx
+  1:53  warning  'Pressable' is defined but never used         @typescript-eslint/no-unused-vars
+  6:10  warning  'useActiveMission' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/feed/SystemMessage.tsx
+  3:10  warning  'theme' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/big/Developer/Freelance/mytopia-auferstanden/mytopia-auferstanden-app/components/tasks/ActiveMissionBar.tsx
+  3:10  warning  'router' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 22 problems (0 errors, 22 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

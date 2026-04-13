@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/src/shared/ui/theme';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { MissionInteractionZone } from './MissionInteractionZone';
-import { MISSION_KIND_METADATA, type MissionKind } from '@/src/features/tasks/data/missionRepository';
 
 export function FocusedMissionOverlay() {
   const { activeMission, focusedMissionId, setFocus } = useActiveMission();
@@ -17,7 +16,6 @@ export function FocusedMissionOverlay() {
     setFocus(null);
   };
 
-  const meta = MISSION_KIND_METADATA[activeMission.kind as MissionKind];
 
   // Logic to calculate bottom offset to be above tab bar
   // Match FallbackActiveMissionBar logic: insets.bottom + (android ? 78 : 56)

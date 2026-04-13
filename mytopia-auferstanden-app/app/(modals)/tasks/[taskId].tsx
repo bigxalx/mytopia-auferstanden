@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { useSession } from '@/src/core/session/SessionContext';
@@ -32,7 +32,6 @@ import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionCont
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { AppImage } from '@/src/shared/ui/AppImage';
-import { Pressable } from 'react-native';
 
 export default function TaskDetailScreen() {
   const router = useRouter();

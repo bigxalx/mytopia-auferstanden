@@ -19,7 +19,7 @@ export function ScorecardBubble({ correct, total }: { correct: number; total: nu
   useEffect(() => {
     scale.value = withSpring(1, { damping: 12 });
     opacity.value = withTiming(1, { duration: 400 });
-  }, []);
+  }, [opacity, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

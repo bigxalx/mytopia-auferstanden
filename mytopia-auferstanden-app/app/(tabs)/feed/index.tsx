@@ -12,7 +12,6 @@ import {
   View,
   type ViewStyle,
   Animated,
-  Platform,
 } from 'react-native';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -113,7 +112,21 @@ export default function FeedScreen() {
 
   const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
 
-  const playbackMessages = useMemo(() => buildPlaybackMessages(bundles), [bundles]);
+  const playbackMessages = useMemo(() => {
+    const map: Record<string, { title: string; actor: any }> = {};
+    for (const bundle of bundles) {
+      for (const msg of bundle.messages) {
+        if (msg.attachment?._type === 'missionAttachment') {
+          map[msg.attachment.missionId] = {
+            title: msg.attachment.missionTitle || msg.attachment.title || '',
+            actor: msg.actor,
+          };
+        }
+      }
+    }
+    return buildPlaybackMessages(bundles, map);
+  }, [bundles]);
+
   const visibleMessages = useMemo(
     () => playbackMessages.filter((item) => item.revealAtMs <= clockMs),
     [clockMs, playbackMessages]
@@ -236,10 +249,6 @@ export default function FeedScreen() {
     }
   }, [isLoadingMore, isRefreshing, nextCursor, selectedMode, user]);
 
-  const handleRefresh = useCallback(() => {
-    isPullToRefreshActiveRef.current = true;
-    void loadFirstPage('refresh');
-  }, [loadFirstPage]);
 
   const scrollToBottom = useCallback((options?: { animated?: boolean }) => {
     if (localFeedItems.length === 0) return;
@@ -345,7 +354,7 @@ export default function FeedScreen() {
     };
     registerScrollHandler(handleScrollToMessage);
     return () => registerScrollHandler(null);
-  }, [localFeedItems, registerScrollHandler, highlightMission]);
+  }, [localFeedItems, registerScrollHandler, highlightMission, scrollToBottom]);
 
   useEffect(() => {
     registerOptimisticHandler(setBundles);
@@ -374,7 +383,7 @@ export default function FeedScreen() {
       }
       prevVisibleCountRef.current = visibleMessages.length;
     }
-  }, [scrollToBottom, visibleMessages.length, !!quizSession]);
+  }, [scrollToBottom, visibleMessages.length, quizSession]);
 
   useEffect(() => {
     if (!didInitialScrollRef.current && !isLoadingInitial && visibleMessages.length > 0 && !isPositionedRef.current) {
@@ -752,11 +761,10 @@ function FeedDateHeader({
   renderCountRef.current += 1;
 
   const isSticky = target === 'StickyHeader';
-  const kind = isSticky ? 'sticky' : target === 'Cell' ? 'regular' : 'measurement';
 
-  const handleLayout = useCallback((event: LayoutChangeEvent) => {
-    const { height, width, x, y } = event.nativeEvent.layout;
-  }, [headerKey, kind, target, title]);
+  const handleLayout = useCallback((_event: LayoutChangeEvent) => {
+    // Layout tracking placeholder
+  }, []);
 
   // Both 'sticky' and 'regular' now share the EXACT same layout structure and styles.
   // The only difference is how opacity is handled.

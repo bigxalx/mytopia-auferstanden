@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
-import { type MissionKind, submitQuizCompletion, submitTextMission, submitGpsCompletion } from '@/src/features/tasks/data/missionRepository';
+import { type MissionKind, submitTextMission, submitGpsCompletion } from '@/src/features/tasks/data/missionRepository';
 import { useSession } from '@/src/core/session/SessionContext';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
+
+import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
 
 interface Props {
   missionId: string;
@@ -26,8 +28,6 @@ interface Props {
   imageUrl?: string;
 }
 
-import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
-import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
 
 export function MissionInteractionZone({ 
   missionId, 
@@ -42,8 +42,16 @@ export function MissionInteractionZone({
   compact = false 
 }: Props) {
   const { selectedMode } = useSession();
-  const { focusedMissionId, setFocus, activeMission, scrollToMessage, startChatQuiz } = useActiveMission();
+  const { 
+    focusedMissionId, 
+    setFocus, 
+    activeMission, 
+    scrollToMessage, 
+    startChatQuiz,
+    persistedSessions,
+  } = useActiveMission();
   const isFocused = focusedMissionId === missionId;
+  const isQuizInProgress = kind === 'quiz' && persistedSessions[missionId];
   const missionTitle = activeMission?._id === missionId ? activeMission.title : 'Mission';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,7 +91,9 @@ export function MissionInteractionZone({
           {isSubmitting ? (
             <ActivityIndicator color={styles.actionButtonText.color} size="small" />
           ) : (
-            <Text style={styles.actionButtonText}>MISSION STARTEN</Text>
+            <Text style={styles.actionButtonText}>
+              {isQuizInProgress ? 'MISSION FORTSETZEN' : 'MISSION STARTEN'}
+            </Text>
           )}
         </Pressable>
       </View>
@@ -102,23 +112,6 @@ export function MissionInteractionZone({
       </View>
     </Pressable>
   );
-
-  const handleQuizAnswer = async (answerIndex: number) => {
-    setIsSubmitting(true);
-    try {
-      // For now, in-feed quiz is simplified to single-question or just first question check
-      // Real quizzes might have multiple questions, but we handle the submission here
-      const result = await submitQuizCompletion(missionId, [answerIndex], selectedMode);
-      if (result.action === 'scored') {
-        onSuccess?.();
-      }
-    } catch (err) {
-      console.warn('In-feed quiz submission failed:', err);
-      Alert.alert('Fehler', 'Antwort konnte nicht gesendet werden.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleTextSubmit = async () => {
     if (!textInput.trim()) return;

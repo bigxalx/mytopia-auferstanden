@@ -6,7 +6,7 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
 import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
-import { NarrativeSignalProvider, useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
+import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 import { FEATURES } from '@/src/config/features';

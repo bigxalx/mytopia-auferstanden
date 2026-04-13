@@ -20,24 +20,69 @@ const ATTACHMENT_ONLY_DELAY_MS = 3500;
  * Builds a list of flat PlaybackMessage items from a nested NarrativeBundleDto array,
  * scheduling each message based on its delay factors.
  */
-export function buildPlaybackMessages(bundles: NarrativeBundleDto[]): PlaybackMessage[] {
+export function buildPlaybackMessages(
+  bundles: NarrativeBundleDto[],
+  missionsMap?: Record<string, { title: string; actor: NarrativeMessageDto['actor'] }>
+): PlaybackMessage[] {
   const sorted = [...bundles].sort((a, b) => getBundleReleaseMs(a) - getBundleReleaseMs(b));
   const items: PlaybackMessage[] = [];
   for (const bundle of sorted) {
     let cursorMs = getBundleReleaseMs(bundle);
     for (const msg of bundle.messages) {
       cursorMs += resolveMessageDelayMs(msg, bundle.isUser);
-      items.push({
+      
+      const playbackMsg: PlaybackMessage = {
         bundleId: bundle._id,
         bundleTitle: bundle.title,
         key: `${bundle._id}:${msg.messageId}`,
         message: { ...msg, isUser: bundle.isUser ?? msg.isUser },
         revealAtMs: cursorMs,
-      });
+      };
+
+      items.push(playbackMsg);
+
+      // Inject synthetic moderator feedback if present in submission
+      if (msg.attachment?._type === 'submissionAttachment' && msg.attachment.moderatorNote) {
+        const missionId = msg.attachment.missionId;
+        const resolved = missionId ? missionsMap?.[missionId] : null;
+
+        // NPC actor for the feedback (defaults to Mission actor or generic Moderator)
+        const feedbackActor = resolved?.actor || {
+          name: 'Moderator',
+          role: 'System',
+        };
+
+        const feedbackMsg: PlaybackMessage = {
+          bundleId: bundle._id,
+          bundleTitle: bundle.title,
+          key: `${bundle._id}:${msg.messageId}:feedback`,
+          message: {
+            actor: feedbackActor,
+            messageId: `${msg.messageId}_feedback`,
+            text: msg.attachment.moderatorNote,
+            isUser: false,
+            // Add a reference attachment so the feedback bubble knows which mission it's about
+            attachment: {
+              _type: 'missionAttachment',
+              missionId: missionId ?? '',
+              missionTitle: msg.attachment.missionTitle,
+              title: msg.attachment.missionTitle,
+            },
+          },
+          // Reveal feedback slightly after the submission (e.g. 1.2s delay)
+          revealAtMs: cursorMs + 1200,
+        };
+
+        items.push(feedbackMsg);
+
+        // Advance cursor so subsequent messages in bundle don't overlap with feedback
+        cursorMs += 1200;
+      }
     }
   }
   return items;
 }
+
 
 /**
  * Resolves the delay for a single narrative message based on its text length

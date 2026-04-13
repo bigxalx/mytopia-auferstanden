@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View, Text, Pressable, type ViewStyle, type TextStyle } from 'react-native';
-import { theme } from '@/src/shared/ui/theme';
 
 interface QuizQuestion {
   questionText: string;

@@ -13,6 +13,8 @@ import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStat
 import { useSession } from '@/src/core/session/SessionContext';
 import { Ionicons, Feather } from '@expo/vector-icons';
 
+import { MissionReference } from './MissionReference';
+
 export function MissionAttachmentView({
   attachment,
   userInteraction = false,
@@ -22,12 +24,16 @@ export function MissionAttachmentView({
   userInteraction?: boolean;
   actor: NarrativeMessageDto['actor'];
 }) {
-  const { focusedMissionId, setFocus, startChatQuiz } = useActiveMission();
+  const { focusedMissionId, setFocus } = useActiveMission();
   const { user } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
 
   const isFocused = focusedMissionId === attachment.missionId;
+
+  // Determine if this should be rendered as a simple reference link
+  // (e.g. in synthetic feedback messages or when no rich content is provided)
+  const isReferenceOnly = !attachment.excerpt && !attachment.imageUrl && !attachment.questions;
 
   // Create a mission object compatible with getMissionLifecycleStatus
   const missionObj = {
@@ -50,6 +56,16 @@ export function MissionAttachmentView({
     // Clear focus when mission is complete
     setFocus(null);
   };
+
+  if (isReferenceOnly && !userInteraction) {
+    return (
+      <MissionReference 
+        missionId={attachment.missionId} 
+        missionTitle={attachment.missionTitle || attachment.title || 'Mission'} 
+        style={{ marginBottom: 8 }}
+      />
+    );
+  }
 
   if (userInteraction) {
     return (

@@ -1,9 +1,9 @@
-import { StyleSheet, View, Text, ActivityIndicator, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { AppImage } from '@/src/shared/ui/AppImage';
 import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
-import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { MissionReference } from './MissionReference';
 
 export type SubmissionStatus = 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
 
@@ -21,7 +21,6 @@ export function SubmissionAttachmentView({
   payload,
   missionTitle,
   missionId,
-  moderatorNote,
   messageText,
 }: {
   submissionId: string;
@@ -30,34 +29,19 @@ export function SubmissionAttachmentView({
   payload: any;
   missionTitle: string;
   missionId?: string;
-  moderatorNote?: string;
   messageText?: string;
 }) {
-  const { scrollToMessage } = useActiveMission();
   const effectiveText = payload?.text || messageText;
-
-  const handlePressReference = () => {
-    // Try scrolling by ID if we have it, otherwise fallback to Title
-    scrollToMessage(missionId || missionTitle);
-  };
 
   return (
     <View style={styles.container}>
       {/* 1. Unified Header (The referenced mission) */}
-      <Pressable 
-        style={({ pressed }) => [
-          styles.header,
-          pressed && { backgroundColor: 'rgba(0,0,0,0.1)' }
-        ]} 
-        onPress={handlePressReference}
-      >
-        <View style={styles.headerIndicator} />
-        <View style={styles.headerContent}>
-          <Text style={styles.missionTitle} numberOfLines={1}>
-            {missionTitle}
-          </Text>
-        </View>
-      </Pressable>
+      <MissionReference
+        missionId={missionId}
+        missionTitle={missionTitle}
+        compact
+        style={styles.header}
+      />
 
       {/* 2. Answer Content Area */}
       <View style={styles.answerArea}>
@@ -102,17 +86,6 @@ export function SubmissionAttachmentView({
         {kind === 'gps' && <GpsPinSection status={status} />}
       </View>
 
-      {/* Feedback Note (if any) */}
-      {moderatorNote && (
-        <View style={styles.noteBox}>
-          <View style={styles.noteHeader}>
-            <Feather name="message-circle" size={10} color={theme.colors.orange} />
-            <Text style={styles.noteLabel}>FEEDBACK VOM MODERATOR</Text>
-          </View>
-          <Text style={styles.noteText}>{moderatorNote}</Text>
-        </View>
-      )}
-
       {/* 3. Status Footer */}
       <View style={styles.footer}>
         <StatusIndicator status={status} payload={payload} />
@@ -120,6 +93,7 @@ export function SubmissionAttachmentView({
     </View>
   );
 }
+
 
 function GpsPinSection({ status }: { status: SubmissionStatus }) {
   const isDone = status === 'approved';
