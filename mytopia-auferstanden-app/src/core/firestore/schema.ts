@@ -35,6 +35,7 @@ export type V2ChannelThreadDoc = {
   mode: ChannelMode;
   openedAtMs: number;
   ownerUid: string;
+  role?: string;
   title: string;
   unreadCount: number;
 };
@@ -97,6 +98,14 @@ export type V2SubmissionDoc = {
   sourceId: string;
   sourceType: SubmissionType;
   status: SubmissionStatus;
+};
+
+export type SubmissionChannelMeta = {
+  actorAvatarUrl?: string;
+  actorId?: string;
+  actorName?: string;
+  channelId?: string;
+  channelType?: ChannelType;
 };
 
 export type V2ScoreEventDoc = {

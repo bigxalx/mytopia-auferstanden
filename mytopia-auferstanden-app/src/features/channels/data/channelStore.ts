@@ -3,7 +3,6 @@ import type { AppMode } from '@/src/core/session/appMode';
 import {
   collection,
   doc,
-  getDoc,
   getFirestore,
   onSnapshot,
   orderBy,
@@ -32,6 +31,7 @@ export type ChannelSummary = {
   lastReadAtMs: number;
   messageCount: number;
   openedAtMs: number;
+  role?: string;
   title: string;
   unreadCount: number;
 };
@@ -49,6 +49,7 @@ export type ActorChannelSeed = {
   actorAvatarUrl?: string;
   actorId: string;
   actorName: string;
+  actorRole?: string;
 };
 
 export function buildChannelThreadDocId({
@@ -121,6 +122,8 @@ export function subscribeToChannelBundles({
   const threadDocId = buildChannelThreadDocId({ channelId, mode, uid });
   const bundlesQuery = query(
     collection(db, V2_COLLECTION.channelThreads, threadDocId, CHANNEL_MESSAGES_SUBCOLLECTION),
+    where('ownerUid', '==', uid),
+    where('mode', '==', mode),
     orderBy('createdAtMs', 'asc')
   );
 
@@ -143,6 +146,7 @@ export async function ensureActorChannel({
   actorAvatarUrl,
   actorId,
   actorName,
+  actorRole,
   mode,
   uid,
 }: ActorChannelSeed & {
@@ -168,6 +172,7 @@ export async function ensureActorChannel({
       mode,
       openedAtMs: nowMs,
       ownerUid: uid,
+      ...(actorRole ? { role: actorRole } : {}),
       title: actorName,
       unreadCount: 0,
     },
@@ -189,21 +194,10 @@ export async function markChannelAsRead({
   const db = getFirestore();
   const threadDocId = buildChannelThreadDocId({ channelId, mode, uid });
   const threadRef = doc(db, V2_COLLECTION.channelThreads, threadDocId);
-  const snapshot = await getDoc(threadRef);
-  if (!snapshot.exists()) {
-    return;
-  }
-
-  const data = snapshot.data() as Record<string, unknown>;
-  const lastMessageAtMs =
-    typeof data.lastMessageAtMs === 'number' && Number.isFinite(data.lastMessageAtMs)
-      ? data.lastMessageAtMs
-      : Date.now();
-
   await updateDoc(threadRef, {
-    lastReadAtMs: lastMessageAtMs,
+    lastReadAtMs: Date.now(),
     unreadCount: 0,
-  });
+  }).catch(() => undefined);
 }
 
 export async function upsertChannelBundle({
@@ -227,51 +221,44 @@ export async function upsertChannelBundle({
   const threadDocId = buildChannelThreadDocId({ channelId, mode, uid });
   const threadRef = doc(db, V2_COLLECTION.channelThreads, threadDocId);
   const messageRef = doc(db, V2_COLLECTION.channelThreads, threadDocId, CHANNEL_MESSAGES_SUBCOLLECTION, bundle._id);
-  const threadSnapshot = await getDoc(threadRef);
-  const messageSnapshot = await getDoc(messageRef);
   const createdAtMs = normalizeCreatedAtMs(bundle.releaseAt);
   const firstMessage = bundle.messages[0];
   if (!firstMessage) {
     return;
   }
 
-  const currentThreadData = threadSnapshot.exists() ? (threadSnapshot.data() as Record<string, unknown>) : {};
-  const nextMessageCount = messageSnapshot.exists()
-    ? getNumericField(currentThreadData, 'messageCount')
-    : getNumericField(currentThreadData, 'messageCount') + 1;
-  const nextUnreadCount = incrementUnread
-    ? getNumericField(currentThreadData, 'unreadCount') + (messageSnapshot.exists() ? 0 : 1)
-    : 0;
-
   const batch = writeBatch(db);
   batch.set(
     messageRef,
-    {
+    sanitizeForFirestore({
       bundleId: bundle._id,
       channelId,
       createdAtMs,
       isUser: Boolean(bundle.isUser),
       message: firstMessage,
+      mode,
+      ownerUid: uid,
       title: bundle.title,
-    }
+    })
   );
   batch.set(
     threadRef,
-    {
+    sanitizeForFirestore({
       ...(channelActor?.actorAvatarUrl ? { avatarUrl: channelActor.actorAvatarUrl } : {}),
       ...(channelActor?.actorId ? { actorId: channelActor.actorId } : {}),
+      ...(channelActor?.actorRole ? { role: channelActor.actorRole } : {}),
       channelId,
       channelType,
       lastMessageAtMs: createdAtMs,
       lastPreview: buildBundlePreview(bundle),
       ...(incrementUnread ? {} : { lastReadAtMs: createdAtMs }),
-      messageCount: nextMessageCount,
+      messageCount: 1,
       mode,
-      openedAtMs: getNumericField(currentThreadData, 'openedAtMs') || createdAtMs,
+      openedAtMs: createdAtMs,
       ownerUid: uid,
       title: channelType === 'hub' ? 'Notfallkanal' : (channelActor?.actorName ?? firstMessage.actor.name),
-      unreadCount: nextUnreadCount,
-    },
+      unreadCount: incrementUnread ? 1 : 0,
+    }),
     { merge: true }
   );
   await batch.commit();
@@ -296,6 +283,7 @@ function normalizeChannelSummary(
     lastReadAtMs: getNumericField(data, 'lastReadAtMs'),
     messageCount: getNumericField(data, 'messageCount'),
     openedAtMs: getNumericField(data, 'openedAtMs'),
+    ...(typeof data.role === 'string' ? { role: data.role } : {}),
     title: data.title,
     unreadCount: getNumericField(data, 'unreadCount'),
   };
@@ -362,4 +350,22 @@ function normalizeCreatedAtMs(releaseAt: string) {
 function getNumericField(data: Record<string, unknown>, key: string) {
   const value = data[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function sanitizeForFirestore<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry) => entry !== undefined)
+      .map((entry) => sanitizeForFirestore(entry)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .map(([key, entry]) => [key, sanitizeForFirestore(entry)]);
+
+    return Object.fromEntries(entries) as T;
+  }
+
+  return value;
 }

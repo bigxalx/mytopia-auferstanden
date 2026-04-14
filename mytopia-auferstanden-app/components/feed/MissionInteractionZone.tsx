@@ -73,6 +73,7 @@ export function MissionInteractionZone({
           ...(actor.avatarUrl ? { actorAvatarUrl: actor.avatarUrl } : {}),
           actorId: actor.actorId,
           actorName: actor.name,
+          ...(actor.role ? { actorRole: actor.role } : {}),
         });
         queuePendingMissionStart({
           actor,

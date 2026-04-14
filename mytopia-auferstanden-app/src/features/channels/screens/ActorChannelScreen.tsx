@@ -1,8 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
-import Reanimated, { Easing, FadeInUp } from 'react-native-reanimated';
+import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ImageView from 'react-native-image-viewing';
 
@@ -10,6 +9,7 @@ import { MessageBubble } from '@/components/feed/MessageBubble';
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
 import { MissionChoicePicker } from '@/components/feed/MissionChoicePicker';
 import { SystemMessage } from '@/components/feed/SystemMessage';
+import { ActorAvatar } from '@/components/feed/ActorAvatar';
 import { useChannels } from '@/src/features/channels/data/ChannelContext';
 import { HUB_CHANNEL_ID, markChannelAsRead, subscribeToChannelBundles } from '@/src/features/channels/data/channelStore';
 import { useSession } from '@/src/core/session/SessionContext';
@@ -24,7 +24,13 @@ type FeedItem =
 
 export function ActorChannelScreen({ channelId }: { channelId: string }) {
   const navigation = useNavigation<any>();
-  const { actorChannels, consumePendingMissionStart, pendingMissionStart } = useChannels();
+  const {
+    actorChannels,
+    consumePendingMissionStart,
+    getChannelScrollOffset,
+    pendingMissionStart,
+    saveChannelScrollOffset,
+  } = useChannels();
   const { selectedMode, user } = useSession();
   const insets = useSafeAreaInsets();
   const {
@@ -41,8 +47,15 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
   const { isVisible: isMissionBarVisible } = useActiveMissionBarVisible();
 
   const channel = actorChannels.find((item) => item.channelId === channelId);
+  const channelMessageCount = channel?.messageCount ?? 0;
+  const restoredScrollOffset = getChannelScrollOffset(channelId);
   const listRef = useRef<FlashListRef<FeedItem>>(null);
+  const didRestoreScrollRef = useRef(false);
+  const isAtBottomRef = useRef(restoredScrollOffset <= 12);
   const prevVisibleCountRef = useRef(0);
+  const seenMessageKeysRef = useRef(new Set<string>());
+  const didCaptureInitialMessagesRef = useRef(false);
+  const scrollMetricsRef = useRef({ contentHeight: 0, offsetY: restoredScrollOffset, viewportHeight: 0 });
   const [bundles, setBundles] = useState<NarrativeBundleDto[]>([]);
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +112,31 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     return items;
   }, [visibleMessages]);
 
+  useEffect(() => {
+    seenMessageKeysRef.current.clear();
+    didCaptureInitialMessagesRef.current = !channel || channelMessageCount === 0;
+    didRestoreScrollRef.current = false;
+    prevVisibleCountRef.current = 0;
+    scrollMetricsRef.current = {
+      contentHeight: 0,
+      offsetY: restoredScrollOffset,
+      viewportHeight: 0,
+    };
+    isAtBottomRef.current = restoredScrollOffset <= 12;
+  }, [channel, channelId, channelMessageCount, restoredScrollOffset]);
+
+  useEffect(() => {
+    if (isLoading || didCaptureInitialMessagesRef.current) {
+      return;
+    }
+
+    for (const item of feedItems) {
+      seenMessageKeysRef.current.add(item.key);
+    }
+    didCaptureInitialMessagesRef.current = true;
+    prevVisibleCountRef.current = visibleMessages.length;
+  }, [feedItems, isLoading, visibleMessages.length]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: channel?.title ?? 'Kanal',
@@ -111,10 +149,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
         ...(channel?.avatarUrl ? { actorAvatarUrl: channel.avatarUrl } : {}),
         ...(channel?.actorId ? { actorId: channel.actorId } : {}),
         ...(channel?.title ? { actorName: channel.title } : {}),
+        ...(channel?.role ? { actorRole: channel.role } : {}),
         channelId,
         channelType: 'actor',
       });
-    }, [channel?.actorId, channel?.avatarUrl, channel?.title, channelId, setActiveChannel])
+    }, [channel?.actorId, channel?.avatarUrl, channel?.role, channel?.title, channelId, setActiveChannel])
   );
 
   useEffect(() => {
@@ -165,10 +204,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       });
 
       return () => {
+        saveChannelScrollOffset(channelId, scrollMetricsRef.current.offsetY);
         registerOptimisticHandler(null);
         registerScrollHandler(null);
       };
-    }, [feedItems, highlightMission, registerOptimisticHandler, registerScrollHandler])
+    }, [channelId, feedItems, highlightMission, registerOptimisticHandler, registerScrollHandler, saveChannelScrollOffset])
   );
 
   useEffect(() => {
@@ -191,17 +231,34 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     }
 
     if (visibleMessages.length > prevVisibleCountRef.current) {
-      requestAnimationFrame(() => {
-        listRef.current?.scrollToEnd({ animated: true });
-      });
-      void markChannelAsRead({
-        channelId,
-        mode: selectedMode,
-        uid: user.id,
-      });
+      if (didRestoreScrollRef.current && isAtBottomRef.current) {
+        requestAnimationFrame(() => {
+          listRef.current?.scrollToEnd({ animated: true });
+        });
+        void markChannelAsRead({
+          channelId,
+          mode: selectedMode,
+          uid: user.id,
+        });
+      }
       prevVisibleCountRef.current = visibleMessages.length;
     }
   }, [channelId, selectedMode, user?.id, visibleMessages.length]);
+
+  useEffect(() => {
+    if (isLoading || visibleMessages.length === 0 || didRestoreScrollRef.current) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (restoredScrollOffset > 0) {
+        listRef.current?.scrollToOffset({ animated: false, offset: restoredScrollOffset });
+      } else {
+        listRef.current?.scrollToEnd({ animated: false });
+      }
+      didRestoreScrollRef.current = true;
+    });
+  }, [isLoading, restoredScrollOffset, visibleMessages.length]);
 
   useEffect(() => {
     const now = Date.now();
@@ -256,10 +313,13 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
         : currentIsUser
           ? styles.playerMessageRow
           : styles.npcMessageRow;
+      const shouldAnimate =
+        didCaptureInitialMessagesRef.current && !seenMessageKeysRef.current.has(item.key);
+      seenMessageKeysRef.current.add(item.key);
 
       if (isSystem) {
         return (
-          <FeedAnimatedRow shouldAnimate style={[styles.messageRow, styles.centeredMessageRow]}>
+          <FeedAnimatedRow itemKey={item.key} shouldAnimate={shouldAnimate} style={[styles.messageRow, styles.centeredMessageRow]}>
             <SystemMessage
               text={playbackMessage.message.text || ''}
               variant={(playbackMessage.message.attachment as Extract<PlaybackMessage['message']['attachment'], { _type: 'systemAttachment' }>)?.kind ?? 'neutral'}
@@ -269,7 +329,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       }
 
       return (
-        <FeedAnimatedRow shouldAnimate style={[styles.messageRow, rowStyle, { marginBottom: isLastInGroup ? 16 : 4 }]}>
+        <FeedAnimatedRow
+          itemKey={item.key}
+          shouldAnimate={shouldAnimate}
+          style={[styles.messageRow, rowStyle, { marginBottom: isLastInGroup ? 16 : 4 }]}
+        >
           <MessageBubble
             gallerySources={imageSources}
             isLastInGroup={isLastInGroup}
@@ -298,6 +362,17 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
         contentContainerStyle={styles.scrollContent}
         data={feedItems}
         keyExtractor={(item) => item.key}
+        ListHeaderComponent={
+          channel ? (
+            <View style={styles.channelHero}>
+              <ActorAvatar actor={{ ...(channel.avatarUrl ? { avatarUrl: channel.avatarUrl } : {}), name: channel.title }} />
+              <Text style={styles.channelTitle}>{channel.title}</Text>
+              <Text style={styles.channelDescription}>
+                {channel.role?.trim() ? channel.role : 'Privater Missionskanal'}
+              </Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           isLoading ? (
             <View style={styles.stateBox}>
@@ -311,10 +386,16 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           )
         }
         ListFooterComponent={<View style={{ height: bottomSpacerHeight }} />}
-        onLayout={() => {
-          requestAnimationFrame(() => {
-            listRef.current?.scrollToEnd({ animated: false });
-          });
+        onLayout={(event) => {
+          scrollMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
+        }}
+        onScroll={(event) => {
+          const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+          scrollMetricsRef.current.contentHeight = contentSize.height;
+          scrollMetricsRef.current.offsetY = contentOffset.y;
+          scrollMetricsRef.current.viewportHeight = layoutMeasurement.height;
+          const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+          isAtBottomRef.current = distanceFromBottom <= 100;
         }}
         onScrollEndDrag={() => {
           if (user?.id) {
@@ -326,6 +407,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           }
         }}
         renderItem={renderItem}
+        scrollEventThrottle={16}
         style={styles.scrollView}
       />
 
@@ -343,27 +425,63 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
 
 function FeedAnimatedRow({
   children,
+  itemKey,
   shouldAnimate,
   style,
 }: {
   children: React.ReactNode;
+  itemKey: string;
   shouldAnimate: boolean;
   style?: ViewStyle | ViewStyle[];
 }) {
+  const opacity = useRef(new Animated.Value(shouldAnimate ? 0 : 1)).current;
+  const translateY = useRef(new Animated.Value(shouldAnimate ? 10 : 0)).current;
+
+  useEffect(() => {
+    if (!shouldAnimate) {
+      opacity.stopAnimation();
+      translateY.stopAnimation();
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
+    opacity.stopAnimation();
+    translateY.stopAnimation();
+    opacity.setValue(0);
+    translateY.setValue(10);
+    Animated.parallel([
+      Animated.timing(opacity, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [itemKey, opacity, shouldAnimate, translateY]);
+
+  if (!shouldAnimate) {
+    return <View style={style}>{children}</View>;
+  }
+
   return (
-    <Reanimated.View
-      entering={
-        shouldAnimate
-          ? FadeInUp
-              .duration(260)
-              .easing(Easing.out(Easing.cubic))
-              .withInitialValues({ opacity: 0, transform: [{ translateY: 10 }] })
-          : undefined
-      }
-      style={style}
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity,
+          transform: [{ translateY }],
+        },
+      ]}
     >
       {children}
-    </Reanimated.View>
+    </Animated.View>
   );
 }
 
@@ -444,6 +562,31 @@ const styles = StyleSheet.create({
   stateText: {
     color: theme.colors.textSecondary,
     fontSize: 14,
+  } as TextStyle,
+  channelHero: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.headerBackground,
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  } as ViewStyle,
+  channelTitle: {
+    color: theme.colors.textPrimary,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 22,
+    marginTop: 12,
+    textAlign: 'center',
+  } as TextStyle,
+  channelDescription: {
+    color: theme.colors.textSecondary,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+    textAlign: 'center',
   } as TextStyle,
   daySeparatorWrap: {
     alignItems: 'center',

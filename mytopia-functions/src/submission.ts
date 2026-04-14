@@ -176,17 +176,21 @@ async function writeChannelModerationUpdates({
   submissionId: string;
   uid: string;
 }) {
-  const channelId = typeof afterData.metadata?.channelId === 'string' ? afterData.metadata.channelId : null;
-  const actorId = typeof afterData.metadata?.actorId === 'string' ? afterData.metadata.actorId : null;
+  const channelMeta =
+    afterData.metadata && typeof afterData.metadata === 'object' && afterData.metadata.channelMeta && typeof afterData.metadata.channelMeta === 'object'
+      ? afterData.metadata.channelMeta
+      : null;
+  const channelId = channelMeta && typeof channelMeta.channelId === 'string' ? channelMeta.channelId : null;
+  const actorId = channelMeta && typeof channelMeta.actorId === 'string' ? channelMeta.actorId : null;
   if (!channelId || !actorId) {
     return;
   }
 
   const mode = afterData.mode === 'dev' ? 'dev' : 'production';
   const createdAtMs = Date.now();
-  const actorName = typeof afterData.metadata?.actorName === 'string' ? afterData.metadata.actorName : 'System';
+  const actorName = channelMeta && typeof channelMeta.actorName === 'string' ? channelMeta.actorName : 'System';
   const actorAvatarUrl =
-    typeof afterData.metadata?.actorAvatarUrl === 'string' ? afterData.metadata.actorAvatarUrl : undefined;
+    channelMeta && typeof channelMeta.actorAvatarUrl === 'string' ? channelMeta.actorAvatarUrl : undefined;
   const missionTitle = typeof afterData.metadata?.missionTitle === 'string' ? afterData.metadata.missionTitle : 'Mission';
   const moderatorNote =
     typeof afterData.moderatorNote === 'string' && afterData.moderatorNote.trim().length > 0

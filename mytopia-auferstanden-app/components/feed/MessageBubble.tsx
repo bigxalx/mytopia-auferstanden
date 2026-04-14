@@ -14,6 +14,8 @@ import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import { useRouter } from 'expo-router';
 
 const TAIL_WIDTH = 20;
 const TAIL_HEIGHT = 12;
@@ -57,6 +59,8 @@ export function MessageBubble({
 }) {
   const isUser = message.isUser;
   const isCentered = message.attachment?._type === 'missionResultAttachment';
+  const router = useRouter();
+  const { actorChannels } = useChannels();
   
   const effectiveShowAvatar = showAvatar && !isUser && !isCentered;
   const effectiveShowName = showName && !isUser && !isCentered;
@@ -70,6 +74,11 @@ export function MessageBubble({
       (message.attachment as any).missionId === highlightedMissionId ||
       (message.attachment as any).missionTitle === highlightedMissionId
     );
+
+  const linkedChannelId =
+    message.actor.actorId && actorChannels.some((channel) => channel.channelId === message.actor.actorId)
+      ? message.actor.actorId
+      : null;
 
   useEffect(() => {
     if (isTargetMission) {
@@ -102,7 +111,18 @@ export function MessageBubble({
     <View style={[styles.messageRow, isUser && styles.messageRowUser, containerStyle]}>
       {effectiveShowAvatar && (
         <View style={styles.avatarColumn}>
-          <ActorAvatar actor={message.actor} />
+          <ActorAvatar
+            actor={message.actor}
+            onPress={
+              linkedChannelId
+                ? () =>
+                    router.push({
+                      pathname: '/(tabs)/feed/[channelId]',
+                      params: { channelId: linkedChannelId },
+                    })
+                : undefined
+            }
+          />
         </View>
       )}
 
@@ -116,7 +136,6 @@ export function MessageBubble({
             isUser && styles.messageBubbleUser,
             isCentered && styles.messageBubbleCentered,
             animatedBubbleStyle,
-            effectiveShowAvatar && styles.lastInGroup
           ]}
         >
           {effectiveShowName && (
@@ -154,7 +173,7 @@ export function MessageBubble({
 const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end', // Changed from flex-start to align bubble bottom with avatar better
+    alignItems: 'flex-end',
     position: 'relative',
   } as ViewStyle,
   messageRowUser: {
@@ -163,8 +182,9 @@ const styles = StyleSheet.create({
   avatarColumn: {
     position: 'absolute',
     left: 0,
-    bottom: -32, // Adjusted y-axis offset to be lower as requested
+    bottom: -32,
     width: 48,
+    alignItems: 'center',
   } as ViewStyle,
   bubbleContainer: {
     flex: 1,
@@ -199,7 +219,6 @@ const styles = StyleSheet.create({
     elevation: 0,
     shadowOpacity: 0,
   } as ViewStyle,
-  lastInGroup: {} as ViewStyle,
   tailWrap: {
     position: 'absolute',
     bottom: -TAIL_HEIGHT + 1,

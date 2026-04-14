@@ -75,6 +75,7 @@ type ActiveChannelState = {
   actorAvatarUrl?: string;
   actorId?: string;
   actorName?: string;
+  actorRole?: string;
   channelId: string;
   channelType: 'hub' | 'actor';
 };
@@ -247,6 +248,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
               ...(channel.actorAvatarUrl ? { actorAvatarUrl: channel.actorAvatarUrl } : {}),
               actorId: channel.actorId,
               actorName: channel.actorName ?? bundle.messages[0]?.actor.name ?? 'Kanal',
+              ...(channel.actorRole ? { actorRole: channel.actorRole } : {}),
             }
           : undefined,
         channelId: channel.channelId,
@@ -307,7 +309,10 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     const now = Date.now();
     // For staggering: if we have a future message scheduled, we append to its end.
     // Otherwise, we start from now.
-    const baseTime = Math.max(now, lastScheduledReleaseAtMsRef.current) + releaseOffsetMs;
+    const shouldBypassQueue = Boolean(isUser);
+    const baseTime = shouldBypassQueue
+      ? now + releaseOffsetMs
+      : Math.max(now, lastScheduledReleaseAtMsRef.current) + releaseOffsetMs;
     
     // ID generation
     const prefix = isSystem ? 'sys' : (isUser ? 'user' : 'npc');
@@ -319,22 +324,22 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     const bundle: NarrativeBundleDto = {
       _id: bundleId,
       messages: [{
-        text,
+        ...(text ? { text } : {}),
         actor,
-        attachment,
-        isUser,
+        ...(attachment ? { attachment } : {}),
+        ...(typeof isUser === 'boolean' ? { isUser } : {}),
         messageId,
       }],
       releaseAt,
       title: title || (isUser ? 'Besucher' : 'Notfallkanal'),
-      isUser,
+      ...(typeof isUser === 'boolean' ? { isUser } : {}),
     };
 
     // Calculate playback duration to update the queue tracker
     const delay = resolveMessageDelayMs(bundle.messages[0], isUser);
     
     // System messages don't block the NPC typing queue by default
-    if (!isSystem) {
+    if (!isSystem && !isUser) {
       lastScheduledReleaseAtMsRef.current = baseTime + delay;
     }
 

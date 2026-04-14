@@ -32,6 +32,10 @@ export function getMissionLifecycleStatus(
   }
 
   const submissionState = submissionStates[mission._id];
+  if (submissionState?.status === 'approved') {
+    return 'completed';
+  }
+
   if (submissionState?.status === 'pending') {
     return 'pending';
   }

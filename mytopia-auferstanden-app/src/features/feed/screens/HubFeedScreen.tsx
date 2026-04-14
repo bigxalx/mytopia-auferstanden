@@ -1,10 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   ActivityIndicator,
   AppState,
   type AppStateStatus,
   type LayoutChangeEvent,
+  Easing,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,7 +16,6 @@ import {
   type ViewStyle,
   Animated as RNAnimated,
 } from 'react-native';
-import Reanimated, { FadeInUp, Easing } from 'react-native-reanimated';
 import { FlashList, type FlashListRef, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
@@ -25,13 +27,12 @@ import { useSession } from '@/src/core/session/SessionContext';
 import {
   fetchNarrativeFeedPage,
   type NarrativeBundleDto,
+  type NarrativeMessageDto,
 } from '@/src/features/feed/data/narrativeFeedClient';
+import { useChannels } from '@/src/features/channels/data/ChannelContext';
 import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import { MessageBubble } from '@/components/feed/MessageBubble';
-import {
-  buildPlaybackMessages,
-  type PlaybackMessage,
-} from '@/src/features/feed/utils/playback';
+import { type PlaybackMessage } from '@/src/features/feed/utils/playback';
 import { useActiveMission, useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
 import { SystemMessage } from '@/components/feed/SystemMessage';
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
@@ -56,9 +57,38 @@ type FeedItem =
   | { type: 'message'; data: PlaybackMessage; key: string }
   | { type: 'header'; title: string; key: string };
 
+type HubFeedSessionSnapshot = {
+  bundles: NarrativeBundleDto[];
+  cacheKey: string;
+  nextCursor: string | null;
+};
+
+let hubFeedSessionSnapshot: HubFeedSessionSnapshot | null = null;
+
 export default function FeedScreen() {
   const { selectedMode, user } = useSession();
   const { lastSeenTime, markAsRead, pulse } = useNarrativeSignal();
+  const { getChannelScrollState, saveChannelScrollState } = useChannels();
+  const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
+  const sessionSnapshot =
+    cacheKey && hubFeedSessionSnapshot?.cacheKey === cacheKey ? hubFeedSessionSnapshot : null;
+  const hasSessionSnapshot = Boolean(sessionSnapshot);
+  const restoredScrollState = getChannelScrollState('hub');
+  const restoredScrollOffset = restoredScrollState.offsetY;
+  const logTag = useMemo(() => {
+    const rawDeviceName =
+      typeof Constants.deviceName === 'string' && Constants.deviceName.trim().length > 0
+        ? Constants.deviceName.trim().replace(/\s+/g, '-')
+        : 'unknown-device';
+    return `[hubFeed:${Platform.OS}:${rawDeviceName}]`;
+  }, []);
+  const logHub = useCallback((event: string, details?: Record<string, unknown>) => {
+    if (details) {
+      console.log(`${logTag} ${event}`, details);
+      return;
+    }
+    console.log(`${logTag} ${event}`);
+  }, [logTag]);
   const insets = useSafeAreaInsets();
   const {
     activeChannel,
@@ -78,23 +108,24 @@ export default function FeedScreen() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const latestSignalTokenRef = useRef<string | null>(null);
   const listRef = useRef<FlashListRef<FeedItem>>(null);
+  const initialSessionSnapshotRef = useRef(sessionSnapshot);
   const isAtBottomRef = useRef(true);
-  const prevVisibleCountRef = useRef(0);
+  const prevVisibleCountRef = useRef(hasSessionSnapshot ? (sessionSnapshot?.bundles.reduce((sum, bundle) => sum + bundle.messages.length, 0) ?? 0) : 0);
   const didInitialScrollRef = useRef(false);
   const isPositionedRef = useRef(false);
   const hasUserInteractedRef = useRef(false);
   const stickyDateHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPullToRefreshActiveRef = useRef(false);
   const didHydrateCacheRef = useRef(false);
+  const canRefreshFromSignalsRef = useRef(false);
   const scrollMetricsRef = useRef({ contentHeight: 0, offsetY: 0, viewportHeight: 0 });
   const seenMessageKeysRef = useRef(new Set<string>());
 
   const navigation = useNavigation<any>();
-  const [clockMs, setClockMs] = useState(() => Date.now());
-  const [bundles, setBundles] = useState<NarrativeBundleDto[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [bundles, setBundles] = useState<NarrativeBundleDto[]>(() => sessionSnapshot?.bundles ?? []);
+  const [nextCursor, setNextCursor] = useState<string | null>(() => sessionSnapshot?.nextCursor ?? null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(() => !sessionSnapshot);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -121,26 +152,9 @@ export default function FeedScreen() {
       ? Math.max(insets.bottom + 92, 108)
       : Math.max(insets.bottom + 24, 32);
 
-  const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
-
-  const playbackMessages = useMemo(() => {
-    const map: Record<string, { title: string; actor: any }> = {};
-    for (const bundle of bundles) {
-      for (const msg of bundle.messages) {
-        if (msg.attachment?._type === 'missionAttachment') {
-          map[msg.attachment.missionId] = {
-            title: msg.attachment.missionTitle || msg.attachment.title || '',
-            actor: msg.actor,
-          };
-        }
-      }
-    }
-    return buildPlaybackMessages(bundles, map);
-  }, [bundles]);
-
   const visibleMessages = useMemo(
-    () => playbackMessages.filter((item) => item.revealAtMs <= clockMs),
-    [clockMs, playbackMessages]
+    () => flattenHubMessages(bundles),
+    [bundles]
   );
 
   /**
@@ -181,8 +195,10 @@ export default function FeedScreen() {
 
   const imageSources = useMemo(() => {
     return visibleMessages
-      .filter((m) => m.message.attachment?._type === 'imageAttachment')
-      .map((m) => ({ uri: (m.message.attachment as any).url }));
+      .filter((message: PlaybackMessage) => message.message.attachment?._type === 'imageAttachment')
+      .map((message: PlaybackMessage) => ({
+        uri: (message.message.attachment as Extract<NarrativeMessageDto['attachment'], { _type: 'imageAttachment' }>).url,
+      }));
   }, [visibleMessages]);
 
 
@@ -203,17 +219,29 @@ export default function FeedScreen() {
         setIsRefreshing(true);
       }
       if (mode !== 'silent') setErrorMessage(null);
+      logHub('loadFirstPage:start', {
+        mode,
+        requestVersion,
+      });
 
       try {
         const page = await fetchNarrativeFeedPage({ limit: 40, mode: selectedMode });
         if (requestVersion !== requestVersionRef.current) return;
 
-        setBundles((current) => mergeFreshBundles(current, page.bundles));
-        setNextCursor((current) => current ?? page.nextCursor);
-        setClockMs(Date.now());
+        setBundles((current) => reconcileLatestBundles(current, page.bundles));
+        setNextCursor(page.nextCursor);
+        logHub('loadFirstPage:success', {
+          bundles: page.bundles.length,
+          mode,
+          nextCursor: page.nextCursor ? 'set' : 'none',
+        });
       } catch (error) {
         if (requestVersion !== requestVersionRef.current) return;
         setErrorMessage(error instanceof Error ? error.message : 'Failed to load narrative feed.');
+        logHub('loadFirstPage:error', {
+          message: error instanceof Error ? error.message : 'unknown',
+          mode,
+        });
       } finally {
         if (mode === 'initial') {
           activeInitialLoadsRef.current = Math.max(0, activeInitialLoadsRef.current - 1);
@@ -226,9 +254,13 @@ export default function FeedScreen() {
             isPullToRefreshActiveRef.current = false;
           }
         }
+        logHub('loadFirstPage:finally', {
+          isLoadingInitial: activeInitialLoadsRef.current > 0,
+          mode,
+        });
       }
     },
-    [selectedMode, user]
+    [logHub, selectedMode, user]
   );
 
   const loadMore = useCallback(async () => {
@@ -251,7 +283,6 @@ export default function FeedScreen() {
       });
       setBundles((current) => mergeOlderBundles(current, page.bundles));
       setNextCursor(page.nextCursor);
-      setClockMs(Date.now());
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to load more feed items.');
     } finally {
@@ -279,11 +310,32 @@ export default function FeedScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      logHub('focus', {
+        hasSessionSnapshot,
+        restoredScrollOffset,
+      });
+      canRefreshFromSignalsRef.current = false;
       setActiveChannel({
         channelId: 'hub',
         channelType: 'hub',
       });
-    }, [setActiveChannel])
+      return () => {
+        const distanceFromBottom = Math.max(
+          0,
+          scrollMetricsRef.current.contentHeight -
+            (scrollMetricsRef.current.offsetY + scrollMetricsRef.current.viewportHeight)
+        );
+        logHub('blur:saveOffset', {
+          distanceFromBottom,
+          offsetY: scrollMetricsRef.current.offsetY,
+        });
+        saveChannelScrollState('hub', {
+          distanceFromBottom,
+          offsetY: scrollMetricsRef.current.offsetY,
+          wasAtBottom: distanceFromBottom <= 120,
+        });
+      };
+    }, [hasSessionSnapshot, logHub, restoredScrollOffset, saveChannelScrollState, setActiveChannel])
   );
 
   useEffect(() => {
@@ -291,6 +343,23 @@ export default function FeedScreen() {
       setBundles([]);
       setNextCursor(null);
       setErrorMessage(null);
+      hubFeedSessionSnapshot = null;
+      logHub('bootstrap:resetNoUser');
+      return;
+    }
+
+    didHydrateCacheRef.current = false;
+
+    const bootstrapSnapshot = initialSessionSnapshotRef.current;
+
+    if (bootstrapSnapshot) {
+      didHydrateCacheRef.current = true;
+      logHub('bootstrap:sessionSnapshot', {
+        bundles: bootstrapSnapshot.bundles.length,
+        nextCursor: bootstrapSnapshot.nextCursor ? 'set' : 'none',
+        restoredScrollOffset,
+      });
+      void loadFirstPage('silent');
       return;
     }
 
@@ -303,8 +372,11 @@ export default function FeedScreen() {
         didHydrateCacheRef.current = true;
         setBundles(parsed.bundles);
         setNextCursor(typeof parsed.nextCursor === 'string' ? parsed.nextCursor : null);
-        setClockMs(Date.now());
         setIsLoadingInitial(false);
+        logHub('bootstrap:asyncStorage', {
+          bundles: parsed.bundles.length,
+          nextCursor: typeof parsed.nextCursor === 'string' ? 'set' : 'none',
+        });
       })
       .catch(() => {})
       .finally(() => {
@@ -312,14 +384,24 @@ export default function FeedScreen() {
       });
 
     return () => { isCancelled = true; };
-  }, [cacheKey, loadFirstPage, user]);
+  }, [cacheKey, loadFirstPage, logHub, restoredScrollOffset, user]);
 
   useEffect(() => {
     seenMessageKeysRef.current.clear();
-  }, [cacheKey]);
+    scrollMetricsRef.current.offsetY = restoredScrollOffset;
+    didInitialScrollRef.current = false;
+    isPositionedRef.current = false;
+    setIsPositioned(false);
+    prevVisibleCountRef.current = hasSessionSnapshot ? visibleMessages.length : 0;
+    logHub('positioning:reset', {
+      hasSessionSnapshot,
+      restoredScrollOffset,
+      visibleMessages: visibleMessages.length,
+    });
+  }, [cacheKey, hasSessionSnapshot, logHub, restoredScrollOffset, visibleMessages.length]);
 
   useEffect(() => {
-    if (!cacheKey || bundles.length === 0) return;
+    if (!cacheKey) return;
     const payload: FeedCachePayload = {
       bundles: bundles.slice(-FEED_CACHE_LIMIT),
       nextCursor,
@@ -329,14 +411,23 @@ export default function FeedScreen() {
     AsyncStorage.setItem(cacheKey, JSON.stringify(payload)).catch(() => {});
   }, [bundles, cacheKey, nextCursor]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (user) void loadFirstPage('silent');
-    }, [loadFirstPage, user])
-  );
+  useEffect(() => {
+    if (!cacheKey) {
+      return;
+    }
+    if (bundles.length === 0 && isLoadingInitial) {
+      return;
+    }
+    hubFeedSessionSnapshot = {
+      bundles,
+      cacheKey,
+      nextCursor,
+    };
+  }, [bundles, cacheKey, isLoadingInitial, nextCursor]);
 
   useEffect(() => {
     if (!user || (!pulse && latestSignalTokenRef.current === null)) return;
+    if (!canRefreshFromSignalsRef.current) return;
     if (pulse?.token && pulse.token !== latestSignalTokenRef.current) {
       latestSignalTokenRef.current = pulse.token;
       void loadFirstPage('silent');
@@ -394,6 +485,9 @@ export default function FeedScreen() {
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasInactive = appStateRef.current === 'inactive' || appStateRef.current === 'background';
       appStateRef.current = nextState;
+      if (!canRefreshFromSignalsRef.current) {
+        return;
+      }
       if (wasInactive && nextState === 'active') void loadFirstPage('silent');
     });
     return () => subscription.remove();
@@ -401,6 +495,13 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (visibleMessages.length > prevVisibleCountRef.current) {
+      logHub('visibleMessages:increase', {
+        didInitialScroll: didInitialScrollRef.current,
+        isAtBottom: isAtBottomRef.current,
+        isPositioned: isPositionedRef.current,
+        nextVisibleCount: visibleMessages.length,
+        prevVisibleCount: prevVisibleCountRef.current,
+      });
       if (quizSession) {
         // Force auto-scroll during active quiz sessions to follow conversation
         requestAnimationFrame(() => scrollToBottom());
@@ -411,38 +512,50 @@ export default function FeedScreen() {
       }
       prevVisibleCountRef.current = visibleMessages.length;
     }
-  }, [scrollToBottom, visibleMessages.length, quizSession]);
+  }, [logHub, scrollToBottom, visibleMessages.length, quizSession]);
 
   useEffect(() => {
     if (!didInitialScrollRef.current && !isLoadingInitial && visibleMessages.length > 0 && !isPositionedRef.current) {
       const scrollInitial = () => {
         if (!listRef.current) return;
-        
-        let targetIndex = -1;
-        if (lastSeenTime) {
-          // Find first unread message
-          targetIndex = localFeedItems.findIndex(item => 
-            item.type === 'message' && item.data.revealAtMs > lastSeenTime
-          );
+
+        if (restoredScrollState.wasAtBottom) {
+          listRef.current.scrollToEnd({ animated: false });
+        } else if (restoredScrollOffset > 0) {
+          listRef.current.scrollToOffset({ animated: false, offset: restoredScrollOffset });
+        } else {
+          let targetIndex = -1;
+          if (lastSeenTime) {
+            targetIndex = localFeedItems.findIndex(
+              (item) => item.type === 'message' && item.data.revealAtMs > lastSeenTime
+            );
+          }
+
+          if (targetIndex !== -1) {
+            listRef.current.scrollToIndex({ index: targetIndex, animated: false, viewPosition: 0 });
+          } else {
+            listRef.current.scrollToEnd({ animated: false });
+          }
         }
 
-        if (targetIndex !== -1) {
-          listRef.current.scrollToIndex({ index: targetIndex, animated: false, viewPosition: 0 });
-        } else {
-          listRef.current.scrollToEnd({ animated: false });
-        }
-        
         didInitialScrollRef.current = true;
+        prevVisibleCountRef.current = visibleMessages.length;
+        logHub('positioning:initialApplied', {
+          mode: restoredScrollOffset > 0 ? (hasSessionSnapshot ? 'snapshot-offset' : 'offset') : 'unread-or-bottom',
+          restoredScrollOffset,
+          visibleMessages: visibleMessages.length,
+        });
         // Small delay to let FlashList settle before showing
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           setIsPositioned(true);
           isPositionedRef.current = true;
-        }, 100);
+          canRefreshFromSignalsRef.current = true;
+        });
       };
       
       requestAnimationFrame(scrollInitial);
     }
-  }, [isLoadingInitial, visibleMessages.length, localFeedItems, lastSeenTime]);
+  }, [hasSessionSnapshot, isLoadingInitial, lastSeenTime, localFeedItems, logHub, restoredScrollOffset, restoredScrollState.wasAtBottom, visibleMessages.length]);
 
   useEffect(() => {
     RNAnimated.timing(newMessagesOpacity, { toValue: showNewMessagesBadge ? 1 : 0, duration: 220, useNativeDriver: true }).start();
@@ -486,18 +599,6 @@ export default function FeedScreen() {
 
 
   useEffect(() => {
-    const now = Date.now();
-    let nextRevealAtMs = Number.POSITIVE_INFINITY;
-    for (const item of playbackMessages) {
-      if (item.revealAtMs > now && item.revealAtMs < nextRevealAtMs) nextRevealAtMs = item.revealAtMs;
-    }
-    if (!Number.isFinite(nextRevealAtMs)) return;
-    const timeoutMs = Math.max(25, nextRevealAtMs - now + 25);
-    const timer = setTimeout(() => setClockMs(Date.now()), timeoutMs);
-    return () => clearTimeout(timer);
-  }, [playbackMessages, clockMs]);
-
-  useEffect(() => {
     const parentNavigation = navigation.getParent();
     if (!parentNavigation) return;
     const unsubscribe = parentNavigation.addListener('tabPress', (e: any) => {
@@ -537,6 +638,7 @@ export default function FeedScreen() {
     if (isSystem) {
       return (
         <FeedAnimatedRow
+          itemKey={item.key}
           shouldAnimate={shouldAnimate}
           style={[styles.messageRow, styles.centeredMessageRow]}
         >
@@ -577,6 +679,7 @@ export default function FeedScreen() {
 
     return (
       <FeedAnimatedRow
+        itemKey={item.key}
         shouldAnimate={shouldAnimate}
         style={[styles.messageRow, { marginBottom }, rowStyle]}
       >
@@ -624,12 +727,6 @@ export default function FeedScreen() {
         renderItem={renderItem}
         keyExtractor={(item) => item.key}
         stickyHeaderIndices={stickyHeaderIndices}
-        onLoad={() => {
-          if (!isPositionedRef.current) {
-            setIsPositioned(true);
-            isPositionedRef.current = true;
-          }
-        }}
         onScroll={(event) => {
           const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
           scrollMetricsRef.current.contentHeight = contentSize.height;
@@ -648,6 +745,7 @@ export default function FeedScreen() {
             void markAsRead();
           }
         }}
+        scrollEventThrottle={16}
         onEndReached={() => {
           if (nextCursor && !isLoadingMore && !isLoadingInitial && !isRefreshing) loadMore();
         }}
@@ -745,27 +843,63 @@ const styles = StyleSheet.create({
 
 function FeedAnimatedRow({
   children,
+  itemKey,
   shouldAnimate,
   style,
 }: {
   children: React.ReactNode;
+  itemKey: string;
   shouldAnimate: boolean;
   style?: ViewStyle | ViewStyle[];
 }) {
+  const opacity = useRef(new RNAnimated.Value(shouldAnimate ? 0 : 1)).current;
+  const translateY = useRef(new RNAnimated.Value(shouldAnimate ? 10 : 0)).current;
+
+  useEffect(() => {
+    if (!shouldAnimate) {
+      opacity.stopAnimation();
+      translateY.stopAnimation();
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+
+    opacity.stopAnimation();
+    translateY.stopAnimation();
+    opacity.setValue(0);
+    translateY.setValue(10);
+    RNAnimated.parallel([
+      RNAnimated.timing(opacity, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(translateY, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [itemKey, opacity, shouldAnimate, translateY]);
+
+  if (!shouldAnimate) {
+    return <View style={style}>{children}</View>;
+  }
+
   return (
-    <Reanimated.View
-      entering={
-        shouldAnimate
-          ? FadeInUp
-              .duration(260)
-              .easing(Easing.out(Easing.cubic))
-              .withInitialValues({ opacity: 0, transform: [{ translateY: 10 }] })
-          : undefined
-      }
-      style={style}
+    <RNAnimated.View
+      style={[
+        style,
+        {
+          opacity,
+          transform: [{ translateY }],
+        },
+      ]}
     >
       {children}
-    </Reanimated.View>
+    </RNAnimated.View>
   );
 }
 
@@ -794,16 +928,62 @@ function formatRelativeDay(date: Date) {
   return null;
 }
 
-function mergeFreshBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
-  const map = new Map(current.map(b => [b._id, b]));
-  for (const b of incoming) map.set(b._id, b);
-  return Array.from(map.values());
-}
-
 function mergeOlderBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
   const map = new Map(current.map(b => [b._id, b]));
   for (const b of incoming) if (!map.has(b._id)) map.set(b._id, b);
   return Array.from(map.values());
+}
+
+function flattenHubMessages(bundles: NarrativeBundleDto[]): PlaybackMessage[] {
+  const sortedBundles = [...bundles].sort((a, b) => Date.parse(a.releaseAt) - Date.parse(b.releaseAt));
+  const items: PlaybackMessage[] = [];
+
+  for (const bundle of sortedBundles) {
+    const bundleReleaseMs = Date.parse(bundle.releaseAt);
+    const revealAtMs = Number.isFinite(bundleReleaseMs) ? bundleReleaseMs : Date.now();
+
+    for (const message of bundle.messages) {
+      items.push({
+        bundleId: bundle._id,
+        bundleTitle: bundle.title,
+        key: `${bundle._id}:${message.messageId}`,
+        message: { ...message, isUser: bundle.isUser ?? message.isUser },
+        revealAtMs,
+      });
+    }
+  }
+
+  return items;
+}
+
+function reconcileLatestBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
+  if (current.length === 0) {
+    return incoming;
+  }
+  if (incoming.length === 0) {
+    return [];
+  }
+
+  const oldestIncomingReleaseMs = incoming.reduce((oldest, bundle) => {
+    const releaseMs = Date.parse(bundle.releaseAt);
+    return Number.isFinite(releaseMs) ? Math.min(oldest, releaseMs) : oldest;
+  }, Number.POSITIVE_INFINITY);
+
+  const incomingIds = new Set(incoming.map((bundle) => bundle._id));
+  const preservedOlderBundles = current.filter((bundle) => {
+    if (incomingIds.has(bundle._id)) {
+      return false;
+    }
+    const releaseMs = Date.parse(bundle.releaseAt);
+    if (!Number.isFinite(releaseMs)) {
+      return false;
+    }
+    return releaseMs < oldestIncomingReleaseMs;
+  });
+
+  return [...preservedOlderBundles, ...incoming].sort(
+    (a, b) => Date.parse(a.releaseAt) - Date.parse(b.releaseAt)
+  );
 }
 
 

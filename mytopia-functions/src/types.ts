@@ -132,11 +132,13 @@ export type SubmissionDto = {
     idempotencyKey: string;
     metadata: {
         missionTitle: string;
-        channelId?: string;
-        channelType?: 'hub' | 'actor';
-        actorId?: string;
-        actorAvatarUrl?: string;
-        actorName?: string;
+        channelMeta?: {
+            actorAvatarUrl?: string;
+            actorId?: string;
+            actorName?: string;
+            channelId?: string;
+            channelType?: 'hub' | 'actor';
+        };
     };
     mode: 'production' | 'dev';
     ownerUid: string;

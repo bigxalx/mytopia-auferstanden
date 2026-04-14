@@ -136,6 +136,7 @@ service cloud.firestore {
           'mode',
           'openedAtMs',
           'ownerUid',
+          'role',
           'title',
           'unreadCount'
         ])
@@ -149,6 +150,7 @@ service cloud.firestore {
           'mode',
           'openedAtMs',
           'ownerUid',
+          'role',
           'title',
           'unreadCount'
         ])
@@ -170,6 +172,10 @@ service cloud.firestore {
         && (
           !request.resource.data.keys().hasAny(['avatarUrl'])
           || request.resource.data.avatarUrl is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(['role'])
+          || request.resource.data.role is string
         );
     }
 

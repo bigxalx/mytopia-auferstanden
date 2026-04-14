@@ -553,10 +553,16 @@ function normalizeChannelMeta(value: unknown): ChannelMetaInput | undefined {
 function buildSubmissionMetadata(missionTitle: string, channelMeta?: ChannelMetaInput) {
   return {
     missionTitle,
-    ...(channelMeta?.channelId ? { channelId: channelMeta.channelId } : {}),
-    ...(channelMeta?.channelType ? { channelType: channelMeta.channelType } : {}),
-    ...(channelMeta?.actorId ? { actorId: channelMeta.actorId } : {}),
-    ...(channelMeta?.actorAvatarUrl ? { actorAvatarUrl: channelMeta.actorAvatarUrl } : {}),
-    ...(channelMeta?.actorName ? { actorName: channelMeta.actorName } : {}),
+    ...(channelMeta
+      ? {
+          channelMeta: {
+            ...(channelMeta.channelId ? { channelId: channelMeta.channelId } : {}),
+            ...(channelMeta.channelType ? { channelType: channelMeta.channelType } : {}),
+            ...(channelMeta.actorId ? { actorId: channelMeta.actorId } : {}),
+            ...(channelMeta.actorAvatarUrl ? { actorAvatarUrl: channelMeta.actorAvatarUrl } : {}),
+            ...(channelMeta.actorName ? { actorName: channelMeta.actorName } : {}),
+          },
+        }
+      : {}),
   };
 }
