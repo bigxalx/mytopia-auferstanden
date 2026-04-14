@@ -22,7 +22,8 @@
     "log:ios": "bunx react-native log-ios",
     "log:android": "bunx react-native log-android",
     "log:metro": "sh -c 'mkdir -p .logs && LOG=.logs/metro-$(date +%Y%m%d-%H%M%S).log && echo Capturing Metro log to $LOG && expo start --clear 2>&1 | tee \"$LOG\"'",
-    "feed:probe": "bun ./scripts/probe-feed-api.mjs"
+    "feed:probe": "bun ./scripts/probe-feed-api.mjs",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo-google-fonts/nunito": "^0.4.2",
@@ -48,7 +49,7 @@
     "expo-dev-client": "~55.0.18",
     "expo-file-system": "^55.0.12",
     "expo-font": "~55.0.4",
-    "expo-glass-effect": "~55.0.8",
+    "expo-glass-effect": "~55.0.10",
     "expo-haptics": "~55.0.9",
     "expo-image": "~55.0.6",
     "expo-image-picker": "~55.0.13",
@@ -83,6 +84,7 @@
     "eas-cli": "^14.5.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "patch-package": "8.0.0",
     "typescript": "~5.9.2"
   },
   "private": true,

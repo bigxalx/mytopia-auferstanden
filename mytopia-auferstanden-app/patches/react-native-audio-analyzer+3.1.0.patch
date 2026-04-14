@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native-audio-analyzer/AudioAnalyzer.podspec b/node_modules/react-native-audio-analyzer/AudioAnalyzer.podspec
+index 1234567..89abcde 100644
+--- a/node_modules/react-native-audio-analyzer/AudioAnalyzer.podspec
++++ b/node_modules/react-native-audio-analyzer/AudioAnalyzer.podspec
+@@ -28,7 +28,7 @@ Pod::Spec.new do |s|
+     'OTHER_CFLAGS' => '-DMA_NO_PTHREAD_IN_HEADER',
+     'OTHER_LDFLAGS' => '-lm -lpthread',
+     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++11',
+-    'CLANG_CXX_LIBRARY' => 'libstdc++'
++    'CLANG_CXX_LIBRARY' => 'libc++'
+   }
+ 
+   # Required frameworks for iOS audio (Core Audio)
