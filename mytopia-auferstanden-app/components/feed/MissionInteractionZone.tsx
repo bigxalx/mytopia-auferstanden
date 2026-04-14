@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { theme } from '@/src/shared/ui/theme';
-import { type MissionKind, submitTextMission, submitGpsCompletion } from '@/src/features/tasks/data/missionRepository';
-import { useSession } from '@/src/core/session/SessionContext';
+import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
+
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { useChannels } from '@/src/features/channels/data/ChannelContext';
 
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
 
@@ -24,6 +26,7 @@ interface Props {
   };
   compact?: boolean;
   actor: NarrativeMessageDto['actor'];
+  missionTitle: string;
   description?: string;
   imageUrl?: string;
 }
@@ -37,22 +40,27 @@ export function MissionInteractionZone({
   showStartOnly, 
   gpsConfig, 
   actor, 
+  missionTitle,
   description,
   imageUrl,
   compact = false 
 }: Props) {
-  const { selectedMode } = useSession();
+  const router = useRouter();
+
+  const { ensureActorMissionChannel, queuePendingMissionStart } = useChannels();
   const { 
+    activeChannel,
     focusedMissionId, 
-    setFocus, 
     activeMission, 
     scrollToMessage, 
+    startMission,
     startChatQuiz,
     persistedSessions,
+    completeMission,
   } = useActiveMission();
   const isFocused = focusedMissionId === missionId;
   const isQuizInProgress = kind === 'quiz' && persistedSessions[missionId];
-  const missionTitle = activeMission?._id === missionId ? activeMission.title : 'Mission';
+  const resolvedMissionTitle = activeMission?._id === missionId ? activeMission.title : missionTitle;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [textInput, setTextInput] = useState('');
@@ -60,15 +68,44 @@ export function MissionInteractionZone({
   const handleStartMission = async () => {
     setIsSubmitting(true);
     try {
+      if (actor.actorId && activeChannel.channelId !== actor.actorId) {
+        const channelId = await ensureActorMissionChannel({
+          ...(actor.avatarUrl ? { actorAvatarUrl: actor.avatarUrl } : {}),
+          actorId: actor.actorId,
+          actorName: actor.name,
+        });
+        queuePendingMissionStart({
+          actor,
+          channelId,
+          data: {
+            description,
+            imageUrl,
+            questions,
+            title: resolvedMissionTitle,
+          },
+          kind,
+          missionId,
+        });
+        router.push({
+          pathname: '/(tabs)/feed/[channelId]',
+          params: { channelId },
+        });
+        return;
+      }
+
       if (kind === 'quiz') {
         await startChatQuiz(missionId, actor, {
-          title: missionTitle,
+          title: resolvedMissionTitle,
           questions: questions,
           description: description,
           imageUrl: imageUrl,
         });
       } else {
-        await setFocus(missionId);
+        await startMission(missionId, actor, {
+          description,
+          imageUrl,
+          title: resolvedMissionTitle,
+        });
       }
     } finally {
       setIsSubmitting(false);
@@ -103,12 +140,12 @@ export function MissionInteractionZone({
   const renderReference = () => (
     <Pressable
       style={styles.quoteContainer}
-      onPress={() => scrollToMessage(missionId)}
+        onPress={() => scrollToMessage(missionId)}
     >
       <View style={styles.quoteIndicator} />
       <View style={styles.quoteContent}>
         <Text style={styles.quoteLabel}>REFERENZ ZUR MISSION</Text>
-        <Text style={styles.quoteTitle} numberOfLines={1}>{missionTitle}</Text>
+        <Text style={styles.quoteTitle} numberOfLines={1}>{resolvedMissionTitle}</Text>
       </View>
     </Pressable>
   );
@@ -117,7 +154,7 @@ export function MissionInteractionZone({
     if (!textInput.trim()) return;
     setIsSubmitting(true);
     try {
-      await submitTextMission(missionId, textInput, selectedMode);
+      await completeMission(missionId, { text: textInput });
       onSuccess?.();
     } catch (err) {
       console.warn('In-feed text submission failed:', err);
@@ -130,7 +167,7 @@ export function MissionInteractionZone({
   const handleGpsCheckIn = async () => {
     setIsSubmitting(true);
     try {
-      await submitGpsCompletion(missionId, selectedMode);
+      await completeMission(missionId, { action: 'checkin' });
       onSuccess?.();
     } catch (err) {
       console.warn('In-feed GPS check-in failed:', err);
@@ -186,8 +223,8 @@ export function MissionInteractionZone({
             missionId={missionId}
             target={gpsConfig}
             onComplete={async () => {
-              const res = await submitGpsCompletion(missionId, selectedMode);
-              return { earned: res.earned };
+              await completeMission(missionId, { action: 'checkin' });
+              return { earned: 0 };
             }}
           />
         )}

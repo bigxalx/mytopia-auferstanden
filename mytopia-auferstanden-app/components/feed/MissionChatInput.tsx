@@ -21,6 +21,7 @@ import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
  */
 export const MissionChatInput: React.FC = () => {
   const { 
+    activeChannel,
     activeMission, 
     focusedMissionId, 
     setFocus, 
@@ -37,6 +38,7 @@ export const MissionChatInput: React.FC = () => {
     setIsSubmitting(false);
   }, [focusedMissionId]);
 
+  if (activeChannel.channelType !== 'actor') return null;
   if (!focusedMissionId || !activeMission) return null;
   if (activeMission.kind === 'quiz') return null;
 

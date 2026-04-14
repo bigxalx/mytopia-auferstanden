@@ -123,6 +123,87 @@ service cloud.firestore {
         && request.resource.data.createdBy is string;
     }
 
+    function isAllowedChannelThreadWrite() {
+      return hasOnlyKeys(request.resource.data, [
+          'actorId',
+          'avatarUrl',
+          'channelId',
+          'channelType',
+          'lastMessageAtMs',
+          'lastPreview',
+          'lastReadAtMs',
+          'messageCount',
+          'mode',
+          'openedAtMs',
+          'ownerUid',
+          'title',
+          'unreadCount'
+        ])
+        && hasRequiredKeys(request.resource.data, [
+          'channelId',
+          'channelType',
+          'lastMessageAtMs',
+          'lastPreview',
+          'lastReadAtMs',
+          'messageCount',
+          'mode',
+          'openedAtMs',
+          'ownerUid',
+          'title',
+          'unreadCount'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.channelId is string
+        && request.resource.data.channelType in ['hub', 'actor']
+        && request.resource.data.lastMessageAtMs is number
+        && request.resource.data.lastPreview is string
+        && request.resource.data.lastReadAtMs is number
+        && request.resource.data.messageCount is number
+        && request.resource.data.mode in ['production', 'dev']
+        && request.resource.data.openedAtMs is number
+        && request.resource.data.title is string
+        && request.resource.data.unreadCount is number
+        && (
+          !request.resource.data.keys().hasAny(['actorId'])
+          || request.resource.data.actorId is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(['avatarUrl'])
+          || request.resource.data.avatarUrl is string
+        );
+    }
+
+    function isAllowedChannelMessageWrite(threadId) {
+      return hasOnlyKeys(request.resource.data, [
+          'bundleId',
+          'channelId',
+          'createdAtMs',
+          'isUser',
+          'message',
+          'mode',
+          'ownerUid',
+          'title'
+        ])
+        && hasRequiredKeys(request.resource.data, [
+          'bundleId',
+          'channelId',
+          'createdAtMs',
+          'isUser',
+          'message',
+          'mode',
+          'ownerUid',
+          'title'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.bundleId == threadId
+        && request.resource.data.channelId is string
+        && request.resource.data.createdAtMs is number
+        && request.resource.data.isUser is bool
+        && request.resource.data.message is map
+        && request.resource.data.mode in ['production', 'dev']
+        && request.resource.data.title is string;
+    }
+
     match /v2/app/users/{uid} {
       allow read: if isOwner(uid) || isModerator();
       allow create: if isOwner(uid)
@@ -150,6 +231,18 @@ service cloud.firestore {
     match /v2/app/tasks/{taskId} {
       allow read: if isSignedIn();
       allow write: if isModerator();
+    }
+
+    match /v2/app/channelThreads/{threadId} {
+      allow read: if isModerator() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create, update: if isSignedIn() && isAllowedChannelThreadWrite();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isModerator() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+        allow create, update: if isSignedIn() && isAllowedChannelMessageWrite(messageId);
+        allow delete: if false;
+      }
     }
 
     match /v2/app/submissions/{submissionId} {

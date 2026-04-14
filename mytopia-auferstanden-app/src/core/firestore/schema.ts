@@ -1,4 +1,5 @@
 export const V2_COLLECTION = {
+  channelThreads: 'v2/app/channelThreads',
   leaderboard: 'v2/app/leaderboard',
   narrativeState: 'v2/app/narrativeState',
   narrativeStateDev: 'v2/app/narrativeStateDev',
@@ -10,6 +11,33 @@ export const V2_COLLECTION = {
 } as const;
 
 export type FirestoreTimestampString = string;
+export type ChannelMode = 'production' | 'dev';
+export type ChannelType = 'hub' | 'actor';
+export type ChannelMessageDoc = {
+  bundleId: string;
+  channelId: string;
+  createdAtMs: number;
+  isUser: boolean;
+  message: unknown;
+  mode: ChannelMode;
+  ownerUid: string;
+  title: string;
+};
+export type V2ChannelThreadDoc = {
+  actorId?: string;
+  avatarUrl?: string;
+  channelId: string;
+  channelType: ChannelType;
+  lastMessageAtMs: number;
+  lastPreview: string;
+  lastReadAtMs: number;
+  messageCount: number;
+  mode: ChannelMode;
+  openedAtMs: number;
+  ownerUid: string;
+  title: string;
+  unreadCount: number;
+};
 
 export type SubmissionType = 'text' | 'photo';
 export type SubmissionStatus = 'draft' | 'pending' | 'approved' | 'rejected';

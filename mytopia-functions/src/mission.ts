@@ -25,6 +25,15 @@ import { verifyFirebaseUser } from './auth.js';
 import {
     FirebaseResponse, MissionDto
 } from './types.js';
+
+type ChannelMetaInput = {
+  actorAvatarUrl?: string;
+  actorId?: string;
+  actorName?: string;
+  channelId?: string;
+  channelType?: 'hub' | 'actor';
+};
+
 export const missionApi = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
       const path = normalizeRequestPath(req.path);
 
@@ -71,9 +80,10 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const body = req.body as { answers?: number[]; missionId?: string } | undefined;
+    const body = req.body as { answers?: number[]; channelMeta?: unknown; missionId?: string } | undefined;
     const missionId = body?.missionId;
     const answers = body?.answers;
+    const channelMeta = normalizeChannelMeta(body?.channelMeta);
 
     if (typeof missionId !== 'string' || !missionId) {
       throw new HttpError(400, 'Missing missionId.');
@@ -184,7 +194,7 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     batch.set(submissionRef, {
       createdAt: FieldValue.serverTimestamp(),
       idempotencyKey,
-      metadata: { missionTitle: mission.title },
+      metadata: buildSubmissionMetadata(mission.title, channelMeta),
       mode,
       ownerUid: uid,
       payload: {
@@ -234,8 +244,9 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const body = req.body as { missionId?: string } | undefined;
+    const body = req.body as { channelMeta?: unknown; missionId?: string } | undefined;
     const missionId = body?.missionId;
+    const channelMeta = normalizeChannelMeta(body?.channelMeta);
 
     if (typeof missionId !== 'string' || !missionId) {
       throw new HttpError(400, 'Missing missionId.');
@@ -308,7 +319,7 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     batch.set(submissionRef, {
       createdAt: FieldValue.serverTimestamp(),
       idempotencyKey,
-      metadata: { missionTitle: mission.title },
+      metadata: buildSubmissionMetadata(mission.title, channelMeta),
       mode,
       ownerUid: uid,
       payload: {}, // No specific payload needed for GPS yet, just the pin is enough
@@ -350,9 +361,10 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const body = req.body as { missionId?: string; text?: string } | undefined;
+    const body = req.body as { channelMeta?: unknown; missionId?: string; text?: string } | undefined;
     const missionId = body?.missionId;
     const text = body?.text?.trim();
+    const channelMeta = normalizeChannelMeta(body?.channelMeta);
 
     if (typeof missionId !== 'string' || !missionId) {
       throw new HttpError(400, 'Missing missionId.');
@@ -391,9 +403,7 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
     await submissionRef.set({
       createdAt: FieldValue.serverTimestamp(),
       idempotencyKey,
-      metadata: {
-        missionTitle: mission.title,
-      },
+      metadata: buildSubmissionMetadata(mission.title, channelMeta),
       mode,
       ownerUid: uid,
       payload: text,
@@ -425,9 +435,10 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const body = req.body as { missionId?: string; photoPath?: string } | undefined;
+    const body = req.body as { channelMeta?: unknown; missionId?: string; photoPath?: string } | undefined;
     const missionId = body?.missionId;
     const photoPath = body?.photoPath?.trim();
+    const channelMeta = normalizeChannelMeta(body?.channelMeta);
 
     if (typeof missionId !== 'string' || !missionId) {
       throw new HttpError(400, 'Missing missionId.');
@@ -466,9 +477,7 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
     await submissionRef.set({
       createdAt: FieldValue.serverTimestamp(),
       idempotencyKey,
-      metadata: {
-        missionTitle: mission.title,
-      },
+      metadata: buildSubmissionMetadata(mission.title, channelMeta),
       mode,
       ownerUid: uid,
       payload: photoPath,
@@ -514,4 +523,40 @@ function assertMissionNotExpired(mission: MissionDto) {
     if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
       throw new HttpError(400, 'Mission has expired.');
     }
+}
+
+function normalizeChannelMeta(value: unknown): ChannelMetaInput | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const actorId = typeof raw.actorId === 'string' && raw.actorId.length > 0 ? raw.actorId : undefined;
+  const channelId = typeof raw.channelId === 'string' && raw.channelId.length > 0 ? raw.channelId : undefined;
+  if (!actorId || !channelId) {
+    return undefined;
+  }
+
+  return {
+    ...(typeof raw.actorAvatarUrl === 'string' && raw.actorAvatarUrl.length > 0
+      ? { actorAvatarUrl: raw.actorAvatarUrl }
+      : {}),
+    actorId,
+    ...(typeof raw.actorName === 'string' && raw.actorName.length > 0
+      ? { actorName: raw.actorName }
+      : {}),
+    channelId,
+    channelType: raw.channelType === 'actor' ? 'actor' : 'hub',
+  };
+}
+
+function buildSubmissionMetadata(missionTitle: string, channelMeta?: ChannelMetaInput) {
+  return {
+    missionTitle,
+    ...(channelMeta?.channelId ? { channelId: channelMeta.channelId } : {}),
+    ...(channelMeta?.channelType ? { channelType: channelMeta.channelType } : {}),
+    ...(channelMeta?.actorId ? { actorId: channelMeta.actorId } : {}),
+    ...(channelMeta?.actorAvatarUrl ? { actorAvatarUrl: channelMeta.actorAvatarUrl } : {}),
+    ...(channelMeta?.actorName ? { actorName: channelMeta.actorName } : {}),
+  };
 }

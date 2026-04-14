@@ -17,6 +17,7 @@ import { resolveMessageDelayMs } from '@/src/features/feed/utils/playback';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { getMissionLifecycleStatus, isMissionExpired } from '@/src/features/tasks/data/missionStatus';
+import { upsertChannelBundle } from '@/src/features/channels/data/channelStore';
 
 import { FEATURES } from '@/src/config/features';
 
@@ -28,18 +29,24 @@ const FOCUS_STORAGE_KEY = 'mytopia_focused_mission_id';
  */
 
 type ActiveMissionContextValue = {
+  activeChannel: ActiveChannelState;
   activeMission: MissionListItem | null; // The currently focused mission (or first available if none focused)
   availableMissions: MissionListItem[];   // All missions currently in 'available' state
   focusedMissionId: string | null;
   isLoading: boolean;
   setFocus: (missionId: string | null) => Promise<void>;
-  startMission: (missionId: string) => Promise<void>;
+  startMission: (
+    missionId: string,
+    actor?: NarrativeMessageDto['actor'],
+    data?: { description?: string; imageUrl?: string; title?: string }
+  ) => Promise<void>;
   completeMission: (missionId: string, result: any) => Promise<void>;
   scrollToMessage: (missionId: string) => void;
   highlightedMissionId: string | null;
   highlightMission: (missionId: string) => void;
   registerScrollHandler: (handler: ((missionId: string) => void) | null) => void;
   registerOptimisticHandler: (handler: ((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null) => void;
+  setActiveChannel: (channel: ActiveChannelState) => void;
   insertQuizAnswerBubble: (missionId: string, missionTitle: string, answerText: string) => void;
 
   // Quiz Conversation Flow
@@ -64,6 +71,14 @@ type QuizSession = {
   bundles: NarrativeBundleDto[]; // Persisted optimistic bundles for rehydration
 };
 
+type ActiveChannelState = {
+  actorAvatarUrl?: string;
+  actorId?: string;
+  actorName?: string;
+  channelId: string;
+  channelType: 'hub' | 'actor';
+};
+
 const QUIZ_PROGRESS_KEY = 'mytopia_quiz_progress_v1';
 
 const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(null);
@@ -74,8 +89,16 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [focusedMissionId, setFocusedMissionId] = useState<string | null>(null);
   const [highlightedMissionId, setHighlightedMissionId] = useState<string | null>(null);
+  const [activeChannel, setActiveChannelState] = useState<ActiveChannelState>({
+    channelId: 'hub',
+    channelType: 'hub',
+  });
   const scrollHandlerRef = React.useRef<((missionId: string) => void) | null>(null);
   const optimisticHandlerRef = React.useRef<((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null>(null);
+  const activeChannelRef = useRef<ActiveChannelState>({
+    channelId: 'hub',
+    channelType: 'hub',
+  });
 
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
@@ -205,6 +228,38 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     optimisticHandlerRef.current = handler;
   }, []);
 
+  const setActiveChannel = useCallback((channel: ActiveChannelState) => {
+    activeChannelRef.current = channel;
+    setActiveChannelState(channel);
+  }, []);
+
+  const persistBundleToActorChannel = useCallback(async (bundle: NarrativeBundleDto) => {
+    const channel = activeChannelRef.current;
+    if (!user?.id || channel.channelType !== 'actor') {
+      return;
+    }
+
+    try {
+      await upsertChannelBundle({
+        bundle,
+        channelActor: channel.actorId
+          ? {
+              ...(channel.actorAvatarUrl ? { actorAvatarUrl: channel.actorAvatarUrl } : {}),
+              actorId: channel.actorId,
+              actorName: channel.actorName ?? bundle.messages[0]?.actor.name ?? 'Kanal',
+            }
+          : undefined,
+        channelId: channel.channelId,
+        channelType: 'actor',
+        incrementUnread: false,
+        mode: selectedMode,
+        uid: user.id,
+      });
+    } catch (error) {
+      console.warn('[ActiveMission] Failed to persist channel bundle', error);
+    }
+  }, [selectedMode, user?.id]);
+
   const lastScheduledReleaseAtMsRef = useRef<number>(0);
 
   /**
@@ -285,6 +340,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     // Push to feed UI
     upsertOptimisticBundle(bundle);
+    void persistBundleToActorChannel(bundle);
 
     // Persistence for Active Quiz (so history survives restarts/focus changes)
     setQuizSession(prev => {
@@ -297,7 +353,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     });
 
     return delay;
-  }, [updatePersistedSession, upsertOptimisticBundle]);
+  }, [persistBundleToActorChannel, updatePersistedSession, upsertOptimisticBundle]);
 
   const insertSystemMessage = useCallback((text: string, releaseOffsetMs: number = 0, kind: 'neutral' | 'prominent' = 'neutral') => {
     const actor = { name: 'System' };
@@ -521,6 +577,17 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     // Backend typically expects clean IDs. If a draft ID is passed, it will correctly 404 
     // per user rules (drafts should not be visible/activatable).
     const cleanMissionId = missionId;
+    const channel = activeChannelRef.current;
+    const channelMeta =
+      channel.channelType === 'actor' && channel.actorId
+        ? {
+            ...(channel.actorAvatarUrl ? { actorAvatarUrl: channel.actorAvatarUrl } : {}),
+            actorId: channel.actorId,
+            actorName: channel.actorName ?? 'Kanal',
+            channelId: channel.channelId,
+            channelType: channel.channelType,
+          }
+        : undefined;
 
     const idempotencyId = `submit-${cleanMissionId}-${Date.now()}`;
     
@@ -550,6 +617,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     // 2. Insert optimistically
     upsertOptimisticBundle(virtualBundle);
+    void persistBundleToActorChannel(virtualBundle);
     
     // 3. Clear focus without re-triggering mission pause side effects
     setFocusedMissionId(null);
@@ -561,13 +629,18 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     try {
       let apiResult: any;
       if (mission.kind === 'text') {
-        apiResult = await submitTextMission(cleanMissionId, result.text, selectedMode);
+        apiResult = await submitTextMission(cleanMissionId, result.text, selectedMode, channelMeta);
       } else if (mission.kind === 'photo') {
-        apiResult = await submitPhotoMission(cleanMissionId, result.photoPath, selectedMode);
+        apiResult = await submitPhotoMission(cleanMissionId, result.photoPath, selectedMode, channelMeta);
       } else if (mission.kind === 'gps') {
-        apiResult = await submitGpsCompletion(cleanMissionId, selectedMode);
+        apiResult = await submitGpsCompletion(cleanMissionId, selectedMode, channelMeta);
       } else if (mission.kind === 'quiz') {
-        apiResult = await submitQuizCompletion(cleanMissionId, Array.isArray(result) ? result : result.answers, selectedMode);
+        apiResult = await submitQuizCompletion(
+          cleanMissionId,
+          Array.isArray(result) ? result : result.answers,
+          selectedMode,
+          channelMeta
+        );
       }
 
       const isImmediateMissionCompletion =
@@ -599,6 +672,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         ],
       };
       upsertOptimisticBundle(updatedBundle);
+      void persistBundleToActorChannel(updatedBundle);
 
       const showCard =
         isImmediateMissionCompletion ||
@@ -644,8 +718,9 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         ],
       };
       upsertOptimisticBundle(errorBundle);
+      void persistBundleToActorChannel(errorBundle);
     }
-  }, [missions, selectedMode, upsertOptimisticBundle, user, insertMessageBundle]);
+  }, [missions, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, persistBundleToActorChannel]);
 
   const registerScrollHandler = useCallback((handler: ((missionId: string) => void) | null) => {
     scrollHandlerRef.current = handler;
@@ -687,14 +762,43 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }
   }, [focusedMissionId, user]);
 
-  const startMission = useCallback(async (missionId: string) => {
+  const startMission = useCallback(async (
+    missionId: string,
+    actor?: NarrativeMessageDto['actor'],
+    data?: { description?: string; imageUrl?: string; title?: string }
+  ) => {
     await setFocus(missionId);
-    scrollToMessageRef.current(missionId);
-  }, [setFocus]);
+
+    if (actor && activeChannelRef.current.channelType === 'actor') {
+      insertSystemMessage('Mission gestartet', 0, 'neutral');
+
+      const mission = missions.find((item) => item._id === missionId);
+      const title = mission?.title ?? data?.title ?? 'Mission';
+      const description = mission?.description ?? data?.description;
+      const imageUrl = mission?.imageUrl ?? data?.imageUrl;
+      const introText = description ? `${title}\n\n${description}` : title;
+
+      insertNpcMessage(
+        actor,
+        introText,
+        imageUrl
+          ? {
+              _type: 'imageAttachment',
+              caption: title,
+              url: imageUrl,
+            }
+          : undefined,
+        120
+      );
+    }
+
+    scrollToMessageRef.current('bottom');
+  }, [insertNpcMessage, insertSystemMessage, missions, setFocus]);
 
   const value = useMemo(
     () => ({ 
       activeMission, 
+      activeChannel,
       availableMissions,
       focusedMissionId,
       isLoading,
@@ -706,6 +810,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       highlightMission,
       registerScrollHandler,
       registerOptimisticHandler,
+      setActiveChannel,
       insertQuizAnswerBubble,
       quizSession,
       persistedSessions,
@@ -716,6 +821,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }),
     [
       activeMission, 
+      activeChannel,
       availableMissions, 
       focusedMissionId, 
       isLoading, 
@@ -732,7 +838,8 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       startMission,
       highlightMission,
       registerScrollHandler,
-      registerOptimisticHandler
+      registerOptimisticHandler,
+      setActiveChannel,
     ]
   );
 

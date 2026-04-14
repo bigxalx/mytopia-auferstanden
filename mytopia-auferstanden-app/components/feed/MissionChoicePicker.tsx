@@ -11,9 +11,10 @@ import Animated, { FadeInUp, FadeOutDown, Easing } from 'react-native-reanimated
  * Replaces the standard chat input during a quiz session.
  */
 export const MissionChoicePicker: React.FC = () => {
-  const { quizSession, submitQuizStep, pauseQuiz } = useActiveMission();
+  const { activeChannel, quizSession, submitQuizStep, pauseQuiz } = useActiveMission();
   const insets = useSafeAreaInsets();
 
+  if (activeChannel.channelType !== 'actor') return null;
   if (!quizSession || !quizSession.showPicker) return null;
 
   const currentQuestion = quizSession.questions[quizSession.currentIndex];

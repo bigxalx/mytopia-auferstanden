@@ -1,4 +1,5 @@
 export const LEGACY_USERS_COLLECTION_PATH = 'users';
+export const V2_CHANNEL_THREADS_COLLECTION_PATH = 'v2/app/channelThreads';
 export const NARRATIVE_STATE_COLLECTION_PATH = 'v2/app/narrativeState';
 export const NARRATIVE_STATE_COLLECTION_PATH_DEV = 'v2/app/narrativeStateDev';
 export const V2_LEADERBOARD_COLLECTION_PATH = 'v2/app/leaderboard';
@@ -12,6 +13,7 @@ export const SANITY_BUNDLE_PROJECTION = `
   _id,
   script,
   "scriptActor": scriptActor->{
+    "_id": _id,
     name,
     role,
     "avatarUrl": avatar.asset->url,
@@ -26,6 +28,7 @@ export const SANITY_BUNDLE_PROJECTION = `
     messageId,
     text,
     "actor": actor->{
+      "_id": _id,
       name,
       role,
       "avatarUrl": avatar.asset->url,

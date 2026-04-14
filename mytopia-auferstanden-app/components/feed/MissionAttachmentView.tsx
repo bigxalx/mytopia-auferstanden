@@ -76,6 +76,7 @@ export function MissionAttachmentView({
         gpsConfig={attachment.gpsConfig}
         onSuccess={handleSuccess}
         actor={actor}
+        missionTitle={attachment.missionTitle || attachment.title || 'Mission'}
         description={description}
         imageUrl={attachment.imageUrl}
       />
@@ -157,6 +158,7 @@ export function MissionAttachmentView({
           gpsConfig={attachment.gpsConfig}
           onSuccess={handleSuccess}
           actor={actor}
+          missionTitle={attachment.missionTitle || attachment.title || 'Mission'}
           description={description}
           imageUrl={attachment.imageUrl}
         />

@@ -1,4 +1,8 @@
 export type AttachmentDto = | {
+        _type: 'systemAttachment';
+        kind: 'neutral' | 'prominent';
+      }
+      | {
         _type: 'imageAttachment';
         caption?: string;
         url: string;
@@ -28,10 +32,20 @@ export type AttachmentDto = | {
         kind: 'gps' | 'quiz' | 'text' | 'photo';
         payload: any;
         missionTitle: string;
+        missionId?: string;
         moderatorNote?: string;
+      }
+      | {
+        _type: 'missionResultAttachment';
+        missionId: string;
+        missionTitle: string;
+        kind: string;
+        payload: any;
+        earnedPoints?: number;
       };
 export type MessageDto = {
       actor: {
+        actorId?: string;
         avatarUrl?: string;
         name: string;
         nameColor?: string;
@@ -46,6 +60,7 @@ export type BundleDto = {
       messages: MessageDto[];
       script?: string;
       scriptActor?: {
+        _id?: string;
         avatarUrl?: string;
         name: string;
         nameColor?: string;
@@ -117,6 +132,11 @@ export type SubmissionDto = {
     idempotencyKey: string;
     metadata: {
         missionTitle: string;
+        channelId?: string;
+        channelType?: 'hub' | 'actor';
+        actorId?: string;
+        actorAvatarUrl?: string;
+        actorName?: string;
     };
     mode: 'production' | 'dev';
     ownerUid: string;

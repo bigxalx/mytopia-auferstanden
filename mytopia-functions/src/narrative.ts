@@ -28,13 +28,11 @@ import {
 import { applySanityImageTransforms, sanityQuery, verifySanitySignature } from './sanity.js';
 import { handleDeleteAccount, verifyFirebaseUser } from './auth.js';
 import {
-    AttachmentDto,
     BundleDto, FeedCursor,
     FirebaseResponse,
     MessageDto,
     NarrativeMode, NarrativeStateEventType,
-    SanityWebhookPayload,
-    SubmissionDto
+    SanityWebhookPayload
 } from './types.js';
 export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
       const path = normalizeRequestPath(req.path);
@@ -282,7 +280,7 @@ export async function executeBundleRelease(bundle: BundleDto, mode: NarrativeMod
       data: {
         bundleId,
         eventType: 'release',
-        route: '/(tabs)/feed',
+        route: '/(tabs)/feed/hub',
       },
       notification: {
         body: body.length > 200 ? `${body.substring(0, 197)}...` : body,
@@ -345,24 +343,9 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
     const limit = clampLimit(rawLimit);
     const cursor = parseCursor(rawCursor);
 
-    // Fetch narrative bundles and player submissions in parallel
-    const [sanityBundles, playerSubmissions] = await Promise.all([
-      getReleasedFeedBundles({ cursor, limit, mode }),
-      getPlayerFeedSubmissions({ cursor, limit, uid: decodedToken.uid, mode }),
-    ]);
+    const sanityBundles = await getReleasedFeedBundles({ cursor, limit, mode });
 
-    // Map submissions to virtual bundles
-    const submissionBundles = playerSubmissions.map((sub) => ({
-      _id: sub.idempotencyKey,
-      isUser: true,
-      messages: [mapSubmissionToMessage(sub)],
-      releaseAt: (sub.createdAt as any)?.toDate ? (sub.createdAt as any).toDate().toISOString() : new Date().toISOString(),
-      title: 'Deine Aktivität',
-    }));
-
-    // Interleave and sort: newest first
-    // We sort by releaseAt desc, then _id desc to keep consistent with Sanity
-    const combined = [...sanityBundles, ...submissionBundles]
+    const combined = [...sanityBundles]
       .sort((a, b) => {
         const timeA = Date.parse(a.releaseAt);
         const timeB = Date.parse(b.releaseAt);
@@ -372,67 +355,12 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
       .slice(0, limit);
 
     const nextCursor = combined.length === limit ? createNextCursor(combined[combined.length - 1] as any) : null;
-    
-    console.log(`FeedProxy [${mode}]: Combined ${combined.length} items (Sanity: ${sanityBundles.length}, Player: ${submissionBundles.length}). Final nextCursor present: ${!!nextCursor}`);
 
     res.status(200).json({ bundles: combined, mode, nextCursor });
   } catch (error) {
     logger.error('feedProxy failed', error);
     sendError(res, error);
   }
-}
-
-async function getPlayerFeedSubmissions({
-  cursor,
-  limit,
-  uid,
-  mode,
-}: {
-  cursor?: FeedCursor | null;
-  limit: number;
-  uid: string;
-  mode: NarrativeMode;
-}) {
-  let query = firestore
-    .collection(V2_SUBMISSIONS_COLLECTION_PATH)
-    .where('ownerUid', '==', uid)
-    .where('mode', '==', mode)
-    .orderBy('createdAt', 'desc')
-    .orderBy('idempotencyKey', 'desc');
-
-  if (cursor) {
-    const cursorTimestamp = toTimestamp(cursor.releaseAt);
-    if (cursorTimestamp) {
-      query = query.startAfter(cursorTimestamp, cursor.id);
-    }
-  }
-
-  const snapshot = await query.limit(limit).get();
-  return snapshot.docs.map((doc) => doc.data() as SubmissionDto);
-}
-
-function mapSubmissionToMessage(sub: SubmissionDto): MessageDto {
-  const actor = {
-    name: 'Du',
-    role: 'Spieler',
-  };
-
-  const attachment: AttachmentDto = {
-    _type: 'submissionAttachment' as any,
-    submissionId: sub.idempotencyKey,
-    status: sub.status,
-    kind: sub.sourceType,
-    payload: sub.payload,
-    missionTitle: sub.metadata.missionTitle,
-    moderatorNote: sub.moderatorNote,
-  } as any;
-
-  return {
-    actor,
-    attachment,
-    messageId: `sub_${sub.idempotencyKey}`,
-    text: sub.sourceType === 'text' ? (sub.payload as string) : undefined,
-  };
 }
 
 export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
