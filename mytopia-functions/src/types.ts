@@ -125,6 +125,27 @@ export type MissionDto = {
       feedbackIncorrect?: string;
 };
 
+type BaseMapPointDto = {
+    description?: string;
+    id: string;
+    imageUrl?: string;
+    latitude: number;
+    longitude: number;
+    title: string;
+};
+
+export type MissionMapPointDto = BaseMapPointDto & {
+    points: number;
+    radiusMeters: number;
+    type: 'mission';
+};
+
+export type CheckpointMapPointDto = BaseMapPointDto & {
+    type: 'checkpoint';
+};
+
+export type MapPointDto = MissionMapPointDto | CheckpointMapPointDto;
+
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 export type SubmissionDto = {

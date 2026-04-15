@@ -1,4 +1,5 @@
 import { mission, quizOption, quizQuestion } from './mission';
+import { mytopiaCheckpoint } from './mytopiaCheckpoint';
 import { narrativeActor } from './narrativeActor';
 import {
   audioAttachment,
@@ -13,6 +14,7 @@ import { siteSettings } from './siteSettings';
 
 export const schemaTypes = [
   mission,
+  mytopiaCheckpoint,
   quizOption,
   quizQuestion,
   narrativeActor,

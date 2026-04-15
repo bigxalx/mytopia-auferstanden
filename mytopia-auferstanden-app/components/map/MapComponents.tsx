@@ -43,13 +43,13 @@ export function MapControlButton({
             {GLASS_EFFECT_ENABLED ? (
                 <GlassView
                     colorScheme="light"
-                    glassEffectStyle="clear"
+                    glassEffectStyle="regular"
                     style={[
                         styles.controlButtonSurface,
                         styles.controlButtonGlass,
                         active && styles.controlButtonGlassActive,
                     ]}
-                    tintColor={active ? 'rgba(249, 115, 22, 0.2)' : 'rgba(237, 236, 224, 0.12)'}
+                    tintColor={active ? 'rgba(249, 115, 22, 0.26)' : 'rgba(237, 236, 224, 0.24)'}
                 >
                     {children}
                 </GlassView>
@@ -73,9 +73,9 @@ export function MapPopoverSurface({ children }: { children: React.ReactNode }) {
         return (
             <GlassView
                 colorScheme="light"
-                glassEffectStyle="clear"
+                glassEffectStyle="regular"
                 style={[styles.popoverSurface, styles.popoverGlass]}
-                tintColor="rgba(237, 236, 224, 0.12)"
+                tintColor="rgba(237, 236, 224, 0.24)"
             >
                 {children}
             </GlassView>
@@ -106,29 +106,30 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 999,
         borderWidth: 1,
-        height: 48,
+        height: 50,
         justifyContent: 'center',
         overflow: 'hidden',
-        width: 48,
+        width: 50,
         shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.22,
+        shadowRadius: 16,
+        elevation: 8,
     } as ViewStyle,
     controlButtonFallback: {
-        backgroundColor: 'rgba(237, 236, 224, 0.96)',
-        borderColor: 'rgba(31, 41, 55, 0.14)',
+        backgroundColor: 'rgba(237, 236, 224, 0.98)',
+        borderColor: 'rgba(31, 41, 55, 0.24)',
     } as ViewStyle,
     controlButtonGlass: {
-        borderColor: 'rgba(255, 255, 255, 0.18)',
+        backgroundColor: 'rgba(237, 236, 224, 0.16)',
+        borderColor: 'rgba(255, 255, 255, 0.28)',
     } as ViewStyle,
     controlButtonActive: {
         backgroundColor: theme.colors.orange,
         borderColor: theme.colors.orange,
     } as ViewStyle,
     controlButtonGlassActive: {
-        borderColor: 'rgba(249, 115, 22, 0.48)',
+        borderColor: 'rgba(249, 115, 22, 0.52)',
     } as ViewStyle,
     controlButtonPressed: {
         opacity: 0.8,
@@ -142,15 +143,16 @@ const styles = StyleSheet.create({
         padding: 4,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
+        shadowOpacity: 0.22,
+        shadowRadius: 24,
         elevation: 10,
     } as ViewStyle,
     popoverFallback: {
         backgroundColor: 'rgba(237, 236, 224, 0.98)',
-        borderColor: 'rgba(31, 41, 55, 0.14)',
+        borderColor: 'rgba(31, 41, 55, 0.24)',
     } as ViewStyle,
     popoverGlass: {
-        borderColor: 'rgba(255, 255, 255, 0.18)',
+        backgroundColor: 'rgba(237, 236, 224, 0.16)',
+        borderColor: 'rgba(255, 255, 255, 0.28)',
     } as ViewStyle,
 });

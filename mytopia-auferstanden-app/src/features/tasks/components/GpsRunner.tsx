@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
 import { GpsMap } from '@/src/features/tasks/components/GpsMap';
+import { openDirections } from '@/src/features/tasks/utils/openDirections';
 
 type GpsTarget = {
     latitude: number;
@@ -31,14 +32,11 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
     const isInRange = distance !== null && distance <= target.radiusMeters;
 
     const handleOpenDirections = useCallback(async () => {
-        const destination = `${target.latitude},${target.longitude}`;
-        const url =
-            Platform.OS === 'ios'
-                ? `http://maps.apple.com/?saddr=Current%20Location&daddr=${destination}&dirflg=d`
-                : `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
-
         try {
-            await Linking.openURL(url);
+            await openDirections({
+                latitude: target.latitude,
+                longitude: target.longitude,
+            });
         } catch {
             setError('Wegbeschreibung konnte nicht geöffnet werden.');
         }

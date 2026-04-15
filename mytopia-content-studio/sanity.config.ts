@@ -51,9 +51,19 @@ export default defineConfig({
               .title('Einstellungen')
               .icon(CogIcon)
               .child(
-                S.document()
-                  .schemaType('siteSettings')
-                  .documentId('siteSettings')
+                S.list()
+                  .title('Einstellungen')
+                  .items([
+                    S.listItem()
+                      .title('Site Settings')
+                      .icon(CogIcon)
+                      .child(
+                        S.document()
+                          .schemaType('siteSettings')
+                          .documentId('siteSettings')
+                      ),
+                    S.documentTypeListItem('mytopiaCheckpoint').title('Mytopia Checkpoints'),
+                  ])
               ),
           ]),
     }),

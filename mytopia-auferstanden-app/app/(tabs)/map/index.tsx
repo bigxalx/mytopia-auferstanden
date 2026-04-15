@@ -1,24 +1,31 @@
-import { useHeaderHeight } from '@react-navigation/elements';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Alert, Animated, Easing, Linking, Pressable, StyleSheet, Text, View, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import * as Location from 'expo-location';
-import MapView, { Circle, Marker } from 'react-native-maps';
+import MapView, { Circle, Marker, type MapPressEvent } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppImage } from '@/src/shared/ui/AppImage';
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
-import { fetchMissions } from '@/src/features/tasks/data/missionRepository';
+import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
+import {
+    fetchMapPoints,
+    type CheckpointMapPoint,
+} from '@/src/features/tasks/data/mapRepository';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
-import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
 import { darkMapStyle } from '@/src/shared/ui/darkMapStyle';
+import { openDirections } from '@/src/features/tasks/utils/openDirections';
 import {
     CheckIcon,
     hasValidGpsConfig,
     LocateIcon,
     MapControlButton,
-    MapPopoverSurface
+    MapPopoverSurface,
 } from '@/components/map/MapComponents';
 
 // Default region: Altenburg, Germany (Theaterplatz)
@@ -33,23 +40,44 @@ const USER_REGION_DELTA = {
     latitudeDelta: 0.03,
     longitudeDelta: 0.03,
 };
+const DETAIL_CARD_IN_DURATION_MS = 220;
+const DETAIL_CARD_OUT_DURATION_MS = 180;
+
+type DisplayMissionMapPoint = {
+    description?: string;
+    id: string;
+    imageUrl?: string;
+    isDone: boolean;
+    latitude: number;
+    longitude: number;
+    points: number;
+    radiusMeters: number;
+    title: string;
+    type: 'mission';
+};
+
+type DisplayMapPoint = DisplayMissionMapPoint | CheckpointMapPoint;
 
 export default function MapScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { selectedMode, user } = useSession();
     const completedMissions = useCompletedMissions(user?.id);
     const submissionStates = useMissionSubmissionStates(user?.id);
-    const headerHeight = useHeaderHeight();
     const mapRef = useRef<MapView | null>(null);
+    const isMountedRef = useRef(false);
+    const detailCardAnimation = useRef(new Animated.Value(0)).current;
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [isRecentering, setIsRecentering] = useState(false);
-
-    // Legend / Popover states
     const [showActive, setShowActive] = useState(true);
     const [showDone, setShowDone] = useState(false);
+    const [showCheckpoints, setShowCheckpoints] = useState(true);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-    const [missions, setMissions] = useState<any[]>([]);
+    const [missions, setMissions] = useState<MissionListItem[]>([]);
+    const [checkpoints, setCheckpoints] = useState<CheckpointMapPoint[]>([]);
+    const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+    const [presentedPoint, setPresentedPoint] = useState<DisplayMapPoint | null>(null);
 
     const loadCurrentLocation = async () => {
         const location = await Location.getCurrentPositionAsync({
@@ -59,14 +87,27 @@ export default function MapScreen() {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
         };
-        setUserCoords(nextCoords);
+        if (isMountedRef.current) {
+            setUserCoords(nextCoords);
+        }
         return nextCoords;
     };
 
-    // Request location permission on mount
+    useEffect(() => {
+        isMountedRef.current = true;
+
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
     useEffect(() => {
         async function requestPermission() {
             const { status } = await Location.requestForegroundPermissionsAsync();
+            if (!isMountedRef.current) {
+                return;
+            }
+
             setPermissionStatus(status === 'granted' ? 'granted' : 'denied');
 
             if (status === 'granted') {
@@ -77,29 +118,140 @@ export default function MapScreen() {
         requestPermission();
     }, []);
 
-    // Fetch and categorize all GPS missions
     useEffect(() => {
+        let isActive = true;
+
         async function load() {
             try {
                 const allMissions = await fetchMissions({ mode: selectedMode });
-                const gpsMissions = allMissions.filter(hasValidGpsConfig).map((m: any) => {
-                    const isCompleted = completedMissions.includes(m._id);
-                    const submissionState = submissionStates[m._id];
-                    const isPending = submissionState?.status === 'pending';
-                    return {
-                        ...m,
-                        isDone: isCompleted || isPending
-                    };
-                });
-
-                setMissions(gpsMissions);
+                if (isActive) {
+                    setMissions(allMissions.filter(hasValidGpsConfig));
+                }
             } catch {
-                // Silently fail — map still renders
+                if (isActive) {
+                    setMissions([]);
+                }
             }
         }
 
         load();
-    }, [selectedMode, completedMissions, submissionStates]);
+
+        return () => {
+            isActive = false;
+        };
+    }, [selectedMode]);
+
+    useEffect(() => {
+        let isActive = true;
+
+        async function load() {
+            try {
+                const nextPoints = await fetchMapPoints({ mode: selectedMode });
+                if (isActive) {
+                    setCheckpoints(nextPoints.filter((point): point is CheckpointMapPoint => point.type === 'checkpoint'));
+                }
+            } catch {
+                if (isActive) {
+                    setCheckpoints([]);
+                }
+            }
+        }
+
+        load();
+
+        return () => {
+            isActive = false;
+        };
+    }, [selectedMode]);
+
+    const displayMissionPoints: DisplayMissionMapPoint[] = missions.map((mission) => {
+        const gpsConfig = mission.gpsConfig;
+
+        const isCompleted = completedMissions.includes(mission._id);
+        const submissionState = submissionStates[mission._id];
+        const isPending = submissionState?.status === 'pending';
+
+        return {
+            description: mission.description,
+            id: mission._id,
+            imageUrl: mission.imageUrl,
+            isDone: isCompleted || isPending,
+            latitude: gpsConfig.latitude,
+            longitude: gpsConfig.longitude,
+            points: mission.points,
+            radiusMeters: gpsConfig.radiusMeters,
+            title: mission.title,
+            type: 'mission',
+        };
+    });
+
+    const displayPoints: DisplayMapPoint[] = [...displayMissionPoints, ...checkpoints];
+    const activeMissionCount = displayMissionPoints.filter((point) => !point.isDone).length;
+    const doneMissionCount = displayMissionPoints.filter((point) => point.isDone).length;
+    const checkpointCount = checkpoints.length;
+
+    const visiblePoints = displayPoints.filter((point) => {
+        if (isCheckpointPoint(point)) {
+            return showCheckpoints;
+        }
+
+        return point.isDone ? showDone : showActive;
+    });
+    const selectedVisiblePoint = selectedPointId
+        ? visiblePoints.find((point) => point.id === selectedPointId) ?? null
+        : null;
+
+    useEffect(() => {
+        if (selectedPointId && !visiblePoints.some((point) => point.id === selectedPointId)) {
+            setSelectedPointId(null);
+        }
+    }, [selectedPointId, visiblePoints]);
+
+    useEffect(() => {
+        let isCancelled = false;
+
+        // Keep the displayed card mounted while its exit animation runs.
+        if (selectedVisiblePoint) {
+            if (presentedPoint?.id !== selectedVisiblePoint.id) {
+                setPresentedPoint(selectedVisiblePoint);
+                detailCardAnimation.stopAnimation();
+                detailCardAnimation.setValue(0);
+
+                Animated.timing(detailCardAnimation, {
+                    duration: DETAIL_CARD_IN_DURATION_MS,
+                    easing: Easing.out(Easing.ease),
+                    toValue: 1,
+                    useNativeDriver: true,
+                }).start();
+            }
+
+            return () => {
+                isCancelled = true;
+            };
+        }
+
+        if (!presentedPoint) {
+            return () => {
+                isCancelled = true;
+            };
+        }
+
+        detailCardAnimation.stopAnimation();
+        Animated.timing(detailCardAnimation, {
+            duration: DETAIL_CARD_OUT_DURATION_MS,
+            easing: Easing.out(Easing.ease),
+            toValue: 0,
+            useNativeDriver: true,
+        }).start(({ finished }) => {
+            if (finished && !isCancelled && isMountedRef.current) {
+                setPresentedPoint(null);
+            }
+        });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [detailCardAnimation, presentedPoint, selectedVisiblePoint]);
 
     const region = userCoords
         ? { ...userCoords, ...USER_REGION_DELTA }
@@ -116,43 +268,74 @@ export default function MapScreen() {
             const coords = await loadCurrentLocation();
             mapRef.current?.animateToRegion({ ...coords, ...USER_REGION_DELTA }, 500);
         } finally {
-            setIsRecentering(false);
+            if (isMountedRef.current) {
+                setIsRecentering(false);
+            }
         }
+    };
+
+    const handleMapPress = (event: MapPressEvent) => {
+        if (event.nativeEvent.action === 'marker-press') {
+            return;
+        }
+
+        setSelectedPointId(null);
+        setIsSettingsOpen(false);
+    };
+
+    const handleOpenDirections = async (point: DisplayMapPoint) => {
+        try {
+            await openDirections({
+                latitude: point.latitude,
+                longitude: point.longitude,
+            });
+        } catch {
+            Alert.alert('Fehler', 'Wegbeschreibung konnte nicht geöffnet werden.');
+        }
+    };
+
+    const handleOpenMission = (missionId: string) => {
+        router.push({
+            pathname: '/(modals)/tasks/[taskId]',
+            params: { taskId: missionId },
+        });
     };
 
     if (permissionStatus === 'denied') {
         return (
-            <Screen title="Karte" subtitle="GPS-Missionen auf der Karte" headerShown={false}>
-                <SectionCard title="Standortzugriff benötigt">
-                    <Text style={styles.body}>
-                        Um die Karte und GPS-Missionen nutzen zu können, benötigen wir Zugriff auf deinen Standort.
-                    </Text>
-                    <Text style={styles.hint}>
-                        Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.
-                    </Text>
-                    <Pressable onPress={() => Linking.openSettings()} style={styles.settingsButton}>
-                        <Text style={styles.settingsButtonText}>Einstellungen öffnen</Text>
-                    </Pressable>
-                </SectionCard>
-            </Screen>
+            <View style={styles.screen}>
+                <View style={[styles.permissionContent, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+                    <SectionCard title="Standortzugriff benötigt">
+                        <Text style={styles.body}>
+                            Um die Karte und GPS-Missionen nutzen zu können, benötigen wir Zugriff auf deinen Standort.
+                        </Text>
+                        <Text style={styles.hint}>
+                            Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.
+                        </Text>
+                        <Pressable onPress={() => Linking.openSettings()} style={styles.settingsButton}>
+                            <Text style={styles.settingsButtonText}>Einstellungen öffnen</Text>
+                        </Pressable>
+                    </SectionCard>
+                </View>
+            </View>
         );
     }
 
-    const visibleMissions = missions.filter(m => (m.isDone ? showDone : showActive));
-    const controlsTop = Platform.OS === 'ios' ? headerHeight + 12 : 16;
+    const controlsTop = 8;
+    const detailCardBottom = Math.max(insets.bottom, 12);
+    const detailCardTranslateY = detailCardAnimation.interpolate({
+        inputRange: [0, 1],
+        outputRange: [18, 0],
+    });
 
     return (
-        <Screen
-            title="Karte"
-            subtitle="GPS-Missionen auf der Karte"
-            scrollable={false}
-            noPadding
-            bottomInset={false}
-            headerShown={false}
-        >
+        <View style={styles.screen}>
             <View style={styles.mapContainer}>
                 <MapView
+                    customMapStyle={darkMapStyle}
                     initialRegion={region}
+                    mapPadding={{ bottom: presentedPoint ? 260 : 0, left: 0, right: 0, top: 0 }}
+                    onPress={handleMapPress}
                     onUserLocationChange={(event) => {
                         const coordinate = event.nativeEvent.coordinate;
                         if (!coordinate) {
@@ -164,41 +347,58 @@ export default function MapScreen() {
                             longitude: coordinate.longitude,
                         });
                     }}
-                    showsUserLocation={permissionStatus === 'granted'}
-                    showsMyLocationButton={false}
                     ref={mapRef}
+                    showsMyLocationButton={false}
+                    showsUserLocation={permissionStatus === 'granted'}
                     style={styles.map}
-                    customMapStyle={darkMapStyle}
                     userInterfaceStyle="dark"
                 >
-                    {visibleMissions.map((mission) =>
-                        mission.gpsConfig ? (
-                            <React.Fragment key={mission._id}>
-                                <Marker
-                                    coordinate={{
-                                        latitude: mission.gpsConfig.latitude,
-                                        longitude: mission.gpsConfig.longitude,
-                                    }}
-                                    pinColor={mission.isDone ? theme.colors.blue : theme.colors.orange}
-                                    title={mission.title}
-                                    description={`${mission.isDone ? 'Erledigt' : 'Aktiv'} · ${mission.points} Punkte`}
-                                />
-                                <Circle
-                                    center={{
-                                        latitude: mission.gpsConfig.latitude,
-                                        longitude: mission.gpsConfig.longitude,
-                                    }}
-                                    fillColor={mission.isDone ? theme.colors.blueAlpha : theme.colors.orangeAlpha}
-                                    radius={mission.gpsConfig.radiusMeters}
-                                    strokeColor={mission.isDone ? theme.colors.blue : theme.colors.orange}
-                                    strokeWidth={1}
-                                />
-                            </React.Fragment>
-                        ) : null
-                    )}
+                    {visiblePoints.map((point) => {
+                        if (isMissionPoint(point)) {
+                            return (
+                                <React.Fragment key={point.id}>
+                                    <Marker
+                                        coordinate={{
+                                            latitude: point.latitude,
+                                            longitude: point.longitude,
+                                        }}
+                                        onPress={() => {
+                                            setSelectedPointId(point.id);
+                                            setIsSettingsOpen(false);
+                                        }}
+                                        pinColor={point.isDone ? theme.colors.blue : theme.colors.orange}
+                                    />
+                                    <Circle
+                                        center={{
+                                            latitude: point.latitude,
+                                            longitude: point.longitude,
+                                        }}
+                                        fillColor={point.isDone ? theme.colors.blueAlpha : theme.colors.orangeAlpha}
+                                        radius={point.radiusMeters}
+                                        strokeColor={point.isDone ? theme.colors.blue : theme.colors.orange}
+                                        strokeWidth={1}
+                                    />
+                                </React.Fragment>
+                            );
+                        }
+
+                        return (
+                            <Marker
+                                coordinate={{
+                                    latitude: point.latitude,
+                                    longitude: point.longitude,
+                                }}
+                                key={point.id}
+                                onPress={() => {
+                                    setSelectedPointId(point.id);
+                                    setIsSettingsOpen(false);
+                                }}
+                                pinColor={theme.colors.accent}
+                            />
+                        );
+                    })}
                 </MapView>
 
-                {/* Control Panel (Recenter + Legend Toggle) */}
                 <View style={[styles.controlsLayer, { top: controlsTop }]}>
                     {permissionStatus === 'granted' && (
                         <MapControlButton
@@ -212,7 +412,7 @@ export default function MapScreen() {
                     <View style={styles.settingsAnchor}>
                         <MapControlButton
                             active={isSettingsOpen}
-                            onPress={() => setIsSettingsOpen(!isSettingsOpen)}
+                            onPress={() => setIsSettingsOpen((value) => !value)}
                         >
                             <SettingsBold color={isSettingsOpen ? '#fff' : theme.colors.cardTextHeading} size={24} />
                         </MapControlButton>
@@ -220,7 +420,7 @@ export default function MapScreen() {
                         {isSettingsOpen && (
                             <MapPopoverSurface>
                                 <Pressable
-                                    onPress={() => setShowActive(!showActive)}
+                                    onPress={() => setShowActive((value) => !value)}
                                     style={styles.popoverRow}
                                 >
                                     <View style={styles.checkSlot}>
@@ -228,14 +428,14 @@ export default function MapScreen() {
                                     </View>
                                     <View style={[styles.dotIndicator, { backgroundColor: theme.colors.orange }]} />
                                     <Text style={styles.popoverLabel}>
-                                        {missions.filter((m) => !m.isDone).length === 1 ? 'Aktuelle Mission' : 'Aktuelle Missionen'}
+                                        {activeMissionCount === 1 ? 'Aktuelle Mission' : 'Aktuelle Missionen'}
                                     </Text>
                                 </Pressable>
 
                                 <View style={styles.popoverSeparator} />
 
                                 <Pressable
-                                    onPress={() => setShowDone(!showDone)}
+                                    onPress={() => setShowDone((value) => !value)}
                                     style={styles.popoverRow}
                                 >
                                     <View style={styles.checkSlot}>
@@ -243,16 +443,119 @@ export default function MapScreen() {
                                     </View>
                                     <View style={[styles.dotIndicator, { backgroundColor: theme.colors.blue }]} />
                                     <Text style={styles.popoverLabel}>
-                                        {missions.filter((m) => m.isDone).length === 1 ? 'Abgeschlossene Mission' : 'Abgeschlossene Missionen'}
+                                        {doneMissionCount === 1 ? 'Abgeschlossene Mission' : 'Abgeschlossene Missionen'}
+                                    </Text>
+                                </Pressable>
+
+                                <View style={styles.popoverSeparator} />
+
+                                <Pressable
+                                    onPress={() => setShowCheckpoints((value) => !value)}
+                                    style={styles.popoverRow}
+                                >
+                                    <View style={styles.checkSlot}>
+                                        {showCheckpoints && <CheckIcon size={14} color={theme.colors.accent} />}
+                                    </View>
+                                    <View style={[styles.dotIndicator, { backgroundColor: theme.colors.accent }]} />
+                                    <Text style={styles.popoverLabel}>
+                                        {checkpointCount === 1 ? 'Mytopia Checkpoint' : 'Mytopia Checkpoints'}
                                     </Text>
                                 </Pressable>
                             </MapPopoverSurface>
                         )}
                     </View>
                 </View>
+
+                {presentedPoint ? (
+                    <View pointerEvents="box-none" style={[styles.detailCardContainer, { bottom: detailCardBottom }]}>
+                        <Animated.View
+                            style={[
+                                styles.detailCard,
+                                {
+                                    opacity: detailCardAnimation,
+                                    transform: [{ translateY: detailCardTranslateY }],
+                                },
+                            ]}
+                        >
+                            <Pressable
+                                accessibilityLabel="Details schließen"
+                                hitSlop={8}
+                                onPress={() => setSelectedPointId(null)}
+                                style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
+                            >
+                                <MaterialIcons color={theme.colors.cardTextPrimary} name="close" size={20} />
+                            </Pressable>
+
+                            {isMissionPoint(presentedPoint) ? (
+                                <Pressable
+                                    onPress={() => handleOpenMission(presentedPoint.id)}
+                                    style={({ pressed }) => [styles.detailCardPressable, pressed && styles.detailCardBodyPressed]}
+                                >
+                                    {presentedPoint.imageUrl ? (
+                                        <AppImage
+                                            contentFit="cover"
+                                            style={styles.detailImage}
+                                            uri={presentedPoint.imageUrl}
+                                        />
+                                    ) : null}
+
+                                    <View style={styles.detailBody}>
+                                        <Text style={styles.detailEyebrow}>
+                                            {presentedPoint.isDone ? 'Erledigte Mission' : 'Aktive Mission'}
+                                        </Text>
+                                        <Text style={styles.detailTitle}>{presentedPoint.title}</Text>
+                                        {presentedPoint.description ? (
+                                            <Text numberOfLines={4} style={styles.detailDescription}>
+                                                {presentedPoint.description}
+                                            </Text>
+                                        ) : null}
+                                        <Text style={styles.detailMeta}>{presentedPoint.points} Punkte</Text>
+                                    </View>
+                                </Pressable>
+                            ) : (
+                                <View style={styles.detailCardStatic}>
+                                    {presentedPoint.imageUrl ? (
+                                        <AppImage
+                                            contentFit="cover"
+                                            style={styles.detailImage}
+                                            uri={presentedPoint.imageUrl}
+                                        />
+                                    ) : null}
+
+                                    <View style={styles.detailBody}>
+                                        <Text style={styles.detailEyebrow}>Checkpoint</Text>
+                                        <Text style={styles.detailTitle}>{presentedPoint.title}</Text>
+                                        {presentedPoint.description ? (
+                                            <Text numberOfLines={4} style={styles.detailDescription}>
+                                                {presentedPoint.description}
+                                            </Text>
+                                        ) : null}
+                                    </View>
+                                </View>
+                            )}
+
+                            <Pressable
+                                onPress={() => {
+                                    void handleOpenDirections(presentedPoint);
+                                }}
+                                style={({ pressed }) => [styles.directionsButton, pressed && styles.directionsButtonPressed]}
+                            >
+                                <Text style={styles.directionsButtonText}>Wegbeschreibung</Text>
+                            </Pressable>
+                        </Animated.View>
+                    </View>
+                ) : null}
             </View>
-        </Screen>
+        </View>
     );
+}
+
+function isMissionPoint(point: DisplayMapPoint): point is DisplayMissionMapPoint {
+    return point.type === 'mission';
+}
+
+function isCheckpointPoint(point: DisplayMapPoint): point is CheckpointMapPoint {
+    return point.type === 'checkpoint';
 }
 
 const styles = StyleSheet.create({
@@ -261,6 +564,95 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
     },
+    detailBody: {
+        gap: 6,
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 12,
+    } as ViewStyle,
+    detailCard: {
+        backgroundColor: 'rgba(237, 236, 224, 0.98)',
+        borderColor: 'rgba(31, 41, 55, 0.18)',
+        borderRadius: 18,
+        borderWidth: 1,
+        overflow: 'hidden',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.25,
+        shadowRadius: 24,
+        elevation: 12,
+    } as ViewStyle,
+    detailCardBodyPressed: {
+        opacity: 0.86,
+    } as ViewStyle,
+    detailCardContainer: {
+        left: 16,
+        position: 'absolute',
+        right: 16,
+    } as ViewStyle,
+    detailCardPressable: {
+        backgroundColor: 'transparent',
+    } as ViewStyle,
+    detailCardStatic: {
+        backgroundColor: 'transparent',
+    } as ViewStyle,
+    closeButton: {
+        alignItems: 'center',
+        backgroundColor: 'rgba(237, 236, 224, 0.92)',
+        borderRadius: 999,
+        height: 32,
+        justifyContent: 'center',
+        position: 'absolute',
+        right: 12,
+        top: 12,
+        width: 32,
+        zIndex: 2,
+    } as ViewStyle,
+    closeButtonPressed: {
+        opacity: 0.82,
+    } as ViewStyle,
+    detailDescription: {
+        color: theme.colors.cardTextSecondary,
+        fontFamily: 'NunitoSans_400Regular',
+        fontSize: 14,
+        lineHeight: 20,
+    } as TextStyle,
+    detailEyebrow: {
+        color: theme.colors.cardTextMuted,
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 12,
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+    } as TextStyle,
+    detailImage: {
+        height: 164,
+        width: '100%',
+    } as ImageStyle,
+    detailMeta: {
+        color: theme.colors.cardTextMuted,
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 13,
+    } as TextStyle,
+    detailTitle: {
+        color: theme.colors.cardTextPrimary,
+        fontFamily: 'Nunito_700Bold',
+        fontSize: 20,
+        lineHeight: 24,
+    } as TextStyle,
+    directionsButton: {
+        alignItems: 'center',
+        backgroundColor: theme.colors.orange,
+        margin: 16,
+        marginTop: 4,
+        borderRadius: 12,
+        paddingVertical: 14,
+    } as ViewStyle,
+    directionsButtonPressed: {
+        opacity: 0.85,
+    } as ViewStyle,
+    directionsButtonText: {
+        ...theme.typography.button,
+    } as TextStyle,
     hint: {
         color: theme.colors.cardTextSecondary,
         fontSize: 13,
@@ -270,16 +662,24 @@ const styles = StyleSheet.create({
     map: {
         flex: 1,
     },
+    permissionContent: {
+        flex: 1,
+        padding: 20,
+    } as ViewStyle,
     mapContainer: {
+        backgroundColor: theme.colors.background,
         flex: 1,
         position: 'relative',
-        backgroundColor: theme.colors.background,
     },
+    screen: {
+        backgroundColor: theme.colors.background,
+        flex: 1,
+    } as ViewStyle,
     controlsLayer: {
+        alignItems: 'flex-end',
+        gap: 12,
         position: 'absolute',
         right: 16,
-        gap: 12,
-        alignItems: 'flex-end',
     },
     settingsAnchor: {
         alignItems: 'flex-end',
@@ -292,26 +692,26 @@ const styles = StyleSheet.create({
     } as ViewStyle,
     popoverLabel: {
         color: theme.colors.cardTextPrimary,
+        flexShrink: 0,
         fontSize: 14,
         fontWeight: '600',
         marginLeft: 12,
-        flexShrink: 0,
     },
     popoverSeparator: {
-        backgroundColor: 'rgba(31, 41, 55, 0.08)',
+        backgroundColor: 'rgba(31, 41, 55, 0.12)',
         height: 1,
         marginHorizontal: 8,
     },
     checkSlot: {
-        width: 20,
         alignItems: 'center',
         justifyContent: 'center',
+        width: 20,
     },
     dotIndicator: {
-        width: 10,
-        height: 10,
         borderRadius: 5,
+        height: 10,
         marginLeft: 8,
+        width: 10,
     },
     settingsButton: {
         alignItems: 'center',
