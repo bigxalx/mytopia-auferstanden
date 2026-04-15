@@ -4,6 +4,8 @@ import * as logger from 'firebase-functions/logger';
 import { firestore, messaging, oidcClient, storage, tasksClient } from './firebase.js';
 
 import {
+    MAP_CHECKPOINT_PROJECTION,
+    MAP_MISSION_POINT_PROJECTION,
     MISSION_DETAIL_PROJECTION,
     NARRATIVE_STATE_COLLECTION_PATH, NARRATIVE_STATE_COLLECTION_PATH_DEV,
     SANITY_BUNDLE_PROJECTION,
@@ -30,6 +32,7 @@ import { handleDeleteAccount, verifyFirebaseUser } from './auth.js';
 import {
     BundleDto, FeedCursor,
     FirebaseResponse,
+    MapPointDto,
     MessageDto,
     NarrativeMode, NarrativeStateEventType,
     SanityWebhookPayload
@@ -59,6 +62,11 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
 
       if (path === '/missions') {
         await handleMissionsProxy(req, res);
+        return;
+      }
+
+      if (path === '/map-points') {
+        await handleMapPointsProxy(req, res);
         return;
       }
 
@@ -383,6 +391,37 @@ export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
     res.status(200).json({ missions });
     } catch (error) {
     logger.error('missionsProxy failed', error);
+    sendError(res, error);
+    }
+}
+
+export async function handleMapPointsProxy(req: Request, res: FirebaseResponse) {
+    if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+    }
+
+    try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev map points require Firebase custom claim dev=true.');
+    }
+
+    const missionQuery = `*[_type == "mission" && kind == "gps" && active == true && defined(gpsConfig.location.lat) && defined(gpsConfig.location.lng) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0] | order(title asc) {${MAP_MISSION_POINT_PROJECTION}}`;
+    const checkpointQuery = `*[_type == "mytopiaCheckpoint" && !(_id in path("drafts.**")) && defined(location.lat) && defined(location.lng)] | order(title asc) {${MAP_CHECKPOINT_PROJECTION}}`;
+
+    const [missionPoints, checkpointPoints] = await Promise.all([
+      sanityQuery<MapPointDto[]>(missionQuery, {}, mode),
+      sanityQuery<MapPointDto[]>(checkpointQuery, {}, mode),
+    ]);
+
+    const points = [...missionPoints, ...checkpointPoints].sort((a, b) => a.title.localeCompare(b.title, 'de'));
+
+    res.status(200).json({ points });
+    } catch (error) {
+    logger.error('mapPointsProxy failed', error);
     sendError(res, error);
     }
 }

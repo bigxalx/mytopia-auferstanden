@@ -144,3 +144,25 @@ export const MISSION_SCORING_PROJECTION = `
   feedbackCorrect,
   feedbackIncorrect
 `;
+
+export const MAP_MISSION_POINT_PROJECTION = `
+  "type": "mission",
+  "id": _id,
+  title,
+  description,
+  "imageUrl": image.asset->url,
+  "latitude": gpsConfig.location.lat,
+  "longitude": gpsConfig.location.lng,
+  "radiusMeters": gpsConfig.radiusMeters,
+  points
+`;
+
+export const MAP_CHECKPOINT_PROJECTION = `
+  "type": "checkpoint",
+  "id": _id,
+  title,
+  description,
+  "imageUrl": image.asset->url,
+  "latitude": location.lat,
+  "longitude": location.lng
+`;
