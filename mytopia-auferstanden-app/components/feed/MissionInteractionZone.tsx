@@ -9,6 +9,7 @@ import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 import { useChannels } from '@/src/features/channels/data/ChannelContext';
 
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
+import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
 import { MissionReference } from './MissionReference';
 
 interface Props {
@@ -57,9 +58,11 @@ export function MissionInteractionZone({
     startChatQuiz,
     persistedSessions,
     completeMission,
+    interruptedMission,
   } = useActiveMission();
   const isFocused = focusedMissionId === missionId;
   const isQuizInProgress = kind === 'quiz' && persistedSessions[missionId];
+  const isMissionInterrupted = interruptedMission?.mission._id === missionId;
   const resolvedMissionTitle = activeMission?._id === missionId ? activeMission.title : missionTitle;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,6 +108,7 @@ export function MissionInteractionZone({
         await startMission(missionId, actor, {
           description,
           imageUrl,
+          kind,
           title: resolvedMissionTitle,
         });
       }
@@ -130,7 +134,7 @@ export function MissionInteractionZone({
             <ActivityIndicator color={styles.actionButtonText.color} size="small" />
           ) : (
             <Text style={styles.actionButtonText}>
-              {isQuizInProgress ? 'MISSION FORTSETZEN' : 'MISSION STARTEN'}
+              {isQuizInProgress || isMissionInterrupted ? 'MISSION FORTSETZEN' : 'MISSION STARTEN'}
             </Text>
           )}
         </Pressable>
@@ -246,22 +250,14 @@ export function MissionInteractionZone({
         )}
 
         {kind === 'photo' && (
-          <View style={styles.photoRow}>
-            <Pressable
-              disabled={isSubmitting}
-              style={[styles.actionButton, styles.rowButton]}
-              onPress={() => Alert.alert('Kamera', 'Funktion folgt...')}
-            >
-              <Text style={styles.actionButtonText}>KAMERA</Text>
-            </Pressable>
-            <Pressable
-              disabled={isSubmitting}
-              style={[styles.actionButton, styles.rowButton]}
-              onPress={() => Alert.alert('Galerie', 'Funktion folgt...')}
-            >
-              <Text style={styles.actionButtonText}>GALERIE</Text>
-            </Pressable>
-          </View>
+          <PhotoRunner
+            embedded
+            missionId={missionId}
+            onComplete={async ({ localUri, upload }) => {
+              await completeMission(missionId, { localUri, upload });
+              return { action: 'submitted' };
+            }}
+          />
         )}
       </View>
     </View>
@@ -312,10 +308,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
-  photoRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   actionButton: {
     backgroundColor: '#F77740',
     borderRadius: 8,
@@ -323,9 +315,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  rowButton: {
-    flex: 1,
   },
   sendButton: {
     backgroundColor: '#F77740',

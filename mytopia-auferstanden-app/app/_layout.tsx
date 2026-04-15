@@ -16,6 +16,7 @@ import { useEffect } from 'react';
 import * as SystemUI from 'expo-system-ui';
 import { Pressable } from 'react-native';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
+import { NarrativeNotificationBridge } from '@/src/features/thread/components/NarrativeNotificationBridge';
 
 // Register FCM background handler before React tree mounts
 registerBackgroundNarrativeHandler();
@@ -38,6 +39,7 @@ export default function RootLayout() {
       <AppProviders>
         {loaded && (
           <ThemeProvider value={AppNavigationTheme}>
+            <NarrativeNotificationBridge />
             <Stack
               screenOptions={{
                 headerShown: false,
@@ -46,7 +48,7 @@ export default function RootLayout() {
             >
               <Stack.Screen name="index" />
               <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" options={{ title: 'Zurück', headerBackTitle: 'Zurück' }} />
+              <Stack.Screen name="(tabs)" />
               <Stack.Screen name="welcome-back" />
               <Stack.Screen
                 name="(modals)/tasks/[taskId]"

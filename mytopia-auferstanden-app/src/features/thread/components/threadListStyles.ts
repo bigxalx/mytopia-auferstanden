@@ -4,11 +4,14 @@ import { theme } from '@/src/shared/ui/theme';
 
 export const threadListStyles = StyleSheet.create({
   scrollView: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'transparent',
   } as ViewStyle,
   scrollContent: {
     padding: 20,
     paddingBottom: 24,
+  } as ViewStyle,
+  scrollContentHidden: {
+    opacity: 0,
   } as ViewStyle,
   messageRow: {
     marginBottom: 12,
@@ -22,6 +25,9 @@ export const threadListStyles = StyleSheet.create({
   centeredMessageRow: {
     alignItems: 'center',
   } as ViewStyle,
+  rowContent: {
+    width: '100%',
+  } as ViewStyle,
   stateBox: {
     alignItems: 'center',
     backgroundColor: theme.colors.headerBackground,
@@ -34,6 +40,14 @@ export const threadListStyles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: 14,
   } as TextStyle,
+  readyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    justifyContent: 'center',
+    padding: 20,
+    zIndex: 120,
+  } as ViewStyle,
   loadingMoreWrap: {
     alignItems: 'center',
     paddingTop: 16,
@@ -82,13 +96,29 @@ export const threadListStyles = StyleSheet.create({
   typingBubbleWrapInline: {
     marginLeft: 60,
   } as ViewStyle,
+  inlineTypingWrap: {
+    marginLeft: 60,
+    marginTop: 8,
+    maxWidth: '100%',
+  } as ViewStyle,
+  typingBubbleShell: {
+    position: 'relative',
+  } as ViewStyle,
   typingBubble: {
+    alignItems: 'center',
     alignSelf: 'flex-start',
     backgroundColor: theme.colors.beige,
-    borderBottomLeftRadius: 8,
     borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    height: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  } as ViewStyle,
+  typingTailWrap: {
+    bottom: -11,
+    height: 12,
+    left: 6,
+    position: 'absolute',
+    width: 20,
   } as ViewStyle,
   typingDots: {
     alignItems: 'center',

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { SectionCard } from '@/src/shared/ui/SectionCard';
@@ -29,6 +29,20 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
     const [error, setError] = useState<string | null>(null);
 
     const isInRange = distance !== null && distance <= target.radiusMeters;
+
+    const handleOpenDirections = useCallback(async () => {
+        const destination = `${target.latitude},${target.longitude}`;
+        const url =
+            Platform.OS === 'ios'
+                ? `http://maps.apple.com/?saddr=Current%20Location&daddr=${destination}&dirflg=d`
+                : `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+
+        try {
+            await Linking.openURL(url);
+        } catch {
+            setError('Wegbeschreibung konnte nicht geöffnet werden.');
+        }
+    }, [target.latitude, target.longitude]);
 
     useEffect(() => {
         let isActive = true;
@@ -164,26 +178,15 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
                     </View>
 
                     <View style={styles.compactDetails}>
-                        <View style={styles.compactTextRow}>
-                            <Text style={styles.compactDistance}>
-                                {distance !== null ? formatDistance(distance) : '…'}
-                            </Text>
-                            {isInRange ? (
-                                <Text style={styles.compactStatusText}>✅ Ziel!</Text>
-                            ) : distance !== null ? (
-                                <Text style={[styles.compactStatusText, { color: theme.colors.destructiveText }]}>
-                                    Zu weit entfernt
-                                </Text>
-                            ) : (
-                                <Text style={[styles.compactStatusText, { color: '#666' }]}>Ortung läuft…</Text>
-                            )}
-                        </View>
+                        <Text style={styles.compactDistance}>
+                            {distance !== null ? formatDistance(distance) : '…'}
+                        </Text>
+                        <Text style={styles.compactDistanceLabel}>Entfernung zum Ziel</Text>
 
-                        {!isInRange && distance !== null && (
+                        {!isInRange && (
                             <Pressable
                                 onPress={() => {
-                                    const url = `https://www.google.com/maps/dir/?api=1&destination=${target.latitude},${target.longitude}`;
-                                    Linking.openURL(url);
+                                    void handleOpenDirections();
                                 }}
                                 style={({ pressed }) => [
                                     styles.directionsButton,
@@ -193,24 +196,32 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
                                 <Text style={styles.directionsButtonText}>Wegbeschreibung</Text>
                             </Pressable>
                         )}
+
+                        {isInRange ? (
+                            <View style={styles.compactStatusBadge}>
+                                <Text style={styles.compactStatusBadgeText}>Im Zielgebiet</Text>
+                            </View>
+                        ) : null}
                     </View>
                 </View>
 
-                <Pressable
-                    disabled={!isInRange || isSubmitting}
-                    onPress={handleCheckIn}
-                    style={({ pressed }) => [
-                        styles.compactCheckInButton,
-                        (!isInRange || isSubmitting) ? styles.checkInButtonDisabled : null,
-                        pressed && { opacity: 0.7 }
-                    ]}
-                >
-                    {isSubmitting ? (
-                        <ActivityIndicator size="small" color="white" />
-                    ) : (
-                        <Text style={styles.compactCheckInButtonText}>Einchecken</Text>
-                    )}
-                </Pressable>
+                {isInRange ? (
+                    <Pressable
+                        disabled={isSubmitting}
+                        onPress={handleCheckIn}
+                        style={({ pressed }) => [
+                            styles.compactCheckInButton,
+                            isSubmitting ? styles.checkInButtonDisabled : null,
+                            pressed && { opacity: 0.7 }
+                        ]}
+                    >
+                        {isSubmitting ? (
+                            <ActivityIndicator size="small" color="white" />
+                        ) : (
+                            <Text style={styles.compactCheckInButtonText}>Einchecken</Text>
+                        )}
+                    </Pressable>
+                ) : null}
 
                 {error ? <Text style={styles.compactErrorText}>{error}</Text> : null}
             </View>
@@ -241,10 +252,6 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
                     <View style={styles.inRangeBadge}>
                         <Text style={styles.inRangeText}>✅ Du bist im Zielgebiet!</Text>
                     </View>
-                ) : distance !== null ? (
-                    <Text style={styles.outOfRangeText}>
-                        Nähere dich auf {target.radiusMeters}m an das Ziel an.
-                    </Text>
                 ) : (
                     <Text style={styles.loadingText}>Standort wird ermittelt…</Text>
                 )}
@@ -252,18 +259,32 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <Pressable
-                disabled={!isInRange || isSubmitting}
-                onPress={handleCheckIn}
-                style={[
-                    styles.checkInButton,
-                    (!isInRange || isSubmitting) ? styles.checkInButtonDisabled : null,
-                ]}
-            >
-                <Text style={styles.checkInButtonText}>
-                    {isSubmitting ? 'Check-in läuft…' : 'Einchecken'}
-                </Text>
-            </Pressable>
+            {!isInRange ? (
+                <Pressable
+                    onPress={() => {
+                        void handleOpenDirections();
+                    }}
+                    style={({ pressed }) => [
+                        styles.directionsCta,
+                        pressed && { opacity: 0.7 },
+                    ]}
+                >
+                    <Text style={styles.directionsCtaText}>Wegbeschreibung</Text>
+                </Pressable>
+            ) : (
+                <Pressable
+                    disabled={isSubmitting}
+                    onPress={handleCheckIn}
+                    style={[
+                        styles.checkInButton,
+                        isSubmitting ? styles.checkInButtonDisabled : null,
+                    ]}
+                >
+                    <Text style={styles.checkInButtonText}>
+                        {isSubmitting ? 'Check-in läuft…' : 'Einchecken'}
+                    </Text>
+                </Pressable>
+            )}
         </View>
     );
 }
@@ -354,16 +375,12 @@ const styles = StyleSheet.create({
         color: theme.colors.cardTextMuted,
         fontSize: 14,
         fontStyle: 'italic',
+        textAlign: 'center',
     },
     mapWrap: {
         borderRadius: 12,
         height: 200,
         overflow: 'hidden',
-    },
-    outOfRangeText: {
-        color: theme.colors.destructiveText,
-        fontFamily: 'NunitoSans_400Regular',
-        fontSize: 14,
     },
     hintText: {
         color: theme.colors.cardTextPrimary,
@@ -418,39 +435,47 @@ const styles = StyleSheet.create({
         padding: 4,
     },
     compactMainRow: {
+        alignItems: 'center',
         flexDirection: 'row',
         gap: 12,
-        alignItems: 'center',
     },
     compactMapWrap: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: 104,
+        height: 78,
+        borderRadius: 14,
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.1)',
     },
     compactDetails: {
         flex: 1,
-        gap: 4,
-    },
-    compactTextRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: 8,
+        justifyContent: 'center',
     },
     compactDistance: {
-        fontSize: 16,
-        fontFamily: 'NunitoSans_700Bold',
         color: theme.colors.cardTextPrimary,
-    },
-    compactStatusText: {
-        fontSize: 12,
         fontFamily: 'NunitoSans_700Bold',
-        textTransform: 'uppercase',
+        fontSize: 18,
+    },
+    compactDistanceLabel: {
+        color: theme.colors.cardTextMuted,
+        fontSize: 12,
+    },
+    compactStatusBadge: {
+        alignItems: 'center',
+        alignSelf: 'center',
+        backgroundColor: 'rgba(52, 199, 89, 0.12)',
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    compactStatusBadgeText: {
+        color: theme.colors.successText,
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 12,
     },
     directionsButton: {
-        alignSelf: 'flex-start',
+        alignSelf: 'center',
         borderWidth: 1,
         borderColor: theme.colors.orange,
         borderRadius: 15,
@@ -481,6 +506,20 @@ const styles = StyleSheet.create({
         color: theme.colors.destructiveText,
         textAlign: 'center',
     },
+    directionsCta: {
+        alignItems: 'center',
+        alignSelf: 'stretch',
+        borderColor: theme.colors.orange,
+        borderRadius: 10,
+        borderWidth: 1,
+        paddingVertical: 12,
+    },
+    directionsCtaText: {
+        color: theme.colors.orange,
+        fontFamily: 'NunitoSans_700Bold',
+        fontSize: 13,
+        textTransform: 'uppercase',
+    },
     compactResult: {
         paddingVertical: 4,
     },
@@ -488,4 +527,3 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
     },
 });
-

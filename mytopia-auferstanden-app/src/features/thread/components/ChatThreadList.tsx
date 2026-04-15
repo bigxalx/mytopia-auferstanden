@@ -35,6 +35,7 @@ const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
 export type ChatThreadListHandle = {
   getScrollState: () => ChannelScrollState;
   scrollToBottom: (options?: { animated?: boolean }) => void;
+  scrollToMessageKey: (messageKey: string) => boolean;
   scrollToMission: (missionIdOrTitle: string) => boolean;
 };
 
@@ -48,8 +49,11 @@ export function createDefaultScrollState(): ChannelScrollState {
 export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListProps>(
   function ChatThreadList(
     {
+      animatedResultKey,
+      deferUntilReady = false,
       emptyState,
       footerInset,
+      highlightedMessageKey,
       hero,
       isHydrated,
       isLoadingMore = false,
@@ -96,16 +100,19 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       handleLayout,
       handleScroll,
       initialContentOffset,
+      isReady,
       listRef,
       maintainVisibleContentPosition,
       newMessagesOpacity,
       scrollToBottom,
+      scrollToMessageKey,
       scrollToEndOpacity,
       scrollToMission,
       seenMessageKeysRef,
       showNewMessagesBadge,
       showScrollToEndButton,
     } = useThreadViewportState({
+      deferUntilReady,
       feedItems,
       isHydrated,
       items,
@@ -119,9 +126,10 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       () => ({
         getScrollState,
         scrollToBottom,
+        scrollToMessageKey,
         scrollToMission,
       }),
-      [getScrollState, scrollToBottom, scrollToMission]
+      [getScrollState, scrollToBottom, scrollToMessageKey, scrollToMission]
     );
 
     const handleImagePress = useCallback((imageIndex: number) => {
@@ -132,8 +140,10 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
     const renderItem = useCallback(
       ({ index, item }: ListRenderItemInfo<FeedItem>) => (
         <ThreadFeedItemRow
+          animatedResultKey={animatedResultKey}
           didCaptureInitialItemsRef={didCaptureInitialItemsRef}
           feedItems={feedItems}
+          highlightedMessageKey={highlightedMessageKey}
           imageSources={imageSources}
           index={index}
           item={item}
@@ -142,9 +152,11 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
         />
       ),
       [
+        animatedResultKey,
         didCaptureInitialItemsRef,
         feedItems,
         handleImagePress,
+        highlightedMessageKey,
         imageSources,
         seenMessageKeysRef,
       ]
@@ -168,7 +180,11 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
         <FlashList
           ref={listRef}
           contentOffset={initialContentOffset}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            !isReady && styles.scrollContentHidden,
+          ]}
+          keyboardDismissMode="interactive"
           data={feedItems}
           keyExtractor={(item) => item.key}
           ListEmptyComponent={
@@ -197,6 +213,17 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
           scrollEventThrottle={16}
           style={styles.scrollView}
         />
+
+        {!isReady ? (
+          <View pointerEvents="none" style={styles.readyOverlay}>
+            {loadingState ?? (
+              <View style={styles.stateBox}>
+                <ActivityIndicator color={theme.colors.orange} size="large" />
+                <Text style={styles.stateText}>Feed wird geladen...</Text>
+              </View>
+            )}
+          </View>
+        ) : null}
 
         <Animated.View
           pointerEvents={showNewMessagesBadge ? 'auto' : 'none'}
@@ -251,8 +278,11 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
 );
 
 type ChatThreadListProps = {
+  animatedResultKey?: string | null;
+  deferUntilReady?: boolean;
   emptyState?: React.ReactElement | null;
   footerInset: number;
+  highlightedMessageKey?: string | null;
   hero?: React.ReactElement | null;
   isHydrated: boolean;
   isLoadingMore?: boolean;

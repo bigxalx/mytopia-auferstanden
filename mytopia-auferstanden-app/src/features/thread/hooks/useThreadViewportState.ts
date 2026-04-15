@@ -9,6 +9,7 @@ import { type FeedItem } from '@/src/features/thread/data/threadRenderItems';
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
 
 export function useThreadViewportState({
+  deferUntilReady,
   feedItems,
   isHydrated,
   items,
@@ -16,6 +17,7 @@ export function useThreadViewportState({
   scrollState,
   threadKey,
 }: {
+  deferUntilReady?: boolean;
   feedItems: FeedItem[];
   isHydrated: boolean;
   items: PlaybackMessage[];
@@ -28,6 +30,7 @@ export function useThreadViewportState({
   const seenMessageKeysRef = useRef(new Set<string>());
   const didCaptureInitialItemsRef = useRef(false);
   const didRestoreScrollRef = useRef(false);
+  const hasMeasuredLayoutRef = useRef(false);
   const isAtBottomRef = useRef(scrollState.wasAtBottom);
   const prevMessageCountRef = useRef(items.length);
   const scrollMetricsRef = useRef({
@@ -37,6 +40,7 @@ export function useThreadViewportState({
   });
   const [showNewMessagesBadge, setShowNewMessagesBadge] = useState(false);
   const [showScrollToEndButton, setShowScrollToEndButton] = useState(!scrollState.wasAtBottom);
+  const [isReady, setIsReady] = useState(!deferUntilReady);
   const newMessagesOpacity = useRef(new Animated.Value(0)).current;
   const scrollToEndOpacity = useRef(new Animated.Value(showScrollToEndButton ? 1 : 0)).current;
 
@@ -139,11 +143,30 @@ export function useThreadViewportState({
     [feedItems, scrollToBottom]
   );
 
+  const scrollToMessageKey = useCallback(
+    (messageKey: string) => {
+      const targetIndex = feedItems.findIndex((item) => item.type === 'message' && item.key === messageKey);
+      if (targetIndex < 0) {
+        return false;
+      }
+
+      listRef.current?.scrollToIndex({
+        animated: true,
+        index: targetIndex,
+        viewOffset: 60,
+        viewPosition: 0.5,
+      });
+      return true;
+    },
+    [feedItems]
+  );
+
   useEffect(() => {
     const latestScrollState = latestScrollStateRef.current;
     seenMessageKeysRef.current.clear();
     didCaptureInitialItemsRef.current = false;
     didRestoreScrollRef.current = false;
+    hasMeasuredLayoutRef.current = false;
     isAtBottomRef.current = latestScrollState.wasAtBottom;
     prevMessageCountRef.current = 0;
     scrollMetricsRef.current = {
@@ -153,7 +176,14 @@ export function useThreadViewportState({
     };
     setShowNewMessagesBadge(false);
     setShowScrollToEndButton(!latestScrollState.wasAtBottom);
-  }, [threadKey]);
+    setIsReady(!deferUntilReady);
+  }, [deferUntilReady, threadKey]);
+
+  useEffect(() => {
+    if (!deferUntilReady && !isReady) {
+      setIsReady(true);
+    }
+  }, [deferUntilReady, isReady]);
 
   useEffect(() => {
     if (!isHydrated || didCaptureInitialItemsRef.current) {
@@ -188,6 +218,14 @@ export function useThreadViewportState({
   }, [items.length, scrollToBottom]);
 
   useEffect(() => {
+    if (!deferUntilReady || !isHydrated || feedItems.length > 0 || !hasMeasuredLayoutRef.current) {
+      return;
+    }
+
+    setIsReady(true);
+  }, [deferUntilReady, feedItems.length, isHydrated]);
+
+  useEffect(() => {
     if (!isHydrated || didRestoreScrollRef.current || feedItems.length === 0) {
       return;
     }
@@ -204,6 +242,7 @@ export function useThreadViewportState({
 
       didRestoreScrollRef.current = true;
       syncChrome();
+      requestAnimationFrame(() => setIsReady(true));
     });
   }, [feedItems.length, isHydrated, scrollState.offsetY, scrollState.wasAtBottom, syncChrome]);
 
@@ -233,10 +272,14 @@ export function useThreadViewportState({
 
   const handleLayout = useCallback(
     (event: { nativeEvent: { layout: { height: number } } }) => {
+      hasMeasuredLayoutRef.current = true;
       scrollMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
       syncChrome();
+      if (deferUntilReady && isHydrated && feedItems.length === 0) {
+        setIsReady(true);
+      }
     },
-    [syncChrome]
+    [deferUntilReady, feedItems.length, isHydrated, syncChrome]
   );
 
   const handleScroll = useCallback(
@@ -264,10 +307,12 @@ export function useThreadViewportState({
     handleLayout,
     handleScroll,
     initialContentOffset,
+    isReady,
     listRef,
     maintainVisibleContentPosition,
     newMessagesOpacity,
     scrollToBottom,
+    scrollToMessageKey,
     scrollToEndOpacity,
     scrollToMission,
     seenMessageKeysRef,

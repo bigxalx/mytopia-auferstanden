@@ -39,6 +39,7 @@ export function useHubThread() {
   const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
   const snapshot =
     cacheKey && hubThreadSnapshot?.cacheKey === cacheKey ? hubThreadSnapshot : null;
+  const hasWarmState = Boolean(snapshot);
 
   const requestVersionRef = useRef(0);
   const bootstrappedCacheKeyRef = useRef<string | null>(null);
@@ -236,7 +237,9 @@ export function useHubThread() {
   }, [clockMs, isFocused, scheduledMessages]);
 
   return {
+    allItems: scheduledMessages,
     canLoadMore: Boolean(nextCursor),
+    hasWarmState,
     isHydrated,
     isLoadingMore,
     items,

@@ -14,10 +14,15 @@ import { SystemMessage } from '@/components/feed/SystemMessage';
 import { type PlaybackMessage } from '@/src/features/feed/utils/playback';
 import { type FeedItem } from '@/src/features/thread/data/threadRenderItems';
 import { threadListStyles as styles } from '@/src/features/thread/components/threadListStyles';
+import { theme } from '@/src/shared/ui/theme';
+
+const INLINE_TYPING_AVATAR_OFFSET = 42;
 
 export function ThreadFeedItemRow({
   didCaptureInitialItemsRef,
   feedItems,
+  animatedResultKey,
+  highlightedMessageKey,
   imageSources,
   index,
   item,
@@ -26,6 +31,8 @@ export function ThreadFeedItemRow({
 }: {
   didCaptureInitialItemsRef: MutableRefObject<boolean>;
   feedItems: FeedItem[];
+  animatedResultKey?: string | null;
+  highlightedMessageKey?: string | null;
   imageSources: { uri: string }[];
   index: number;
   item: FeedItem;
@@ -53,15 +60,17 @@ export function ThreadFeedItemRow({
       previousMessage.message.actor.name === item.actor.name &&
       previousMessage.message.actor.actorId === item.actor.actorId;
 
+    if (continueExistingNpcGroup) {
+      return null;
+    }
+
     return (
       <View style={[styles.messageRow, styles.npcMessageRow, { marginBottom: 20 }]}>
-        {continueExistingNpcGroup ? null : (
-          <View style={styles.typingAvatarColumn}>
-            <ActorAvatar actor={item.actor} />
-          </View>
-        )}
-        <View style={[styles.typingBubbleWrap, continueExistingNpcGroup && styles.typingBubbleWrapInline]}>
-          <TypingIndicatorBubble />
+        <View style={styles.typingAvatarColumn}>
+          <ActorAvatar actor={item.actor} />
+        </View>
+        <View style={styles.typingBubbleWrap}>
+          <TypingIndicatorBubble showTail />
         </View>
       </View>
     );
@@ -85,9 +94,17 @@ export function ThreadFeedItemRow({
     !nextMessage ||
     nextMessage.message.actor.name !== currentActorName ||
     Boolean(nextMessage.message.isUser) !== currentIsUser;
+  const typingContinuesGroup =
+    nextItem?.type === 'typing' &&
+    !currentIsUser &&
+    nextItem.actor.name === currentActorName &&
+    nextItem.actor.actorId === playbackMessage.message.actor.actorId;
   const isLastInBundle = !nextMessage || nextMessage.bundleId !== playbackMessage.bundleId;
-  const shouldAnimate =
-    didCaptureInitialItemsRef.current && !seenMessageKeysRef.current.has(item.key);
+  const shouldAnimate = didCaptureInitialItemsRef.current && !seenMessageKeysRef.current.has(item.key);
+  const shouldAnimateResult = isResultCard && animatedResultKey === item.key;
+  const shouldAnimateRow = isResultCard ? shouldAnimateResult : shouldAnimate;
+  const resultCardTopSpacing =
+    isResultCard && (previousItem?.type === 'typing' || (previousMessage && !previousMessage.message.isUser)) ? 52 : 0;
 
   if (!seenMessageKeysRef.current.has(item.key)) {
     seenMessageKeysRef.current.add(item.key);
@@ -101,6 +118,12 @@ export function ThreadFeedItemRow({
         style={[styles.messageRow, styles.centeredMessageRow]}
       >
         <SystemMessage
+          actionLabel={
+            (playbackMessage.message.attachment as Extract<PlaybackMessage['message']['attachment'], { _type: 'systemAttachment' }>)?.actionLabel
+          }
+          actionType={
+            (playbackMessage.message.attachment as Extract<PlaybackMessage['message']['attachment'], { _type: 'systemAttachment' }>)?.actionType
+          }
           text={playbackMessage.message.text || ''}
           variant={
             (playbackMessage.message.attachment as Extract<PlaybackMessage['message']['attachment'], { _type: 'systemAttachment' }>)?.kind ??
@@ -114,7 +137,8 @@ export function ThreadFeedItemRow({
   return (
     <FeedAnimatedRow
       itemKey={item.key}
-      shouldAnimate={shouldAnimate}
+      pop={shouldAnimateResult}
+      shouldAnimate={shouldAnimateRow}
       style={[
         styles.messageRow,
         isResultCard
@@ -122,17 +146,31 @@ export function ThreadFeedItemRow({
           : currentIsUser
             ? styles.playerMessageRow
             : styles.npcMessageRow,
-        { marginBottom: isLastInGroup ? (isLastInBundle ? 24 : 16) : 4 },
+        {
+          marginBottom: isLastInGroup ? (isLastInBundle ? 24 : 16) : 4,
+          marginTop: resultCardTopSpacing,
+        },
       ]}
     >
-      <MessageBubble
-        gallerySources={imageSources}
-        isLastInGroup={isLastInGroup}
-        message={playbackMessage.message}
-        onImagePress={onImagePress}
-        showAvatar={isLastInGroup && !currentIsUser}
-        showName={isFirstInGroup && !currentIsUser}
-      />
+      <View style={styles.rowContent}>
+        <MessageBubble
+          animateAttachment={isResultCard ? shouldAnimateResult : shouldAnimate}
+          avatarBottomOffset={typingContinuesGroup ? INLINE_TYPING_AVATAR_OFFSET : 0}
+          gallerySources={imageSources}
+          isHighlighted={highlightedMessageKey === item.key}
+          isLastInGroup={isLastInGroup && !typingContinuesGroup}
+          message={playbackMessage.message}
+          onImagePress={onImagePress}
+          resultAnimationKey={shouldAnimateResult ? item.key : null}
+          showAvatar={(isLastInGroup || typingContinuesGroup) && !currentIsUser}
+          showName={isFirstInGroup && !currentIsUser}
+        />
+        {typingContinuesGroup ? (
+          <View style={styles.inlineTypingWrap}>
+            <TypingIndicatorBubble showTail />
+          </View>
+        ) : null}
+      </View>
     </FeedAnimatedRow>
   );
 }
@@ -140,45 +178,58 @@ export function ThreadFeedItemRow({
 export function FeedAnimatedRow({
   children,
   itemKey,
+  pop = false,
   shouldAnimate,
   style,
 }: {
   children: React.ReactNode;
   itemKey: string;
+  pop?: boolean;
   shouldAnimate: boolean;
   style?: ViewStyle | ViewStyle[];
 }) {
   const opacity = useRef(new Animated.Value(shouldAnimate ? 0 : 1)).current;
-  const translateY = useRef(new Animated.Value(shouldAnimate ? 10 : 0)).current;
+  const scale = useRef(new Animated.Value(shouldAnimate && pop ? 0.92 : 1)).current;
+  const translateY = useRef(new Animated.Value(shouldAnimate ? 18 : 0)).current;
 
   useEffect(() => {
     if (!shouldAnimate) {
       opacity.stopAnimation();
+      scale.stopAnimation();
       translateY.stopAnimation();
       opacity.setValue(1);
+      scale.setValue(1);
       translateY.setValue(0);
       return;
     }
 
     opacity.stopAnimation();
+    scale.stopAnimation();
     translateY.stopAnimation();
     opacity.setValue(0);
-    translateY.setValue(10);
+    scale.setValue(pop ? 0.92 : 1);
+    translateY.setValue(18);
     Animated.parallel([
       Animated.timing(opacity, {
-        duration: 260,
+        duration: 320,
         easing: Easing.out(Easing.cubic),
         toValue: 1,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
-        duration: 260,
+        duration: 320,
         easing: Easing.out(Easing.cubic),
         toValue: 0,
         useNativeDriver: true,
       }),
+      Animated.timing(scale, {
+        duration: pop ? 320 : 260,
+        easing: Easing.out(Easing.back(1.2)),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
     ]).start();
-  }, [itemKey, opacity, shouldAnimate, translateY]);
+  }, [itemKey, opacity, pop, scale, shouldAnimate, translateY]);
 
   if (!shouldAnimate) {
     return <View style={style}>{children}</View>;
@@ -190,7 +241,7 @@ export function FeedAnimatedRow({
         style,
         {
           opacity,
-          transform: [{ translateY }],
+          transform: [{ translateY }, { scale }],
         },
       ]}
     >
@@ -199,7 +250,7 @@ export function FeedAnimatedRow({
   );
 }
 
-function TypingIndicatorBubble() {
+function TypingIndicatorBubble({ showTail = false }: { showTail?: boolean }) {
   const dotOne = useRef(new Animated.Value(0.45)).current;
   const dotTwo = useRef(new Animated.Value(0.45)).current;
   const dotThree = useRef(new Animated.Value(0.45)).current;
@@ -236,12 +287,25 @@ function TypingIndicatorBubble() {
   }, [dotOne, dotThree, dotTwo]);
 
   return (
-    <View style={styles.typingBubble}>
-      <View style={styles.typingDots}>
-        <Animated.View style={[styles.typingDot, { opacity: dotOne }]} />
-        <Animated.View style={[styles.typingDot, { opacity: dotTwo }]} />
-        <Animated.View style={[styles.typingDot, { opacity: dotThree }]} />
+    <View style={styles.typingBubbleShell}>
+      <View style={styles.typingBubble}>
+        <View style={styles.typingDots}>
+          <Animated.View style={[styles.typingDot, { opacity: dotOne }]} />
+          <Animated.View style={[styles.typingDot, { opacity: dotTwo }]} />
+          <Animated.View style={[styles.typingDot, { opacity: dotThree }]} />
+        </View>
       </View>
+      {showTail ? <TypingBubbleTail /> : null}
+    </View>
+  );
+}
+
+function TypingBubbleTail() {
+  return (
+    <View style={styles.typingTailWrap}>
+      <Svg height={12} viewBox="0 0 20 12" width={20}>
+        <Path d="M18 0 C14 0 14 12 0 12 C10 12 6 0 6 0 Z" fill={theme.colors.beige} />
+      </Svg>
     </View>
   );
 }

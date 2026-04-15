@@ -7,25 +7,31 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { theme } from '@/src/shared/ui/theme';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
+import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
 
 /**
  * The inline chat input card for active missions.
  * Anchored above the tab bar.
  */
-export const MissionChatInput: React.FC = () => {
+export const MissionChatInput: React.FC<{
+  bottomOffset?: number;
+  onRevealRequest?: () => void;
+}> = ({
+  bottomOffset,
+  onRevealRequest,
+}) => {
   const { 
     activeChannel,
-    activeMission, 
-    focusedMissionId, 
-    setFocus, 
-    completeMission, 
+    focusedMission,
+    focusedMissionId,
+    completeMission,
+    interruptMission,
   } = useActiveMission();
   
   const insets = useSafeAreaInsets();
@@ -39,11 +45,11 @@ export const MissionChatInput: React.FC = () => {
   }, [focusedMissionId]);
 
   if (activeChannel.channelType !== 'actor') return null;
-  if (!focusedMissionId || !activeMission) return null;
-  if (activeMission.kind === 'quiz') return null;
+  if (!focusedMissionId || !focusedMission) return null;
+  if (focusedMission.kind === 'quiz') return null;
 
   const handleClose = () => {
-    setFocus(null);
+    void interruptMission();
   };
 
   const handleSubmit = async (payloadOverride?: any) => {
@@ -51,12 +57,12 @@ export const MissionChatInput: React.FC = () => {
     try {
       let payload = payloadOverride;
       if (!payload) {
-        if (activeMission.kind === 'text') {
+        if (focusedMission.kind === 'text') {
           payload = { text: textInput };
         }
       }
-      
-      await completeMission(activeMission._id, payload);
+
+      await completeMission(focusedMission._id, payload);
     } catch (err) {
       console.warn('[MissionChatInput] Submit failed:', err);
     } finally {
@@ -64,21 +70,16 @@ export const MissionChatInput: React.FC = () => {
     }
   };
 
-  // Logic to calculate bottom offset to be above tab bar
-  const bottomOffset = insets.bottom + (Platform.OS === 'android' ? 70 : 54);
+  const resolvedBottomOffset =
+    bottomOffset ?? (insets.bottom + (Platform.OS === 'android' ? 40 : 24));
 
   return (
-    <View style={[styles.wrapper, { bottom: bottomOffset }]}>
+    <View style={[styles.wrapper, { bottom: resolvedBottomOffset }]}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <View style={styles.indicator} />
-          <View style={styles.headerBody}>
-            <Text style={styles.missionLabel}>AKTIVE MISSION</Text>
-            <Text style={styles.missionTitle} numberOfLines={1}>
-              {activeMission.title}
-            </Text>
-          </View>
+          <Text style={styles.missionTitle} numberOfLines={1}>
+            {focusedMission.title}
+          </Text>
           <Pressable onPress={handleClose} style={styles.closeButton}>
             <Ionicons name="close-circle" size={20} color="rgba(0,0,0,0.3)" />
           </Pressable>
@@ -86,7 +87,7 @@ export const MissionChatInput: React.FC = () => {
 
         {/* Input Area */}
         <View style={styles.inputArea}>
-          {activeMission.kind === 'text' && (
+          {focusedMission.kind === 'text' && (
             <View style={styles.textRow}>
               <TextInput
                 style={styles.textInput}
@@ -94,6 +95,7 @@ export const MissionChatInput: React.FC = () => {
                 placeholderTextColor="#9ca3af"
                 value={textInput}
                 onChangeText={setTextInput}
+                onFocus={onRevealRequest}
                 multiline
                 editable={!isSubmitting}
               />
@@ -111,36 +113,26 @@ export const MissionChatInput: React.FC = () => {
             </View>
           )}
 
-          {activeMission.kind === 'photo' && (
-            <View style={styles.photoActions}>
-               <Pressable 
-                style={styles.actionBtn} 
-                onPress={() => Alert.alert('Kamera', 'Funktion folgt...')}
-                disabled={isSubmitting}
-               >
-                 <Feather name="camera" size={20} color="white" />
-                 <Text style={styles.btnText}>KAMERA</Text>
-               </Pressable>
-               <Pressable 
-                style={styles.actionBtn} 
-                onPress={() => Alert.alert('Galerie', 'Funktion folgt...')}
-                disabled={isSubmitting}
-               >
-                 <Feather name="image" size={20} color="white" />
-                 <Text style={styles.btnText}>GALERIE</Text>
-               </Pressable>
-            </View>
+          {focusedMission.kind === 'photo' && (
+            <PhotoRunner
+              embedded
+              missionId={focusedMission._id}
+              onComplete={async ({ localUri, upload }) => {
+                await handleSubmit({ localUri, upload });
+                return { action: 'submitted' };
+              }}
+            />
           )}
 
-          {activeMission.kind === 'gps' && activeMission.gpsConfig && (
+          {focusedMission.kind === 'gps' && focusedMission.gpsConfig && (
             <GpsRunner
               embedded
               compact
-              missionId={activeMission._id}
-              target={activeMission.gpsConfig}
+              missionId={focusedMission._id}
+              target={focusedMission.gpsConfig}
               onComplete={async () => {
                 await handleSubmit({ joined: true });
-                return { earned: activeMission.points };
+                return { earned: 0 };
               }}
             />
           )}
@@ -172,25 +164,11 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 10,
-    gap: 10,
-  },
-  indicator: {
-    width: 3,
-    height: 30,
-    backgroundColor: theme.colors.orange,
-    borderRadius: 1.5,
-  },
-  headerBody: {
-    flex: 1,
-  },
-  missionLabel: {
-    fontSize: 9,
-    fontFamily: 'NunitoSans_700Bold',
-    color: '#9ca3af',
-    letterSpacing: 0.5,
   },
   missionTitle: {
+    flex: 1,
     fontSize: 14,
     fontFamily: 'NunitoSans_700Bold',
     color: '#111827',
@@ -229,26 +207,5 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
-  },
-  photoActions: {
-    flexDirection: 'row',
-    gap: 10,
-    padding: 4,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: theme.colors.orange,
-    borderRadius: 12,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  btnText: {
-    color: 'white',
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 13,
-    letterSpacing: 0.5,
   },
 });

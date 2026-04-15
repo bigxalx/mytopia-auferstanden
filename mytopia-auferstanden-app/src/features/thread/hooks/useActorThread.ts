@@ -17,6 +17,7 @@ export function useActorThread(channelId: string) {
   const { selectedMode, user } = useSession();
   const isFocused = useIsFocused();
   const snapshot = actorThreadSnapshots.get(snapshotKey(channelId, selectedMode, user?.id));
+  const hasWarmState = Boolean(snapshot);
   const [bundles, setBundles] = useState<NarrativeBundleDto[]>(() => snapshot ?? []);
   const [isHydrated, setIsHydrated] = useState(() => Boolean(snapshot));
   const [clockMs, setClockMs] = useState(() => Date.now());
@@ -116,7 +117,9 @@ export function useActorThread(channelId: string) {
   }, [channelId, selectedMode, user?.id]);
 
   return {
+    allItems: scheduledItems,
     applyOptimisticUpdate,
+    hasWarmState,
     isHydrated,
     items,
     markRead,

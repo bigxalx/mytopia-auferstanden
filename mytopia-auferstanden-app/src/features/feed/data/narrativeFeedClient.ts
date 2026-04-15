@@ -12,6 +12,8 @@ export type NarrativeAttachmentDto =
   | {
     _type: 'systemAttachment';
     kind: 'neutral' | 'prominent';
+    actionLabel?: string;
+    actionType?: 'resumeMission';
   }
   | {
     _type: 'imageAttachment';

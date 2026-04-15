@@ -26,6 +26,8 @@ export function createNativeTabStackOptions({
       },
       headerShadowVisible: false,
       headerTintColor: theme.colors.textPrimary,
+      headerBackTitleVisible: false,
+      headerBackButtonDisplayMode: 'minimal' as const,
       headerTitleStyle: {
         color: theme.colors.textPrimary,
         fontFamily: theme.typography.title.fontFamily,

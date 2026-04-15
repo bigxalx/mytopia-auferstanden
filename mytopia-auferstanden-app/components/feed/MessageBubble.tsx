@@ -44,7 +44,11 @@ export function MessageBubble({
   showName,
   gallerySources,
   onImagePress,
+  animateAttachment,
+  resultAnimationKey,
+  avatarBottomOffset = 0,
   containerStyle,
+  isHighlighted = false,
   userInteraction,
   isLastInGroup,
 }: {
@@ -53,13 +57,18 @@ export function MessageBubble({
   showName: boolean;
   gallerySources: { uri: string }[];
   onImagePress: (index: number) => void;
+  animateAttachment?: boolean;
+  resultAnimationKey?: string | null;
+  avatarBottomOffset?: number;
   containerStyle?: ViewStyle;
+  isHighlighted?: boolean;
   userInteraction?: boolean;
   isLastInGroup?: boolean;
 }) {
   const isUser = message.isUser;
   const isCentered = message.attachment?._type === 'missionResultAttachment';
-  const shouldStretchBubble = Boolean(message.attachment) && !isCentered;
+  const isSubmission = message.attachment?._type === 'submissionAttachment';
+  const shouldStretchBubble = Boolean(message.attachment) && !isCentered && !isSubmission;
   const router = useRouter();
   const { actorChannels } = useChannels();
   
@@ -68,6 +77,7 @@ export function MessageBubble({
 
   const { highlightedMissionId } = useActiveMission();
   const highlightProgress = useSharedValue(0);
+  const avatarOffsetProgress = useSharedValue(avatarBottomOffset);
 
   const isTargetMission =
     message.attachment?._type === 'missionAttachment' &&
@@ -82,7 +92,7 @@ export function MessageBubble({
       : null;
 
   useEffect(() => {
-    if (isTargetMission) {
+    if (isTargetMission || isHighlighted) {
       // Single elegant pulse
       highlightProgress.value = withSequence(
         withTiming(1, { duration: 500 }),
@@ -91,7 +101,13 @@ export function MessageBubble({
     } else {
       highlightProgress.value = withTiming(0, { duration: 200 });
     }
-  }, [isTargetMission, highlightProgress]);
+  }, [highlightProgress, isHighlighted, isTargetMission]);
+
+  useEffect(() => {
+    avatarOffsetProgress.value = withTiming(avatarBottomOffset, {
+      duration: 220,
+    });
+  }, [avatarBottomOffset, avatarOffsetProgress]);
 
   const animatedBubbleStyle = useAnimatedStyle(() => {
     const defaultColor = isUser ? theme.colors.accent : theme.colors.beige;
@@ -108,10 +124,14 @@ export function MessageBubble({
     };
   });
 
+  const animatedAvatarStyle = useAnimatedStyle(() => ({
+    bottom: -32 - avatarOffsetProgress.value,
+  }));
+
   return (
     <View style={[styles.messageRow, isUser && styles.messageRowUser, containerStyle]}>
       {effectiveShowAvatar && (
-        <View style={styles.avatarColumn}>
+        <Animated.View style={[styles.avatarColumn, animatedAvatarStyle]}>
           <ActorAvatar
             actor={message.actor}
             onPress={
@@ -124,7 +144,7 @@ export function MessageBubble({
                 : undefined
             }
           />
-        </View>
+        </Animated.View>
       )}
 
       <View style={[
@@ -158,6 +178,8 @@ export function MessageBubble({
           {message.attachment && (
             <AttachmentView
               attachment={message.attachment}
+              animateAttachment={animateAttachment}
+              resultAnimationKey={resultAnimationKey}
               messageText={message.text}
               gallerySources={gallerySources}
               onImagePress={onImagePress}
@@ -221,6 +243,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 8,
   } as ViewStyle,
   messageBubbleCentered: {
+    alignSelf: 'center',
     backgroundColor: 'transparent',
     maxWidth: '100%',
     padding: 0,

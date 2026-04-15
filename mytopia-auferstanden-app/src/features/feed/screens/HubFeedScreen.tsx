@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useCallback, useLayoutEffect, useRef } from 'react';
-import { Text, type TextStyle } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Keyboard, Platform, Text, type KeyboardEvent, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
@@ -14,6 +14,7 @@ import {
   type ChatThreadListHandle,
 } from '@/src/features/thread/components/ChatThreadList';
 import { useHubThread } from '@/src/features/thread/hooks/useHubThread';
+import { useThreadNavigation } from '@/src/features/thread/data/ThreadNavigationContext';
 import { theme } from '@/src/shared/ui/theme';
 
 export default function HubFeedScreen() {
@@ -21,17 +22,25 @@ export default function HubFeedScreen() {
   const insets = useSafeAreaInsets();
   const { selectedMode } = useSession();
   const { getChannelScrollState, saveChannelScrollState } = useChannels();
-  const { focusedMissionId, highlightMission, quizSession, registerOptimisticHandler, registerScrollHandler, setActiveChannel } =
+  const { focusedMission, focusedMissionId, highlightMission, quizSession, registerOptimisticHandler, registerScrollHandler, setActiveChannel } =
     useActiveMission();
+  const { consumeExternalTarget, highlightedMessageKey, highlightMessageKey } = useThreadNavigation();
   const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
   const threadRef = useRef<ChatThreadListHandle>(null);
+  const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [pendingExternalBundleId, setPendingExternalBundleId] = useState<string | null>(null);
 
-  const { canLoadMore, isHydrated, isLoadingMore, items, loadMore, markRead, typingState } = useHubThread();
+  const { allItems, canLoadMore, hasWarmState, isHydrated, isLoadingMore, items, loadMore, markRead, typingState } = useHubThread();
   const scrollState = getChannelScrollState('hub') ?? createDefaultScrollState();
+  const isTextMissionActive = focusedMission?.kind === 'text';
+  const keyboardInset = isTextMissionActive && isKeyboardVisible ? Math.max(0, keyboardHeight - insets.bottom) : 0;
 
   const footerInset =
     Math.max(72, insets.bottom + 108) +
-    (quizSession ? 260 : focusedMissionId ? 140 : 0);
+    (quizSession ? 260 : focusedMissionId ? 140 : 0) +
+    keyboardInset;
   const scrollToEndButtonBottom = isNativeMissionBar
     ? Math.max(insets.bottom + 16, 24)
     : isMissionBarVisible
@@ -40,8 +49,12 @@ export default function HubFeedScreen() {
   const newMessagesBottom = isNativeMissionBar
     ? Math.max(insets.bottom + 16, 24)
     : isMissionBarVisible
-      ? Math.max(insets.bottom + 92, 108)
-      : Math.max(insets.bottom + 24, 32);
+    ? Math.max(insets.bottom + 92, 108)
+    : Math.max(insets.bottom + 24, 32);
+  const composerBottomOffset =
+    isTextMissionActive && isKeyboardVisible
+      ? 8
+      : insets.bottom + (Platform.OS === 'android' ? 40 : 24);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -77,11 +90,97 @@ export default function HubFeedScreen() {
     }, [highlightMission, registerOptimisticHandler, registerScrollHandler, saveChannelScrollState, setActiveChannel])
   );
 
+  useEffect(() => {
+    const target = consumeExternalTarget('hub');
+    if (target) {
+      setPendingExternalBundleId(target.bundleId);
+    }
+  }, [consumeExternalTarget]);
+
+  useEffect(() => {
+    if (!pendingExternalBundleId) {
+      return;
+    }
+
+    const target = allItems.find((item) => item.bundleId === pendingExternalBundleId);
+    if (!target) {
+      return;
+    }
+
+    const didScroll = threadRef.current?.scrollToMessageKey(target.key) ?? false;
+    if (!didScroll) {
+      return;
+    }
+
+    highlightMessageKey(target.key);
+    setPendingExternalBundleId(null);
+  }, [allItems, highlightMessageKey, items.length, pendingExternalBundleId]);
+
+  const clearPendingReveal = useCallback(() => {
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
+  }, []);
+
+  const requestComposerReveal = useCallback(() => {
+    if (!isTextMissionActive) {
+      return;
+    }
+
+    clearPendingReveal();
+
+    const scrollAnimated = (animated: boolean) => {
+      threadRef.current?.scrollToBottom({ animated });
+    };
+
+    scrollAnimated(true);
+    requestAnimationFrame(() => scrollAnimated(false));
+
+    if (Platform.OS === 'android') {
+      revealTimeoutRef.current = setTimeout(() => {
+        scrollAnimated(false);
+        revealTimeoutRef.current = null;
+      }, 140);
+    }
+  }, [clearPendingReveal, isTextMissionActive]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const handleKeyboardShow = (event: KeyboardEvent) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0);
+      setKeyboardVisible(true);
+
+      if (isTextMissionActive) {
+        requestComposerReveal();
+      }
+    };
+
+    const handleKeyboardHide = () => {
+      clearPendingReveal();
+      setKeyboardVisible(false);
+      setKeyboardHeight(0);
+    };
+
+    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
+
+    return () => {
+      clearPendingReveal();
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [clearPendingReveal, isTextMissionActive, requestComposerReveal]);
+
   return (
     <>
       <ChatThreadList
+        deferUntilReady={!hasWarmState}
         ref={threadRef}
         footerInset={footerInset}
+        highlightedMessageKey={highlightedMessageKey}
         isHydrated={isHydrated}
         isLoadingMore={isLoadingMore}
         items={items}
@@ -93,7 +192,14 @@ export default function HubFeedScreen() {
         threadKey={`hub:${selectedMode}`}
         typingState={typingState}
       />
-      {quizSession ? <MissionChoicePicker /> : <MissionChatInput />}
+      {quizSession ? (
+        <MissionChoicePicker />
+      ) : (
+        <MissionChatInput
+          bottomOffset={composerBottomOffset}
+          onRevealRequest={requestComposerReveal}
+        />
+      )}
     </>
   );
 }
