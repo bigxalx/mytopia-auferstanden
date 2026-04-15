@@ -61,7 +61,8 @@ export function MissionAttachmentView({
     return (
       <MissionReference 
         missionId={attachment.missionId} 
-        missionTitle={attachment.missionTitle || attachment.title || 'Mission'} 
+        missionTitle={attachment.missionTitle || attachment.title || 'Mission'}
+        label={undefined}
         style={{ marginBottom: 8 }}
       />
     );

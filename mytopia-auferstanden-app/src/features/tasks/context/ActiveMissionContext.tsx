@@ -81,6 +81,9 @@ type ActiveChannelState = {
 };
 
 const QUIZ_PROGRESS_KEY = 'mytopia_quiz_progress_v1';
+const QUIZ_PICKER_REVEAL_BUFFER_MS = 120;
+const QUIZ_COMPLETION_BUFFER_MS = 180;
+const QUIZ_NEXT_QUESTION_OFFSET_MS = 140;
 
 const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(null);
 
@@ -465,7 +468,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
           return updated;
         });
         scrollToMessageRef.current('bottom');
-      }, getRemainingQueueDelay(300));
+      }, getRemainingQueueDelay(QUIZ_PICKER_REVEAL_BUFFER_MS));
 
       return;
     }
@@ -521,7 +524,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         return updated;
       });
       scrollToMessageRef.current('bottom');
-    }, getRemainingQueueDelay(300)); 
+    }, getRemainingQueueDelay(QUIZ_PICKER_REVEAL_BUFFER_MS)); 
   }, [quizSession, missions, persistedSessions, insertSystemMessage, removePersistedSession, updatePersistedSession, insertNpcMessage, getRemainingQueueDelay]);
 
   const submitQuizStep = useCallback(async (optionIndex: number) => {
@@ -555,10 +558,15 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         void completeMissionRef.current(session.missionId, newAnswers);
         removePersistedSession(session.missionId);
         setQuizSession(null);
-      }, getRemainingQueueDelay(500));
+      }, getRemainingQueueDelay(QUIZ_COMPLETION_BUFFER_MS));
     } else {
       const nextIdx = session.currentIndex + 1;
-      insertNpcMessage(session.actor, session.questions[nextIdx].questionText);
+      insertNpcMessage(
+        session.actor,
+        session.questions[nextIdx].questionText,
+        undefined,
+        QUIZ_NEXT_QUESTION_OFFSET_MS
+      );
 
       // Show picker after question finishes "typing"
       setTimeout(() => {
@@ -569,14 +577,21 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
           return updated;
         });
         scrollToMessageRef.current('bottom');
-      }, getRemainingQueueDelay(300));
+      }, getRemainingQueueDelay(QUIZ_PICKER_REVEAL_BUFFER_MS));
     }
   }, [quizSession, insertUserMessage, missions, siteSettings, insertNpcMessage, removePersistedSession, updatePersistedSession, getRemainingQueueDelay]);
 
 
 
   const completeMission = useCallback(async (missionId: string, result: any) => {
-    const mission = missions.find((m) => m._id === missionId);
+    const mission = resolveMissionForCompletion({
+      activeMission,
+      missionId,
+      missions,
+      persistedSessions,
+      quizSession,
+      result,
+    });
     if (!mission) return;
 
     // Backend typically expects clean IDs. If a draft ID is passed, it will correctly 404 
@@ -596,41 +611,44 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     const idempotencyId = `submit-${cleanMissionId}-${Date.now()}`;
     
-    // 1. Create virtual bundle for user submission
-    const virtualBundle: NarrativeBundleDto = {
-      _id: idempotencyId,
-      isUser: true,
-      messages: [
-        {
-          actor: { name: user?.displayName || 'Ich' },
-          attachment: {
-            _type: 'submissionAttachment',
-            kind: mission.kind as any,
-            missionTitle: mission.title,
-            missionId: cleanMissionId,
-            payload: result,
-            status: 'sending',
-            submissionId: idempotencyId,
-          },
-          messageId: `${idempotencyId}-msg`,
+    const shouldInsertSubmissionBubble = mission.kind !== 'quiz';
+    const virtualBundle: NarrativeBundleDto | null = shouldInsertSubmissionBubble
+      ? {
+          _id: idempotencyId,
           isUser: true,
-        },
-      ],
-      releaseAt: new Date().toISOString(),
-      title: 'Meine Einsendung',
-    };
+          messages: [
+            {
+              actor: { name: user?.displayName || 'Ich' },
+              attachment: {
+                _type: 'submissionAttachment',
+                kind: mission.kind as any,
+                missionTitle: mission.title,
+                missionId: cleanMissionId,
+                payload: result,
+                status: 'sending',
+                submissionId: idempotencyId,
+              },
+              messageId: `${idempotencyId}-msg`,
+              isUser: true,
+            },
+          ],
+          releaseAt: new Date().toISOString(),
+          title: 'Meine Einsendung',
+        }
+      : null;
 
-    // 2. Insert optimistically
-    upsertOptimisticBundle(virtualBundle);
-    void persistBundleToActorChannel(virtualBundle);
+    if (virtualBundle) {
+      upsertOptimisticBundle(virtualBundle);
+      void persistBundleToActorChannel(virtualBundle);
+    }
     
-    // 3. Clear focus without re-triggering mission pause side effects
+    // 2. Clear focus without re-triggering mission pause side effects
     setFocusedMissionId(null);
     if (user) {
       await AsyncStorage.removeItem(`${FOCUS_STORAGE_KEY}:${user.id}`);
     }
 
-    // 4. Submit to API using the clean ID
+    // 3. Submit to API using the clean ID
     try {
       let apiResult: any;
       if (mission.kind === 'text') {
@@ -652,32 +670,35 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         apiResult?.action === 'scored' ||
         apiResult?.action === 'already_completed';
       const finalStatus = isImmediateMissionCompletion ? 'approved' : 'pending';
-      const submissionAttachment = virtualBundle.messages[0].attachment;
-      if (!submissionAttachment || submissionAttachment._type !== 'submissionAttachment') {
-        throw new Error('Expected optimistic submission attachment.');
-      }
 
       const moderatorNote =
         typeof apiResult?.moderatorNote === 'string' && apiResult.moderatorNote.trim().length > 0
           ? apiResult.moderatorNote.trim()
           : undefined;
 
-      const updatedBundle = {
-        ...virtualBundle,
-        messages: [
-          {
-            ...virtualBundle.messages[0],
-            attachment: {
-              ...submissionAttachment,
-              status: finalStatus as any,
-              moderatorNote,
-              payload: { ...submissionAttachment.payload, ...apiResult },
+      if (virtualBundle) {
+        const submissionAttachment = virtualBundle.messages[0].attachment;
+        if (!submissionAttachment || submissionAttachment._type !== 'submissionAttachment') {
+          throw new Error('Expected optimistic submission attachment.');
+        }
+
+        const updatedBundle = {
+          ...virtualBundle,
+          messages: [
+            {
+              ...virtualBundle.messages[0],
+              attachment: {
+                ...submissionAttachment,
+                status: finalStatus as any,
+                moderatorNote,
+                payload: { ...submissionAttachment.payload, ...apiResult },
+              },
             },
-          },
-        ],
-      };
-      upsertOptimisticBundle(updatedBundle);
-      void persistBundleToActorChannel(updatedBundle);
+          ],
+        };
+        upsertOptimisticBundle(updatedBundle);
+        void persistBundleToActorChannel(updatedBundle);
+      }
 
       const showCard =
         isImmediateMissionCompletion ||
@@ -697,13 +718,17 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             earnedPoints: apiResult?.earned,
           },
           isSystem: true,
-          releaseOffsetMs: moderatorNote ? 1800 : 500,
+          releaseOffsetMs: moderatorNote ? 1200 : 180,
         });
       }
 
     } catch (err) {
       console.error('[ActiveMission] Submission failed:', err);
-      // Update optimistic bundle to show error
+      if (!virtualBundle) {
+        insertSystemMessage('Übertragung fehlgeschlagen', 0, 'neutral');
+        return;
+      }
+
       const submissionAttachment = virtualBundle.messages[0].attachment;
       if (!submissionAttachment || submissionAttachment._type !== 'submissionAttachment') {
         throw new Error('Expected optimistic submission attachment.');
@@ -717,7 +742,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             attachment: {
               ...submissionAttachment,
               status: 'error' as any,
-              payload: 'Übertragung fehlgeschlagen', // Replaces preview with error message text
+              payload: 'Übertragung fehlgeschlagen',
             },
           },
         ],
@@ -725,7 +750,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       upsertOptimisticBundle(errorBundle);
       void persistBundleToActorChannel(errorBundle);
     }
-  }, [missions, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, persistBundleToActorChannel]);
+  }, [activeMission, missions, persistedSessions, quizSession, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, insertSystemMessage, persistBundleToActorChannel]);
 
   const registerScrollHandler = useCallback((handler: ((missionId: string) => void) | null) => {
     scrollHandlerRef.current = handler;
@@ -878,6 +903,59 @@ export function useActiveMissionBarVisible() {
   const isNative = Platform.OS === 'ios' && getIOSMajorVersion() >= 26 && FEATURES.ENABLE_NATIVE_BOTTOM_ACCESSORY;
   
   return { isVisible, isNative };
+}
+
+function resolveMissionForCompletion({
+  activeMission,
+  missionId,
+  missions,
+  persistedSessions,
+  quizSession,
+  result,
+}: {
+  activeMission: MissionListItem | null;
+  missionId: string;
+  missions: MissionListItem[];
+  persistedSessions: Record<string, QuizSession>;
+  quizSession: QuizSession | null;
+  result: any;
+}): Pick<MissionListItem, '_id' | 'kind' | 'title'> | null {
+  const cachedMission = missions.find((mission) => mission._id === missionId);
+  if (cachedMission) {
+    return cachedMission;
+  }
+
+  if (activeMission?._id === missionId) {
+    return {
+      _id: activeMission._id,
+      kind: activeMission.kind,
+      title: activeMission.title,
+    };
+  }
+
+  const session = quizSession?.missionId === missionId ? quizSession : persistedSessions[missionId];
+  if (session) {
+    return {
+      _id: missionId,
+      kind: 'quiz',
+      title: session.missionTitle,
+    };
+  }
+
+  if (Array.isArray(result)) {
+    return { _id: missionId, kind: 'quiz', title: 'Mission' };
+  }
+  if (result && typeof result === 'object' && typeof result.photoPath === 'string') {
+    return { _id: missionId, kind: 'photo', title: 'Mission' };
+  }
+  if (result && typeof result === 'object' && typeof result.text === 'string') {
+    return { _id: missionId, kind: 'text', title: 'Mission' };
+  }
+  if (result && typeof result === 'object' && result.action === 'checkin') {
+    return { _id: missionId, kind: 'gps', title: 'Mission' };
+  }
+
+  return null;
 }
 
 function getIOSMajorVersion() {

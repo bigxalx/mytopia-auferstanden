@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, Pressable, TextInput, ActivityIndicator, Alert, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@/src/shared/ui/theme';
 import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
@@ -9,6 +9,7 @@ import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 import { useChannels } from '@/src/features/channels/data/ChannelContext';
 
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
+import { MissionReference } from './MissionReference';
 
 interface Props {
   missionId: string;
@@ -52,7 +53,6 @@ export function MissionInteractionZone({
     activeChannel,
     focusedMissionId, 
     activeMission, 
-    scrollToMessage, 
     startMission,
     startChatQuiz,
     persistedSessions,
@@ -139,16 +139,13 @@ export function MissionInteractionZone({
   }
 
   const renderReference = () => (
-    <Pressable
-      style={styles.quoteContainer}
-        onPress={() => scrollToMessage(missionId)}
-    >
-      <View style={styles.quoteIndicator} />
-      <View style={styles.quoteContent}>
-        <Text style={styles.quoteLabel}>REFERENZ ZUR MISSION</Text>
-        <Text style={styles.quoteTitle} numberOfLines={1}>{resolvedMissionTitle}</Text>
-      </View>
-    </Pressable>
+    <MissionReference
+      compact
+      label={undefined}
+      missionId={missionId}
+      missionTitle={resolvedMissionTitle}
+      style={styles.reference}
+    />
   );
 
   const handleTextSubmit = async () => {
@@ -293,33 +290,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
-  quoteContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.04)',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  quoteIndicator: {
-    width: 4,
-    backgroundColor: theme.colors.orange,
-  },
-  quoteContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flex: 1,
-  },
-  quoteLabel: {
-    fontSize: 10,
-    fontFamily: 'NunitoSans_700Bold',
-    color: theme.colors.orange,
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  quoteTitle: {
-    fontSize: 13,
-    fontFamily: 'NunitoSans_600SemiBold',
-    color: theme.colors.cardTextPrimary,
-  },
+  reference: {} as ViewStyle,
   interactionArea: {
     gap: 8,
   },

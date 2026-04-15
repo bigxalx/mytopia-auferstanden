@@ -40,6 +40,7 @@ export function SubmissionAttachmentView({
         missionId={missionId}
         missionTitle={missionTitle}
         compact
+        label={undefined}
         style={styles.header}
       />
 

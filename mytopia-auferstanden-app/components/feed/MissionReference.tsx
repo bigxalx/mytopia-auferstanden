@@ -14,7 +14,7 @@ interface Props {
 export function MissionReference({
   missionId,
   missionTitle,
-  label = 'REFERENZ ZUR MISSION',
+  label,
   compact = false,
   style,
 }: Props) {
@@ -36,7 +36,7 @@ export function MissionReference({
     >
       <View style={styles.indicator} />
       <View style={styles.content}>
-        <Text style={styles.label}>{label}</Text>
+        {label?.trim() ? <Text style={styles.label}>{label}</Text> : null}
         <Text style={styles.title} numberOfLines={1}>
           {missionTitle}
         </Text>
@@ -77,6 +77,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'NunitoSans_600SemiBold',
     color: theme.colors.cardTextPrimary,
+    marginTop: 1,
   } as TextStyle,
   pressed: {
     opacity: 0.7,

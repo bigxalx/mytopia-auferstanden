@@ -22,7 +22,6 @@ export type PendingMissionStart = {
 };
 
 export type ChannelScrollState = {
-  distanceFromBottom: number;
   offsetY: number;
   wasAtBottom: boolean;
 };
@@ -31,12 +30,10 @@ type ChannelsContextValue = {
   actorChannels: ChannelSummary[];
   consumePendingMissionStart: (channelId: string) => PendingMissionStart | null;
   ensureActorMissionChannel: (seed: ActorChannelSeed) => Promise<string>;
-  getChannelScrollOffset: (channelId: string) => number;
   getChannelScrollState: (channelId: string) => ChannelScrollState;
   hubUnreadCount: number;
   pendingMissionStart: PendingMissionStart | null;
   queuePendingMissionStart: (pending: PendingMissionStart | null) => void;
-  saveChannelScrollOffset: (channelId: string, offsetY: number) => void;
   saveChannelScrollState: (channelId: string, state: ChannelScrollState) => void;
   totalUnreadCount: number;
 };
@@ -90,7 +87,6 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
 
   const saveChannelScrollState = useCallback((channelId: string, state: ChannelScrollState) => {
     const normalizedState: ChannelScrollState = {
-      distanceFromBottom: Number.isFinite(state.distanceFromBottom) ? Math.max(0, state.distanceFromBottom) : 0,
       offsetY: Number.isFinite(state.offsetY) ? Math.max(0, state.offsetY) : 0,
       wasAtBottom: Boolean(state.wasAtBottom),
     };
@@ -99,7 +95,6 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
       if (
         existing &&
         existing.offsetY === normalizedState.offsetY &&
-        existing.distanceFromBottom === normalizedState.distanceFromBottom &&
         existing.wasAtBottom === normalizedState.wasAtBottom
       ) {
         return current;
@@ -111,26 +106,11 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
-  const saveChannelScrollOffset = useCallback((channelId: string, offsetY: number) => {
-    const normalizedOffset = Number.isFinite(offsetY) ? Math.max(0, offsetY) : 0;
-    saveChannelScrollState(channelId, {
-      distanceFromBottom: 0,
-      offsetY: normalizedOffset,
-      wasAtBottom: false,
-    });
-  }, [saveChannelScrollState]);
-
-  const getChannelScrollOffset = useCallback(
-    (channelId: string) => channelScrollStates[channelId]?.offsetY ?? 0,
-    [channelScrollStates]
-  );
-
   const getChannelScrollState = useCallback(
     (channelId: string): ChannelScrollState =>
       channelScrollStates[channelId] ?? {
-        distanceFromBottom: 0,
         offsetY: 0,
-        wasAtBottom: false,
+        wasAtBottom: true,
       },
     [channelScrollStates]
   );
@@ -140,12 +120,10 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
       actorChannels,
       consumePendingMissionStart,
       ensureActorMissionChannel,
-      getChannelScrollOffset,
       getChannelScrollState,
       hubUnreadCount,
       pendingMissionStart,
       queuePendingMissionStart: setPendingMissionStart,
-      saveChannelScrollOffset,
       saveChannelScrollState,
       totalUnreadCount,
     }),
@@ -153,11 +131,9 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
       actorChannels,
       consumePendingMissionStart,
       ensureActorMissionChannel,
-      getChannelScrollOffset,
       getChannelScrollState,
       hubUnreadCount,
       pendingMissionStart,
-      saveChannelScrollOffset,
       saveChannelScrollState,
       totalUnreadCount,
     ]

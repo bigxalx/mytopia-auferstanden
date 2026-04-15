@@ -11,10 +11,10 @@ export type PlaybackMessage = {
   revealAtMs: number;
 };
 
-const TEXT_DELAY_FACTOR_MS = 45;
-const TEXT_DELAY_MIN_MS = 1500;
-const TEXT_DELAY_MAX_MS = 12000;
-const ATTACHMENT_ONLY_DELAY_MS = 3500;
+const TEXT_DELAY_FACTOR_MS = 40;
+const TEXT_DELAY_MIN_MS = 1250;
+const TEXT_DELAY_MAX_MS = 10000;
+const ATTACHMENT_ONLY_DELAY_MS = 3000;
 
 /**
  * Builds a list of flat PlaybackMessage items from a nested NarrativeBundleDto array,

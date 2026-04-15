@@ -59,6 +59,7 @@ export function MessageBubble({
 }) {
   const isUser = message.isUser;
   const isCentered = message.attachment?._type === 'missionResultAttachment';
+  const shouldStretchBubble = Boolean(message.attachment) && !isCentered;
   const router = useRouter();
   const { actorChannels } = useChannels();
   
@@ -134,6 +135,7 @@ export function MessageBubble({
           style={[
             styles.messageBubble,
             isUser && styles.messageBubbleUser,
+            shouldStretchBubble && styles.messageBubbleAttachment,
             isCentered && styles.messageBubbleCentered,
             animatedBubbleStyle,
           ]}
@@ -202,13 +204,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   } as ViewStyle,
   messageBubble: {
+    alignSelf: 'flex-start',
     backgroundColor: theme.colors.beige,
     borderRadius: 16,
-    padding: 10,
     gap: 8,
     maxWidth: '100%',
+    padding: 10,
+  } as ViewStyle,
+  messageBubbleAttachment: {
+    alignSelf: 'stretch',
+    width: '100%',
   } as ViewStyle,
   messageBubbleUser: {
+    alignSelf: 'flex-end',
     backgroundColor: theme.colors.accent,
     borderBottomRightRadius: 8,
   } as ViewStyle,
