@@ -79,6 +79,7 @@ export function MissionInteractionZone({
           ...(actor.role ? { actorRole: actor.role } : {}),
         });
         queuePendingMissionStart({
+          action: isMissionInterrupted ? 'resume' : 'start',
           actor,
           channelId,
           data: {

@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import { useChannels } from '@/src/features/channels/data/ChannelContext';
 import { useSession } from '@/src/core/session/SessionContext';
+import { AppImage } from '@/src/shared/ui/AppImage';
+import { Screen } from '@/src/shared/ui/Screen';
+import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
+import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import {
   fetchMissions,
   getCachedMissions,
-  submitGpsCompletion,
-  submitPhotoMission,
-  submitQuizCompletion,
-  submitTextMission,
   type MissionListItem,
   MISSION_KIND_METADATA,
   type MissionKind,
@@ -22,28 +24,23 @@ import {
   getMissionLifecycleStatus,
   type MissionLifecycleStatus,
 } from '@/src/features/tasks/data/missionStatus';
-import { QuizRunner } from '@/src/features/tasks/components/QuizRunner';
-import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
-import { TextRunner } from '@/src/features/tasks/components/TextRunner';
-import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
-import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
-import { Screen } from '@/src/shared/ui/Screen';
-import { SectionCard } from '@/src/shared/ui/SectionCard';
-import { AppImage } from '@/src/shared/ui/AppImage';
 
 export default function TaskDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { user, selectedMode } = useSession();
-  const { focusedMissionId, setFocus } = useActiveMission();
-  const isFocused = focusedMissionId === taskId;
+  const { ensureActorMissionChannel, findMissionChannelTarget, queuePendingMissionStart } = useChannels();
+  const { activeChannel, interruptedMission, persistedSessions, setFocus } = useActiveMission();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [error, setError] = useState<string | null>(null);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [isLaunching, setIsLaunching] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -62,27 +59,46 @@ export default function TaskDetailScreen() {
     async function load() {
       try {
         const nextMissions = await fetchMissions({ mode: selectedMode });
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         setError(null);
         setMissions(nextMissions);
       } catch (err) {
-        if (!active || cached) return;
+        if (!active || cached) {
+          return;
+        }
         setError(err instanceof Error ? err.message : 'Failed to load mission.');
       } finally {
-        if (active) setIsLoading(false);
+        if (active) {
+          setIsLoading(false);
+        }
       }
     }
 
-    load();
-    return () => { active = false; };
+    void load();
+    return () => {
+      active = false;
+    };
   }, [selectedMode]);
 
   const mission = missions.find((candidate) => candidate._id === taskId) ?? null;
   const missionStatus = mission
     ? getMissionLifecycleStatus(mission, completedMissions, submissionStates)
     : null;
-  const groupMissions = mission?.groupId
-    ? missions
+  const isMissionInterrupted = interruptedMission?.mission._id === taskId;
+  const isQuizInProgress = mission?.kind === 'quiz' && Boolean(taskId && persistedSessions[taskId]);
+  const canOpenInThread = missionStatus === 'available' || missionStatus === 'rejected';
+  const actionLabel = isMissionInterrupted || isQuizInProgress ? 'Mission fortsetzen' : 'Mission starten';
+  const bottomInset = Math.max(insets.bottom, 20);
+  const ctaInset = bottomInset + 16;
+
+  const groupMissions = useMemo(() => {
+    if (!mission?.groupId) {
+      return [];
+    }
+
+    return missions
       .filter((candidate) => candidate.groupId === mission.groupId)
       .sort((left, right) => {
         const leftIsCurrent = left._id === mission._id;
@@ -93,8 +109,8 @@ export default function TaskDetailScreen() {
         }
 
         return leftIsCurrent ? 1 : -1;
-      })
-    : [];
+      });
+  }, [mission, missions]);
 
   useEffect(() => {
     if (!mission?.expiresAt) {
@@ -107,61 +123,6 @@ export default function TaskDetailScreen() {
 
     return () => clearInterval(interval);
   }, [mission?.expiresAt]);
-
-  const handleQuizComplete = useCallback(
-    async (answers: number[]) => {
-      if (!mission) throw new Error('Mission not loaded.');
-      const result = await submitQuizCompletion(mission._id, answers, selectedMode);
-      return { correct: result.correct, earned: result.earned, total: result.total };
-    },
-    [mission, selectedMode]
-  );
-
-  const handleGpsComplete = useCallback(async () => {
-    if (!mission) throw new Error('Mission not loaded.');
-    const result = await submitGpsCompletion(mission._id, selectedMode);
-    return { earned: result.earned };
-  }, [mission, selectedMode]);
-
-  const handleTextComplete = useCallback(async (text: string) => {
-    if (!mission) throw new Error('Mission not loaded.');
-    const result = await submitTextMission(mission._id, text, selectedMode);
-
-    if (result.action === 'submitted') {
-      Alert.alert('Erfolgreich', 'Dein Beitrag wurde eingereicht und wird geprüft.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
-    } else {
-      Alert.alert('Hinweis', 'Du hast diese Mission bereits eingereicht.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
-    }
-
-    return { action: result.action };
-  }, [mission, selectedMode, router]);
-
-  const handlePhotoComplete = useCallback(async ({
-    upload,
-  }: {
-    localUri: string;
-    upload: (onProgress?: (progress: number) => void) => Promise<string>;
-  }) => {
-    if (!mission) throw new Error('Mission not loaded.');
-    const photoUri = await upload();
-    const result = await submitPhotoMission(mission._id, photoUri, selectedMode);
-
-    if (result.action === 'submitted') {
-      Alert.alert('Erfolgreich', 'Dein Foto wurde eingereicht und wird geprüft.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
-    } else {
-      Alert.alert('Hinweis', 'Du hast diese Mission bereits eingereicht.', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
-    }
-
-    return { action: result.action };
-  }, [mission, selectedMode, router]);
 
   if (isLoading) {
     return (
@@ -197,190 +158,168 @@ export default function TaskDetailScreen() {
   const statusText = getStatusText(missionStatus);
   const countdownText = formatMissionCountdown(mission.expiresAt, now);
   const missionTypeLabel = getMissionTypeLabel(mission.kind);
-  const missionBody = renderMissionBody({
-    handleGpsComplete,
-    handlePhotoComplete,
-    handleQuizComplete,
-    handleTextComplete,
-    mission,
-    missionStatus,
-  });
+
+  const handleOpenMission = async () => {
+    setLaunchError(null);
+    setIsLaunching(true);
+
+    try {
+      const activeActor =
+        activeChannel.channelType === 'actor' &&
+          activeChannel.actorId &&
+          activeChannel.actorName
+          ? {
+            ...(activeChannel.actorAvatarUrl ? { avatarUrl: activeChannel.actorAvatarUrl } : {}),
+            actorId: activeChannel.actorId,
+            name: activeChannel.actorName,
+            ...(activeChannel.actorRole ? { role: activeChannel.actorRole } : {}),
+          }
+          : null;
+
+      const resolvedTarget =
+        isMissionInterrupted && interruptedMission?.actor?.actorId
+          ? {
+            actor: interruptedMission.actor,
+            channelId: interruptedMission.actor.actorId,
+          }
+          : await findMissionChannelTarget(mission._id);
+
+      const actor = resolvedTarget?.actor ?? activeActor;
+      if (!actor?.actorId) {
+        await setFocus(mission._id);
+        router.replace('/(tabs)/feed/hub');
+        return;
+      }
+
+      const channelId = await ensureActorMissionChannel({
+        ...(actor.avatarUrl ? { actorAvatarUrl: actor.avatarUrl } : {}),
+        actorId: actor.actorId,
+        actorName: actor.name,
+        ...(actor.role ? { actorRole: actor.role } : {}),
+      });
+
+      queuePendingMissionStart({
+        action: isMissionInterrupted ? 'resume' : 'start',
+        actor: {
+          ...actor,
+          actorId: actor.actorId,
+        },
+        channelId,
+        data: {
+          description: mission.description,
+          imageUrl: mission.imageUrl,
+          ...(mission.questions ? { questions: mission.questions } : {}),
+          title: mission.title,
+        },
+        kind: mission.kind,
+        missionId: mission._id,
+      });
+
+      router.replace({
+        pathname: '/(tabs)/feed/[channelId]',
+        params: { channelId },
+      });
+    } catch (err) {
+      setLaunchError(err instanceof Error ? err.message : 'Mission konnte nicht geöffnet werden.');
+    } finally {
+      setIsLaunching(false);
+    }
+  };
 
   return (
-    <Screen
-      title="Mission"
-      subtitle={missionMeta ? `${missionMeta.emoji} ${missionMeta.label}` : 'Mission'}
-      headerShown={false}
-    >
-      <SectionCard title={mission.title} titleStyle={styles.cardTitle}>
-        <Text style={styles.type}>{missionTypeLabel}</Text>
+    <View style={styles.screen}>
+      <Screen
+        bottomInset={false}
+        headerShown={false}
+        subtitle={missionMeta ? `${missionMeta.emoji} ${missionMeta.label}` : 'Mission'}
+        title="Mission"
+      >
+        <SectionCard title={mission.title} titleStyle={styles.cardTitle}>
+          <Text style={styles.type}>{missionTypeLabel}</Text>
 
-        {mission.imageUrl ? (
-          <AppImage
-            uri={mission.imageUrl}
-            style={styles.image}
-            contentFit="cover"
-          />
-        ) : null}
+          {mission.imageUrl ? (
+            <AppImage
+              uri={mission.imageUrl}
+              style={styles.image}
+              contentFit="cover"
+            />
+          ) : null}
 
-        <Text style={styles.body}>
-          {mission.description?.trim() || 'Für diese Mission gibt es keine zusätzliche Beschreibung.'}
-        </Text>
+          <Text style={styles.body}>
+            {mission.description?.trim() || 'Für diese Mission gibt es keine zusätzliche Beschreibung.'}
+          </Text>
+        </SectionCard>
 
-        {missionBody ? (
-          <>
-            <View style={styles.divider} />
-            <MissionHeadline>{mission.kind === 'gps' ? 'Zielgebiet' : 'Aufgabe'}</MissionHeadline>
-            {missionBody}
-          </>
-        ) : null}
+        <View style={styles.infoCard}>
+          <Text style={styles.pointsValue}>{mission.points} Punkte</Text>
 
-        {missionStatus === 'available' && (
-          <Pressable
-            style={[styles.startButton, isFocused && styles.startButtonActive]}
-            onPress={async () => {
-              if (isFocused) {
-                 router.back();
-                 return;
-              }
-              await setFocus(mission._id);
-              router.back();
-            }}
-          >
-            <Text style={styles.startButtonText}>
-              {isFocused ? 'AKTIVE MISSION' : 'MISSION STARTEN'}
-            </Text>
-          </Pressable>
-        )}
-      </SectionCard>
+          <View style={styles.infoBlock}>
+            <Text style={styles.infoLabel}>Status</Text>
+            <Text style={styles.infoValue}>{statusText}</Text>
+            {missionStatus === 'rejected' && submissionStates[mission._id]?.moderatorNote ? (
+              <Text style={styles.infoMeta}>Hinweis: {submissionStates[mission._id]?.moderatorNote}</Text>
+            ) : null}
+          </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.pointsValue}>{mission.points} Punkte</Text>
+          {mission.expiresAt ? (
+            <View style={styles.infoBlock}>
+              <Text style={styles.infoLabel}>Deadline</Text>
+              <Text style={styles.infoValue}>{formatMissionDeadline(mission.expiresAt)}</Text>
+              {countdownText ? <Text style={styles.infoMeta}>{countdownText}</Text> : null}
+            </View>
+          ) : null}
 
-        <View style={styles.infoBlock}>
-          <Text style={styles.infoLabel}>Status</Text>
-          <Text style={styles.infoValue}>{statusText}</Text>
-          {missionStatus === 'rejected' && submissionStates[mission._id]?.moderatorNote ? (
-            <Text style={styles.infoMeta}>Hinweis: {submissionStates[mission._id]?.moderatorNote}</Text>
+          {groupMissions.length > 0 ? (
+            <View style={styles.infoBlock}>
+              <Text style={styles.infoLabel}>
+                {mission.groupTitle ? `Sammelaufgabe: ${mission.groupTitle}` : 'Teil einer Sammelaufgabe'}
+              </Text>
+              <View style={styles.groupList}>
+                {groupMissions.map((groupMission) => (
+                  <View key={groupMission._id} style={styles.groupRow}>
+                    <GroupMissionIcon
+                      status={resolveGroupMissionStatus(
+                        groupMission,
+                        mission,
+                        completedMissions,
+                        submissionStates
+                      )}
+                    />
+                    <Text style={styles.groupTitle}>{groupMission.title}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           ) : null}
         </View>
 
-        {mission.expiresAt ? (
-          <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>Deadline</Text>
-            <Text style={styles.infoValue}>{formatMissionDeadline(mission.expiresAt)}</Text>
-            {countdownText ? <Text style={styles.infoMeta}>{countdownText}</Text> : null}
-          </View>
-        ) : null}
+        {canOpenInThread ? <View style={{ height: 112 + ctaInset }} /> : null}
+      </Screen>
 
-        {mission.groupId ? (
-          <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>
-              {mission.groupTitle ? `Sammelaufgabe: ${mission.groupTitle}` : 'Teil einer Sammelaufgabe'}
-            </Text>
-            <View style={styles.groupList}>
-              {groupMissions.map((groupMission) => (
-                <View key={groupMission._id} style={styles.groupRow}>
-                  <GroupMissionIcon
-                    status={resolveGroupMissionStatus(
-                      groupMission,
-                      mission,
-                      completedMissions,
-                      submissionStates
-                    )}
-                  />
-                  <Text style={styles.groupTitle}>{groupMission.title}</Text>
-                </View>
-              ))}
-            </View>
+      {canOpenInThread ? (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <View style={[styles.ctaWrap, { paddingBottom: ctaInset }]}>
+            {launchError ? <Text style={styles.launchError}>{launchError}</Text> : null}
+            <Pressable
+              disabled={isLaunching}
+              onPress={handleOpenMission}
+              style={({ pressed }) => [
+                styles.startButton,
+                pressed && !isLaunching ? styles.startButtonPressed : null,
+                isLaunching ? styles.startButtonDisabled : null,
+              ]}
+            >
+              {isLaunching ? (
+                <ActivityIndicator color={styles.startButtonText.color} size="small" />
+              ) : (
+                <Text style={styles.startButtonText}>{actionLabel}</Text>
+              )}
+            </Pressable>
           </View>
-        ) : null}
-      </View>
-    </Screen>
+        </View>
+      ) : null}
+    </View>
   );
-}
-
-function renderMissionBody({
-  handleGpsComplete,
-  handlePhotoComplete,
-  handleQuizComplete,
-  handleTextComplete,
-  mission,
-  missionStatus,
-}: {
-  handleGpsComplete: () => Promise<{ earned: number }>;
-  handlePhotoComplete: (params: {
-    localUri: string;
-    upload: (onProgress?: (progress: number) => void) => Promise<string>;
-  }) => Promise<{ action: string }>;
-  handleQuizComplete: (answers: number[]) => Promise<{ correct: number; earned: number; total: number }>;
-  handleTextComplete: (text: string) => Promise<{ action: string }>;
-  mission: MissionListItem;
-  missionStatus: MissionLifecycleStatus;
-}) {
-  if (missionStatus !== 'available') {
-    if (missionStatus === 'expired') {
-      return <Text style={styles.body}>Diese Mission kann nicht mehr erledigt werden.</Text>;
-    }
-
-    return null;
-  }
-
-  if (mission.kind === 'quiz' && mission.questions) {
-    return (
-      <QuizRunner
-        embedded
-        missionId={mission._id}
-        missionTitle={mission.title}
-        onComplete={handleQuizComplete}
-        questions={mission.questions}
-      />
-    );
-  }
-
-  if (mission.kind === 'quiz') {
-    return (
-      <Text style={styles.body}>
-        Dieses Quiz enthält {mission.questionCount ?? '?'} Fragen.
-      </Text>
-    );
-  }
-
-  if (
-    mission.kind === 'gps' &&
-    mission.gpsConfig &&
-    typeof mission.gpsConfig.latitude === 'number' &&
-    typeof mission.gpsConfig.longitude === 'number'
-  ) {
-    return (
-      <GpsRunner
-        embedded
-        missionId={mission._id}
-        onComplete={handleGpsComplete}
-        target={mission.gpsConfig}
-      />
-    );
-  }
-
-  if (mission.kind === 'gps') {
-    return <Text style={styles.body}>GPS-Konfiguration fehlt für diese Mission.</Text>;
-  }
-
-  if (mission.kind === 'text') {
-    return <TextRunner embedded onComplete={handleTextComplete} />;
-  }
-
-  if (mission.kind === 'photo') {
-    return (
-      <PhotoRunner
-        embedded
-        missionId={mission._id}
-        onComplete={handlePhotoComplete}
-      />
-    );
-  }
-
-  return null;
 }
 
 function getStatusText(status: MissionLifecycleStatus) {
@@ -393,14 +332,14 @@ function getStatusText(status: MissionLifecycleStatus) {
   }
 
   if (status === 'rejected') {
-    return 'Du hast diese Aufgabe leider nicht erfolgreich abgeschlossen.';
+    return 'Du kannst diese Mission erneut im Chat versuchen.';
   }
 
   if (status === 'expired') {
     return 'Diese Mission ist abgelaufen und kann nicht mehr erledigt werden.';
   }
 
-  return 'Diese Mission ist aktiv und kann jetzt bearbeitet werden.';
+  return 'Diese Mission ist aktiv und kann jetzt im Chat gestartet werden.';
 }
 
 function getMissionTypeLabel(kind: MissionKind) {
@@ -439,10 +378,6 @@ function resolveGroupMissionStatus(
   }
 
   return 'current';
-}
-
-function MissionHeadline({ children }: { children: string }) {
-  return <Text style={styles.headline}>{children}</Text>;
 }
 
 function GroupMissionIcon({ status }: { status: 'completed' | 'current' | 'failed' }) {
@@ -494,10 +429,11 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: theme.colors.cardTextPrimary,
   },
-  divider: {
-    borderTopColor: theme.colors.cardBorder,
-    borderTopWidth: 1,
-    marginVertical: 4,
+  ctaWrap: {
+    alignItems: 'stretch',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    ...StyleSheet.absoluteFillObject,
   },
   errorText: {
     color: theme.colors.errorText,
@@ -517,12 +453,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-  },
-  headline: {
-    color: theme.colors.cardTextPrimary,
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 15,
-    textTransform: 'uppercase',
   },
   image: {
     borderRadius: 12,
@@ -556,12 +486,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 22,
   },
-  noteText: {
-    color: theme.colors.cardTextPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-    marginTop: 4,
+  launchError: {
+    color: theme.colors.errorText,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   pointsValue: {
     ...theme.typography.h1,
@@ -569,30 +499,40 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     textAlign: 'left',
   },
+  screen: {
+    backgroundColor: theme.colors.background,
+    flex: 1,
+  },
+  startButton: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.orange,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 20,
+    borderWidth: 1,
+    minHeight: 60,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+  },
+  startButtonDisabled: {
+    opacity: 0.8,
+  },
+  startButtonPressed: {
+    transform: [{ translateY: 1 }],
+  },
+  startButtonText: {
+    color: "#020202",
+    textTransform: "uppercase",
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 18,
+  },
   type: {
     color: theme.colors.cardTextPrimary,
     fontFamily: 'Nunito_700Bold',
     fontSize: 15,
     textAlign: 'center',
-  },
-  startButton: {
-    backgroundColor: theme.colors.orange,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  startButtonActive: {
-    backgroundColor: 'transparent',
-    borderColor: theme.colors.orange,
-  },
-  startButtonText: {
-    color: 'white',
-    fontFamily: 'Nunito_700Bold',
-    fontSize: 15,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
 });

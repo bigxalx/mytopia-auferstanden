@@ -2,8 +2,11 @@ import { V2_COLLECTION, type ChannelType } from '@/src/core/firestore/schema';
 import type { AppMode } from '@/src/core/session/appMode';
 import {
   collection,
+  collectionGroup,
   doc,
+  getDocs,
   getFirestore,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -50,6 +53,11 @@ export type ActorChannelSeed = {
   actorId: string;
   actorName: string;
   actorRole?: string;
+};
+
+export type MissionChannelTarget = {
+  actor: NarrativeMessageDto['actor'];
+  channelId: string;
 };
 
 export function buildChannelThreadDocId({
@@ -180,6 +188,56 @@ export async function ensureActorChannel({
   );
 
   return threadDocId;
+}
+
+export async function findMissionChannelTarget({
+  missionId,
+  mode,
+  uid,
+}: {
+  missionId: string;
+  mode: AppMode;
+  uid: string;
+}): Promise<MissionChannelTarget | null> {
+  const db = getFirestore();
+  const messagesQuery = query(
+    collectionGroup(db, CHANNEL_MESSAGES_SUBCOLLECTION),
+    where('ownerUid', '==', uid),
+    where('mode', '==', mode),
+    where('message.attachment.missionId', '==', missionId),
+    limit(10)
+  );
+  const snapshot = await getDocs(messagesQuery);
+
+  for (const docSnapshot of snapshot.docs) {
+    const data = docSnapshot.data() as Partial<ChannelBundleDoc> & Record<string, unknown>;
+    const message = data.message as NarrativeMessageDto | undefined;
+    const actor = message?.actor;
+    if (!actor || typeof actor.name !== 'string' || actor.name.trim().length === 0) {
+      continue;
+    }
+
+    const actorId =
+      typeof actor.actorId === 'string' && actor.actorId.trim().length > 0
+        ? actor.actorId
+        : typeof data.channelId === 'string' && data.channelId !== HUB_CHANNEL_ID && data.channelId.trim().length > 0
+          ? data.channelId
+          : null;
+
+    if (!actorId) {
+      continue;
+    }
+
+    return {
+      actor: {
+        ...actor,
+        actorId,
+      },
+      channelId: actorId,
+    };
+  }
+
+  return null;
 }
 
 export async function markChannelAsRead({

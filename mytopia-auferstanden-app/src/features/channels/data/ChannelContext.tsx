@@ -7,13 +7,16 @@ import type { NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 
 import {
   ensureActorChannel,
+  findMissionChannelTarget as findMissionChannelTargetInStore,
   HUB_CHANNEL_ID,
   subscribeToChannelSummaries,
   type ActorChannelSeed,
   type ChannelSummary,
+  type MissionChannelTarget,
 } from './channelStore';
 
 export type PendingMissionStart = {
+  action?: 'resume' | 'start';
   actor: NarrativeMessageDto['actor'];
   channelId: string;
   data?: { description?: string; imageUrl?: string; questions?: any[]; title?: string };
@@ -30,6 +33,7 @@ type ChannelsContextValue = {
   actorChannels: ChannelSummary[];
   consumePendingMissionStart: (channelId: string) => PendingMissionStart | null;
   ensureActorMissionChannel: (seed: ActorChannelSeed) => Promise<string>;
+  findMissionChannelTarget: (missionId: string) => Promise<MissionChannelTarget | null>;
   getChannelScrollState: (channelId: string) => ChannelScrollState;
   hubUnreadCount: number;
   pendingMissionStart: PendingMissionStart | null;
@@ -80,6 +84,21 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
     return pendingMissionStart;
   }, [pendingMissionStart]);
 
+  const findMissionChannelTarget = useCallback(
+    async (missionId: string) => {
+      if (!user?.id) {
+        return null;
+      }
+
+      return findMissionChannelTargetInStore({
+        missionId,
+        mode: selectedMode,
+        uid: user.id,
+      });
+    },
+    [selectedMode, user?.id]
+  );
+
   const totalUnreadCount = useMemo(() => {
     const actorUnread = actorChannels.reduce((sum, channel) => sum + channel.unreadCount, 0);
     return hubUnreadCount + actorUnread;
@@ -120,6 +139,7 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
       actorChannels,
       consumePendingMissionStart,
       ensureActorMissionChannel,
+      findMissionChannelTarget,
       getChannelScrollState,
       hubUnreadCount,
       pendingMissionStart,
@@ -131,6 +151,7 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
       actorChannels,
       consumePendingMissionStart,
       ensureActorMissionChannel,
+      findMissionChannelTarget,
       getChannelScrollState,
       hubUnreadCount,
       pendingMissionStart,

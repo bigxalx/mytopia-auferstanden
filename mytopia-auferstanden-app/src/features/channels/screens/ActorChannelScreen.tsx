@@ -50,9 +50,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     focusedMission,
     focusedMissionId,
     highlightMission,
+    interruptMission,
     quizSession,
     registerOptimisticHandler,
     registerScrollHandler,
+    resumeInterruptedMission,
     setActiveChannel,
     startChatQuiz,
     startMission,
@@ -122,19 +124,33 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       });
 
       return () => {
+        if (
+          activeChannel.channelType === 'actor' &&
+          activeChannel.channelId === channelId &&
+          focusedMissionId &&
+          focusedMission
+        ) {
+          void interruptMission();
+        }
+
         const nextScrollState = threadRef.current?.getScrollState() ?? createDefaultScrollState();
         saveChannelScrollState(channelId, nextScrollState);
         registerOptimisticHandler(null);
         registerScrollHandler(null);
       };
     }, [
+      activeChannel.channelId,
+      activeChannel.channelType,
       applyOptimisticUpdate,
       channel?.actorId,
       channel?.avatarUrl,
       channel?.role,
       channel?.title,
       channelId,
+      focusedMission,
+      focusedMissionId,
       highlightMission,
+      interruptMission,
       registerOptimisticHandler,
       registerScrollHandler,
       saveChannelScrollState,
@@ -148,6 +164,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       return;
     }
 
+    if (pending.action === 'resume') {
+      void resumeInterruptedMission();
+      return;
+    }
+
     if (pending.kind === 'quiz') {
       void startChatQuiz(pending.missionId, pending.actor, pending.data);
       return;
@@ -157,7 +178,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       ...pending.data,
       kind: pending.kind,
     });
-  }, [channelId, consumePendingMissionStart, pendingMissionStart, startChatQuiz, startMission]);
+  }, [channelId, consumePendingMissionStart, pendingMissionStart, resumeInterruptedMission, startChatQuiz, startMission]);
 
   useEffect(() => {
     const target = consumeExternalTarget(channelId);
