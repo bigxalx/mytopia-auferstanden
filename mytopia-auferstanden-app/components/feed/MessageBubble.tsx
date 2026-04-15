@@ -14,6 +14,8 @@ import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import { useRouter } from 'expo-router';
 
 const TAIL_WIDTH = 20;
 const TAIL_HEIGHT = 12;
@@ -42,7 +44,11 @@ export function MessageBubble({
   showName,
   gallerySources,
   onImagePress,
+  animateAttachment,
+  resultAnimationKey,
+  avatarBottomOffset = 0,
   containerStyle,
+  isHighlighted = false,
   userInteraction,
   isLastInGroup,
 }: {
@@ -51,18 +57,27 @@ export function MessageBubble({
   showName: boolean;
   gallerySources: { uri: string }[];
   onImagePress: (index: number) => void;
+  animateAttachment?: boolean;
+  resultAnimationKey?: string | null;
+  avatarBottomOffset?: number;
   containerStyle?: ViewStyle;
+  isHighlighted?: boolean;
   userInteraction?: boolean;
   isLastInGroup?: boolean;
 }) {
   const isUser = message.isUser;
   const isCentered = message.attachment?._type === 'missionResultAttachment';
+  const isSubmission = message.attachment?._type === 'submissionAttachment';
+  const shouldStretchBubble = Boolean(message.attachment) && !isCentered && !isSubmission;
+  const router = useRouter();
+  const { actorChannels } = useChannels();
   
   const effectiveShowAvatar = showAvatar && !isUser && !isCentered;
   const effectiveShowName = showName && !isUser && !isCentered;
 
   const { highlightedMissionId } = useActiveMission();
   const highlightProgress = useSharedValue(0);
+  const avatarOffsetProgress = useSharedValue(avatarBottomOffset);
 
   const isTargetMission =
     message.attachment?._type === 'missionAttachment' &&
@@ -71,8 +86,13 @@ export function MessageBubble({
       (message.attachment as any).missionTitle === highlightedMissionId
     );
 
+  const linkedChannelId =
+    message.actor.actorId && actorChannels.some((channel) => channel.channelId === message.actor.actorId)
+      ? message.actor.actorId
+      : null;
+
   useEffect(() => {
-    if (isTargetMission) {
+    if (isTargetMission || isHighlighted) {
       // Single elegant pulse
       highlightProgress.value = withSequence(
         withTiming(1, { duration: 500 }),
@@ -81,7 +101,13 @@ export function MessageBubble({
     } else {
       highlightProgress.value = withTiming(0, { duration: 200 });
     }
-  }, [isTargetMission, highlightProgress]);
+  }, [highlightProgress, isHighlighted, isTargetMission]);
+
+  useEffect(() => {
+    avatarOffsetProgress.value = withTiming(avatarBottomOffset, {
+      duration: 220,
+    });
+  }, [avatarBottomOffset, avatarOffsetProgress]);
 
   const animatedBubbleStyle = useAnimatedStyle(() => {
     const defaultColor = isUser ? theme.colors.accent : theme.colors.beige;
@@ -98,12 +124,27 @@ export function MessageBubble({
     };
   });
 
+  const animatedAvatarStyle = useAnimatedStyle(() => ({
+    bottom: -32 - avatarOffsetProgress.value,
+  }));
+
   return (
     <View style={[styles.messageRow, isUser && styles.messageRowUser, containerStyle]}>
       {effectiveShowAvatar && (
-        <View style={styles.avatarColumn}>
-          <ActorAvatar actor={message.actor} />
-        </View>
+        <Animated.View style={[styles.avatarColumn, animatedAvatarStyle]}>
+          <ActorAvatar
+            actor={message.actor}
+            onPress={
+              linkedChannelId
+                ? () =>
+                    router.push({
+                      pathname: '/(tabs)/feed/[channelId]',
+                      params: { channelId: linkedChannelId },
+                    })
+                : undefined
+            }
+          />
+        </Animated.View>
       )}
 
       <View style={[
@@ -114,9 +155,9 @@ export function MessageBubble({
           style={[
             styles.messageBubble,
             isUser && styles.messageBubbleUser,
+            shouldStretchBubble && styles.messageBubbleAttachment,
             isCentered && styles.messageBubbleCentered,
             animatedBubbleStyle,
-            effectiveShowAvatar && styles.lastInGroup
           ]}
         >
           {effectiveShowName && (
@@ -137,6 +178,8 @@ export function MessageBubble({
           {message.attachment && (
             <AttachmentView
               attachment={message.attachment}
+              animateAttachment={animateAttachment}
+              resultAnimationKey={resultAnimationKey}
               messageText={message.text}
               gallerySources={gallerySources}
               onImagePress={onImagePress}
@@ -154,7 +197,7 @@ export function MessageBubble({
 const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end', // Changed from flex-start to align bubble bottom with avatar better
+    alignItems: 'flex-end',
     position: 'relative',
   } as ViewStyle,
   messageRowUser: {
@@ -163,8 +206,9 @@ const styles = StyleSheet.create({
   avatarColumn: {
     position: 'absolute',
     left: 0,
-    bottom: -32, // Adjusted y-axis offset to be lower as requested
+    bottom: -32,
     width: 48,
+    alignItems: 'center',
   } as ViewStyle,
   bubbleContainer: {
     flex: 1,
@@ -182,24 +226,30 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   } as ViewStyle,
   messageBubble: {
+    alignSelf: 'flex-start',
     backgroundColor: theme.colors.beige,
     borderRadius: 16,
-    padding: 10,
     gap: 8,
     maxWidth: '100%',
+    padding: 10,
+  } as ViewStyle,
+  messageBubbleAttachment: {
+    alignSelf: 'stretch',
+    width: '100%',
   } as ViewStyle,
   messageBubbleUser: {
+    alignSelf: 'flex-end',
     backgroundColor: theme.colors.accent,
     borderBottomRightRadius: 8,
   } as ViewStyle,
   messageBubbleCentered: {
+    alignSelf: 'center',
     backgroundColor: 'transparent',
     maxWidth: '100%',
     padding: 0,
     elevation: 0,
     shadowOpacity: 0,
   } as ViewStyle,
-  lastInGroup: {} as ViewStyle,
   tailWrap: {
     position: 'absolute',
     bottom: -TAIL_HEIGHT + 1,

@@ -1,30 +1,52 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, Pressable, Platform } from 'react-native';
 import { theme } from '@/src/shared/ui/theme';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutDown, Easing } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
 /**
  * Modern selection UI for quiz choices that appears at the bottom of the feed.
  * Replaces the standard chat input during a quiz session.
  */
 export const MissionChoicePicker: React.FC = () => {
-  const { quizSession, submitQuizStep, pauseQuiz } = useActiveMission();
+  const { activeChannel, quizSession, submitQuizStep, interruptMission } = useActiveMission();
   const insets = useSafeAreaInsets();
+  const [lockedIndex, setLockedIndex] = useState<number | null>(null);
 
+  useEffect(() => {
+    setLockedIndex(null);
+  }, [quizSession?.currentIndex, quizSession?.showPicker]);
+
+  if (activeChannel.channelType !== 'actor') return null;
   if (!quizSession || !quizSession.showPicker) return null;
 
   const currentQuestion = quizSession.questions[quizSession.currentIndex];
   if (!currentQuestion) return null;
 
   const handleClose = () => {
-    pauseQuiz();
+    void interruptMission();
   };
 
   // Position it above the tab bar consistent with MissionChatInput
-  const bottomOffset = insets.bottom + (Platform.OS === 'android' ? 70 : 54);
+  const bottomOffset = insets.bottom + (Platform.OS === 'android' ? 40 : 24);
+
+  const handleSelect = async (index: number) => {
+    if (lockedIndex !== null) {
+      return;
+    }
+
+    setLockedIndex(index);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await submitQuizStep(index);
+    } catch (error) {
+      setLockedIndex(null);
+      throw error;
+    }
+  };
 
   return (
     <Animated.View 
@@ -55,11 +77,16 @@ export const MissionChoicePicker: React.FC = () => {
             return (
               <Pressable
                 key={index}
+                disabled={lockedIndex !== null}
                 style={({ pressed }) => [
                   styles.optionButton,
-                  pressed && styles.optionButtonPressed
+                  lockedIndex === index && styles.optionButtonLocked,
+                  lockedIndex !== null && lockedIndex !== index && styles.optionButtonDisabled,
+                  pressed && lockedIndex === null && styles.optionButtonPressed
                 ]}
-                onPress={() => submitQuizStep(index)}
+                onPress={() => {
+                  void handleSelect(index);
+                }}
               >
                 <Text style={styles.optionText}>{text}</Text>
               </Pressable>
@@ -131,6 +158,13 @@ const styles = StyleSheet.create({
   optionButtonPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.97 }],
+  },
+  optionButtonLocked: {
+    backgroundColor: '#D4691C',
+    transform: [{ scale: 0.985 }],
+  },
+  optionButtonDisabled: {
+    opacity: 0.55,
   },
   optionText: {
     color: 'white',

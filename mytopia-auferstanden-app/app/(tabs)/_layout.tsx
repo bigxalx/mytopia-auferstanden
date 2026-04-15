@@ -6,8 +6,8 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
 import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
-import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useChannels } from '@/src/features/channels/data/ChannelContext';
 
 import { FEATURES } from '@/src/config/features';
 
@@ -17,7 +17,7 @@ export default function TabLayout() {
 
 function TabLayoutInner() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
-  const { unreadCount } = useNarrativeSignal();
+  const { totalUnreadCount } = useChannels();
   const { focusedMissionId } = useActiveMission();
   const supportsNativeBottomAccessory = FEATURES.ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
 
@@ -81,15 +81,15 @@ function TabLayoutInner() {
           disableScrollToTop
           contentStyle={{ backgroundColor: theme.colors.background }}
         >
-          <NativeTabs.Trigger.Label>Notfallkanal</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Kanäle</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon
             src={require('../../assets/icons/tabs/feed.png')}
             renderingMode="template"
             selectedColor={theme.colors.blue}
           />
-          {unreadCount > 0 && (
+          {totalUnreadCount > 0 && (
             <NativeTabs.Trigger.Badge selectedBackgroundColor={theme.colors.blue}>
-              {String(unreadCount)}
+              {String(totalUnreadCount)}
             </NativeTabs.Trigger.Badge>
           )}
         </NativeTabs.Trigger>

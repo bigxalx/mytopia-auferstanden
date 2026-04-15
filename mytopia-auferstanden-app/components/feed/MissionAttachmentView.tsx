@@ -24,7 +24,7 @@ export function MissionAttachmentView({
   userInteraction?: boolean;
   actor: NarrativeMessageDto['actor'];
 }) {
-  const { focusedMissionId, setFocus } = useActiveMission();
+  const { focusedMissionId, interruptedMission, setFocus } = useActiveMission();
   const { user } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
@@ -42,6 +42,7 @@ export function MissionAttachmentView({
 
   const status = getMissionLifecycleStatus(missionObj, completedMissions, submissionStates);
   const isAvailable = status === 'available';
+  const isInterrupted = interruptedMission?.mission._id === attachment.missionId;
 
   const meta = attachment.missionKind
     ? MISSION_KIND_METADATA[attachment.missionKind as MissionKind]
@@ -61,7 +62,8 @@ export function MissionAttachmentView({
     return (
       <MissionReference 
         missionId={attachment.missionId} 
-        missionTitle={attachment.missionTitle || attachment.title || 'Mission'} 
+        missionTitle={attachment.missionTitle || attachment.title || 'Mission'}
+        label={undefined}
         style={{ marginBottom: 8 }}
       />
     );
@@ -76,6 +78,7 @@ export function MissionAttachmentView({
         gpsConfig={attachment.gpsConfig}
         onSuccess={handleSuccess}
         actor={actor}
+        missionTitle={attachment.missionTitle || attachment.title || 'Mission'}
         description={description}
         imageUrl={attachment.imageUrl}
       />
@@ -148,7 +151,7 @@ export function MissionAttachmentView({
           {content}
         </Pressable>
       </Link>
-      {isAvailable && !isFocused && (
+      {(isAvailable || isInterrupted) && !isFocused && (
         <MissionInteractionZone
           compact
           missionId={attachment.missionId}
@@ -157,6 +160,7 @@ export function MissionAttachmentView({
           gpsConfig={attachment.gpsConfig}
           onSuccess={handleSuccess}
           actor={actor}
+          missionTitle={attachment.missionTitle || attachment.title || 'Mission'}
           description={description}
           imageUrl={attachment.imageUrl}
         />

@@ -9,7 +9,14 @@ export default function FeedTabLayout() {
       <Stack.Screen
         name="index"
         options={createNativeTabStackOptions({
-          title: 'Notfallkanal',
+          title: 'Kanäle',
+          largeTitle: false,
+        })}
+      />
+      <Stack.Screen
+        name="[channelId]"
+        options={createNativeTabStackOptions({
+          title: 'Kanal',
           largeTitle: false,
         })}
       />

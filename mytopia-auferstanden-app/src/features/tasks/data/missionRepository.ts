@@ -72,6 +72,14 @@ export type SubmitResult = {
     action: 'submitted' | 'already_submitted';
 };
 
+export type MissionChannelMetadata = {
+    actorAvatarUrl?: string;
+    actorId: string;
+    actorName: string;
+    channelId: string;
+    channelType: 'actor' | 'hub';
+};
+
 // ---------------------------------------------------------------------------
 // Fetch missions (via narrativeApi /missions)
 // ---------------------------------------------------------------------------
@@ -182,7 +190,8 @@ export async function fetchSettings(mode: AppMode = 'production'): Promise<any> 
 export async function submitQuizCompletion(
     missionId: string,
     answers: number[],
-    mode: AppMode = 'production'
+    mode: AppMode = 'production',
+    channelMeta?: MissionChannelMetadata,
 ): Promise<QuizCompleteResult> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
@@ -193,7 +202,7 @@ export async function submitQuizCompletion(
     const url = `${baseUrl}quiz/complete?mode=${mode}`;
 
     const response = await fetchWithTimeout(url, {
-        body: JSON.stringify({ answers, missionId }),
+        body: JSON.stringify({ answers, missionId, ...(channelMeta ? { channelMeta } : {}) }),
         headers: {
             Authorization: `Bearer ${idToken}`,
             'Content-Type': 'application/json',
@@ -215,7 +224,8 @@ export async function submitQuizCompletion(
 
 export async function submitGpsCompletion(
     missionId: string,
-    mode: AppMode = 'production'
+    mode: AppMode = 'production',
+    channelMeta?: MissionChannelMetadata,
 ): Promise<GpsCompleteResult> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
@@ -226,7 +236,7 @@ export async function submitGpsCompletion(
     const url = `${baseUrl}gps/complete?mode=${mode}`;
 
     const response = await fetchWithTimeout(url, {
-        body: JSON.stringify({ missionId }),
+        body: JSON.stringify({ missionId, ...(channelMeta ? { channelMeta } : {}) }),
         headers: {
             Authorization: `Bearer ${idToken}`,
             'Content-Type': 'application/json',
@@ -249,7 +259,8 @@ export async function submitGpsCompletion(
 export async function submitTextMission(
     missionId: string,
     text: string,
-    mode: AppMode = 'production'
+    mode: AppMode = 'production',
+    channelMeta?: MissionChannelMetadata,
 ): Promise<SubmitResult> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
@@ -260,7 +271,7 @@ export async function submitTextMission(
     const url = `${baseUrl}text/submit?mode=${mode}`;
 
     const response = await fetchWithTimeout(url, {
-        body: JSON.stringify({ missionId, text }),
+        body: JSON.stringify({ missionId, text, ...(channelMeta ? { channelMeta } : {}) }),
         headers: {
             Authorization: `Bearer ${idToken}`,
             'Content-Type': 'application/json',
@@ -283,7 +294,8 @@ export async function submitTextMission(
 export async function submitPhotoMission(
     missionId: string,
     photoPath: string,
-    mode: AppMode = 'production'
+    mode: AppMode = 'production',
+    channelMeta?: MissionChannelMetadata,
 ): Promise<SubmitResult> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
@@ -294,7 +306,7 @@ export async function submitPhotoMission(
     const url = `${baseUrl}photo/submit?mode=${mode}`;
 
     const response = await fetchWithTimeout(url, {
-        body: JSON.stringify({ missionId, photoPath }),
+        body: JSON.stringify({ missionId, photoPath, ...(channelMeta ? { channelMeta } : {}) }),
         headers: {
             Authorization: `Bearer ${idToken}`,
             'Content-Type': 'application/json',

@@ -52,7 +52,9 @@
         "react": "19.2.0",
         "react-dom": "19.2.0",
         "react-native": "0.83.4",
+        "react-native-animated-numbers": "^0.6.3",
         "react-native-audio-analyzer": "^3.1.0",
+        "react-native-confetti-cannon": "^1.5.2",
         "react-native-gesture-handler": "~2.30.0",
         "react-native-image-viewing": "^0.2.2",
         "react-native-maps": "1.27.2",
@@ -85,6 +87,7 @@
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
         "sanity": "^5.18.0",
+        "sanity-plugin-asset-source-unsplash": "^7.0.5",
         "styled-components": "^6.3.12",
       },
       "devDependencies": {
@@ -3151,7 +3154,11 @@
 
     "react-native": ["react-native@0.83.4", "", { "dependencies": { "@jest/create-cache-key-function": "^29.7.0", "@react-native/assets-registry": "0.83.4", "@react-native/codegen": "0.83.4", "@react-native/community-cli-plugin": "0.83.4", "@react-native/gradle-plugin": "0.83.4", "@react-native/js-polyfills": "0.83.4", "@react-native/normalize-colors": "0.83.4", "@react-native/virtualized-lists": "0.83.4", "abort-controller": "^3.0.0", "anser": "^1.4.9", "ansi-regex": "^5.0.0", "babel-jest": "^29.7.0", "babel-plugin-syntax-hermes-parser": "0.32.0", "base64-js": "^1.5.1", "commander": "^12.0.0", "flow-enums-runtime": "^0.0.6", "glob": "^7.1.1", "hermes-compiler": "0.14.1", "invariant": "^2.2.4", "jest-environment-node": "^29.7.0", "memoize-one": "^5.0.0", "metro-runtime": "^0.83.3", "metro-source-map": "^0.83.3", "nullthrows": "^1.1.1", "pretty-format": "^29.7.0", "promise": "^8.3.0", "react-devtools-core": "^6.1.5", "react-refresh": "^0.14.0", "regenerator-runtime": "^0.13.2", "scheduler": "0.27.0", "semver": "^7.1.3", "stacktrace-parser": "^0.1.10", "whatwg-fetch": "^3.0.0", "ws": "^7.5.10", "yargs": "^17.6.2" }, "peerDependencies": { "@types/react": "^19.1.1", "react": "^19.2.0" }, "optionalPeers": ["@types/react"], "bin": { "react-native": "cli.js" } }, "sha512-H5Wco3UJyY6zZsjoBayY8RM9uiAEQ3FeG4G2NAt+lr9DO43QeqPlVe9xxxYEukMkEmeIhNjR70F6bhXuWArOMQ=="],
 
+    "react-native-animated-numbers": ["react-native-animated-numbers@0.6.3", "", { "peerDependencies": { "react": ">=16.8.0", "react-native": ">=0.59" } }, "sha512-V7gIS5j2nA13IC0Wfkzdujf7eNc145z+vntMLoW059fkHZuGJYhDyTjUl9tohx7pKx6TTX0up4wgKwDCpJZSTg=="],
+
     "react-native-audio-analyzer": ["react-native-audio-analyzer@3.1.0", "", { "peerDependencies": { "react": "*", "react-native": "*", "react-native-nitro-modules": "^0.27.3" } }, "sha512-QzVeFcIqrjMxiL1SU4nHYlkY1vVYaLrPU+XAAdY0PBPqv7AJyaJq5lylpnyPE1dakn3Fr9nC1LKUhQykhqPy3w=="],
+
+    "react-native-confetti-cannon": ["react-native-confetti-cannon@1.5.2", "", {}, "sha512-IZuWjlW7QsdxEGNnvpD6W+7iKCCQhnd5BvuNvMtirU7Nxm8WS2N6LPGMBz1ZYDuusG+GRZkoXXTNCdoAAGpCTg=="],
 
     "react-native-gesture-handler": ["react-native-gesture-handler@2.30.1", "", { "dependencies": { "@egjs/hammerjs": "^2.0.17", "hoist-non-react-statics": "^3.3.0", "invariant": "^2.2.4" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-xIUBDo5ktmJs++0fZlavQNvDEE4PsihWhSeJsJtoz4Q6p0MiTM9TgrTgfEgzRR36qGPytFoeq+ShLrVwGdpUdA=="],
 
@@ -3176,6 +3183,8 @@
     "react-native-web": ["react-native-web@0.21.2", "", { "dependencies": { "@babel/runtime": "^7.18.6", "@react-native/normalize-colors": "^0.74.1", "fbjs": "^3.0.4", "inline-style-prefixer": "^7.0.1", "memoize-one": "^6.0.0", "nullthrows": "^1.1.1", "postcss-value-parser": "^4.2.0", "styleq": "^0.1.3" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-SO2t9/17zM4iEnFvlu2DA9jqNbzNhoUP+AItkoCOyFmDMOhUnBBznBDCYN92fGdfAkfQlWzPoez6+zLxFNsZEg=="],
 
     "react-native-worklets": ["react-native-worklets@0.7.2", "", { "dependencies": { "@babel/plugin-transform-arrow-functions": "7.27.1", "@babel/plugin-transform-class-properties": "7.27.1", "@babel/plugin-transform-classes": "7.28.4", "@babel/plugin-transform-nullish-coalescing-operator": "7.27.1", "@babel/plugin-transform-optional-chaining": "7.27.1", "@babel/plugin-transform-shorthand-properties": "7.27.1", "@babel/plugin-transform-template-literals": "7.27.1", "@babel/plugin-transform-unicode-regex": "7.27.1", "@babel/preset-typescript": "7.27.1", "convert-source-map": "2.0.0", "semver": "7.7.3" }, "peerDependencies": { "@babel/core": "*", "react": "*", "react-native": "*" } }, "sha512-DuLu1kMV/Uyl9pQHp3hehAlThoLw7Yk2FwRTpzASOmI+cd4845FWn3m2bk9MnjUw8FBRIyhwLqYm2AJaXDXsog=="],
+
+    "react-photo-album": ["react-photo-album@3.6.0", "", { "peerDependencies": { "@types/react": "^18 || ^19", "react": "^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-W9NgI+0XxOYF/FLQJ/ZiKsizNQtGtgDdiFgojmTmpBKDGeGiWKfSzmbw3v9WAqzimPeiFJ2sEb9DO0nHRHP/OA=="],
 
     "react-refractor": ["react-refractor@4.0.0", "", { "dependencies": { "refractor": "^5.0.0", "unist-util-filter": "^5.0.1", "unist-util-visit-parents": "^6.0.1" }, "peerDependencies": { "react": ">=18.0.0" } }, "sha512-2VMRH3HA/Nu+tMFzyQwdBK0my0BIZy1pkWHhjuSrplMyf8ZLx/Gw7tUXV0t2JbEsbSNHbEc9TbHhq3sUx2seVA=="],
 
@@ -3280,6 +3289,8 @@
     "safer-buffer": ["safer-buffer@2.1.2", "", {}, "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="],
 
     "sanity": ["sanity@5.19.0", "", { "dependencies": { "@algorithm.ts/lcs": "^4.0.5", "@date-fns/tz": "^1.4.1", "@dnd-kit/core": "^6.3.1", "@dnd-kit/modifiers": "^6.0.1", "@dnd-kit/sortable": "^7.0.2", "@dnd-kit/utilities": "^3.2.2", "@isaacs/ttlcache": "^1.4.1", "@juggle/resize-observer": "^3.4.0", "@mux/mux-player-react": "^3.10.2", "@portabletext/editor": "^6.6.0", "@portabletext/html": "^1.0.1", "@portabletext/patches": "^2.0.4", "@portabletext/plugin-markdown-shortcuts": "^7.0.23", "@portabletext/plugin-one-line": "^6.0.23", "@portabletext/plugin-paste-link": "^3.0.23", "@portabletext/plugin-typography": "^7.0.23", "@portabletext/react": "^6.0.3", "@portabletext/sanity-bridge": "^3.0.0", "@portabletext/to-html": "^5.0.2", "@portabletext/toolkit": "^5.0.2", "@rexxars/react-json-inspector": "^9.0.1", "@sanity/asset-utils": "^2.3.0", "@sanity/bifur-client": "^1.0.0", "@sanity/cli": "^6.3.1", "@sanity/client": "^7.18.0", "@sanity/color": "^3.0.6", "@sanity/comlink": "^4.0.1", "@sanity/diff": "5.19.0", "@sanity/diff-match-patch": "^3.2.0", "@sanity/diff-patch": "^5.0.0", "@sanity/eventsource": "^5.0.2", "@sanity/icons": "^3.7.4", "@sanity/id-utils": "^1.0.0", "@sanity/image-url": "^2.0.3", "@sanity/insert-menu": "^3.0.4", "@sanity/logos": "^2.2.2", "@sanity/media-library-types": "^1.2.0", "@sanity/message-protocol": "^0.19.0", "@sanity/migrate": "^6.0.0", "@sanity/mutate": "^0.16.1", "@sanity/mutator": "5.19.0", "@sanity/presentation-comlink": "^2.0.1", "@sanity/preview-url-secret": "^4.0.4", "@sanity/schema": "5.19.0", "@sanity/sdk": "2.1.2", "@sanity/telemetry": "^0.9.0", "@sanity/types": "5.19.0", "@sanity/ui": "^3.1.14", "@sanity/util": "5.19.0", "@sanity/uuid": "^3.0.2", "@sentry/react": "^8.55.0", "@tanstack/react-table": "^8.21.3", "@tanstack/react-virtual": "^3.13.18", "@xstate/react": "^6.0.0", "classnames": "^2.2.5", "color2k": "^2.0.3", "dataloader": "^2.2.3", "date-fns": "^4.1.0", "debug": "^4.4.3", "exif-component": "^1.0.1", "fast-deep-equal": "3.1.3", "groq-js": "^1.29.0", "history": "^5.3.0", "i18next": "^25.8.17", "is-hotkey-esm": "^1.0.0", "isomorphic-dompurify": "2.26.0", "json-reduce": "^3.0.0", "json-stable-stringify": "^1.3.0", "lodash-es": "^4.17.22", "mendoza": "^3.0.8", "motion": "^12.27.1", "nano-pubsub": "^3.0.0", "nanoid": "^3.3.11", "observable-callback": "^1.0.3", "path-to-regexp": "^6.3.0", "player.style": "^0.1.9", "polished": "^4.3.1", "quick-lru": "^7.3.0", "raf": "^3.4.1", "react-fast-compare": "^3.2.2", "react-focus-lock": "^2.13.7", "react-i18next": "15.6.1", "react-is": "^19.2.4", "react-refractor": "^4.0.0", "react-rx": "^4.2.2", "refractor": "^5.0.0", "rxjs": "^7.8.2", "rxjs-exhaustmap-with-trailing": "^2.1.1", "rxjs-mergemap-array": "^0.1.0", "scroll-into-view-if-needed": "^3.1.0", "scrollmirror": "^1.2.4", "semver": "^7.7.2", "shallow-equals": "^1.0.0", "speakingurl": "^14.0.1", "urlpattern-polyfill": "10.1.0", "use-device-pixel-ratio": "^1.1.2", "use-hot-module-reload": "^2.0.0", "use-sync-external-store": "^1.6.0", "uuid": "^11.1.0", "web-vitals": "^5.1.0", "xstate": "^5.25.1" }, "peerDependencies": { "react": "^19.2.2", "react-dom": "^19.2.2", "styled-components": "^6.1.15" }, "bin": { "sanity": "bin/sanity" } }, "sha512-PitRWXgGCxTm+/sCMQw4x5klkWoKiIp993aUSLpjhzioWfo1bunD1+lgPNKfJTGzuUtLHEbQgBvUhhnSEdTaJQ=="],
+
+    "sanity-plugin-asset-source-unsplash": ["sanity-plugin-asset-source-unsplash@7.0.5", "", { "dependencies": { "@sanity/icons": "^3.7.4", "@sanity/ui": "^3.1.13", "lodash-es": "^4.17.23", "react-photo-album": "^3.5.1" }, "peerDependencies": { "react": "^19.2", "sanity": "^5", "styled-components": "^6.1" } }, "sha512-TomywBrv77ooUeTTUS1Dgaxs5WkRJodd8mk9bng8J41Qwdq0kSujQFy0O0b8NiOkqkctGfeQi+esCQgP0UZmSw=="],
 
     "sax": ["sax@1.6.0", "", {}, "sha512-6R3J5M4AcbtLUdZmRv2SygeVaM7IhrLXu9BmnOGmmACak8fiUtOsYNWUS4uK7upbmHIBbLBeFeI//477BKLBzA=="],
 

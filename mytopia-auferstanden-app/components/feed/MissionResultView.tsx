@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/src/shared/ui/theme';
 
@@ -9,6 +9,8 @@ export interface MissionResultViewProps {
   kind: string;
   payload: any;
   earnedPoints?: number;
+  animatePoints?: boolean;
+  animationKey?: string | null;
 }
 
 /**
@@ -21,9 +23,107 @@ export function MissionResultView({
   kind,
   payload,
   earnedPoints,
+  animatePoints = false,
+  animationKey,
 }: MissionResultViewProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const lastAnimatedKeyRef = useRef<string | null>(null);
+  const [displayedPoints, setDisplayedPoints] = useState(0);
+
+  const isRejected = payload?.status === 'rejected' || payload?.action === 'rejected';
+  const normalizedStatus = payload?.status ?? 'success';
+  const normalizedEarnedPoints =
+    typeof earnedPoints === 'number'
+      ? earnedPoints
+      : isRejected
+        ? 0
+        : undefined;
+  const isFailure =
+    isRejected ||
+    (kind === 'quiz' && typeof normalizedEarnedPoints === 'number' && normalizedEarnedPoints <= 0);
+  const shouldAnimate =
+    Boolean(animatePoints) &&
+    typeof normalizedEarnedPoints === 'number' &&
+    normalizedEarnedPoints > 0;
+
+  useEffect(() => {
+    if (typeof normalizedEarnedPoints !== 'number') {
+      lastAnimatedKeyRef.current = null;
+      opacity.stopAnimation();
+      scale.stopAnimation();
+      opacity.setValue(1);
+      scale.setValue(1);
+      setDisplayedPoints(0);
+      return;
+    }
+
+    const nextAnimationKey = animationKey ?? `${missionId}:${normalizedEarnedPoints}:${normalizedStatus}`;
+    const canAnimate = shouldAnimate && nextAnimationKey !== lastAnimatedKeyRef.current;
+
+    opacity.stopAnimation();
+    scale.stopAnimation();
+
+    if (!canAnimate) {
+      setDisplayedPoints(normalizedEarnedPoints);
+      opacity.setValue(1);
+      scale.setValue(1);
+      return;
+    }
+
+    lastAnimatedKeyRef.current = nextAnimationKey;
+    setDisplayedPoints(0);
+    scale.setValue(0.9);
+    opacity.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(opacity, {
+        duration: 260,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        damping: 11,
+        mass: 0.8,
+        stiffness: 180,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    let startTime: number | null = null;
+    let animationFrameId: number | null = null;
+    const duration = 2000;
+
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = timestamp - startTime;
+      const percentage = Math.min(progress / duration, 1);
+      const eased = easeOutCubic(percentage);
+
+      const currentValue = Math.round(eased * normalizedEarnedPoints);
+      setDisplayedPoints(currentValue);
+
+      if (progress < duration) {
+        animationFrameId = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [animationKey, missionId, normalizedEarnedPoints, normalizedStatus, shouldAnimate, opacity, scale]);
+
   let resultSummary = '';
-  if (kind === 'quiz' && payload?.total > 0) {
+  if (isRejected) {
+    resultSummary = 'Beitrag nicht bestätigt';
+  } else if (kind === 'quiz' && payload?.total > 0) {
     resultSummary = `${payload.correct} / ${payload.total} richtig beantwortet`;
   } else if (kind === 'gps') {
     resultSummary = 'Standort bestaetigt';
@@ -32,10 +132,16 @@ export function MissionResultView({
   }
 
   return (
-    <View style={styles.card}>
+    <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
       <View style={styles.badgeRow}>
-        <Ionicons name="checkmark-circle" size={20} color={theme.colors.successText} />
-        <Text style={styles.badgeText}>MISSION ERLEDIGT</Text>
+        <Ionicons
+          name={isFailure ? 'close-circle' : 'checkmark-circle'}
+          size={20}
+          color={isFailure ? theme.colors.destructiveText : theme.colors.successText}
+        />
+        <Text style={[styles.badgeText, isFailure ? styles.badgeTextFailure : null]}>
+          {isFailure ? 'MISSION BEENDET' : 'MISSION ERLEDIGT'}
+        </Text>
       </View>
 
       <View style={styles.content}>
@@ -44,14 +150,17 @@ export function MissionResultView({
           <Text style={styles.resultText}>{resultSummary}</Text>
         </View>
 
-        {typeof earnedPoints === 'number' && (
+        {typeof normalizedEarnedPoints === 'number' && (
           <View style={styles.pointsContainer}>
-            <Text style={styles.pointsValue}>+{earnedPoints}</Text>
+            <View style={styles.pointsValueWrap}>
+              {normalizedEarnedPoints > 0 ? <Text style={styles.pointsPrefix}>+</Text> : null}
+              <Text style={styles.pointsValue}>{displayedPoints}</Text>
+            </View>
             <Text style={styles.pointsLabel}>Punkte erhalten</Text>
           </View>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -61,10 +170,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.06)',
+    width: '100%',
     paddingHorizontal: 18,
     paddingVertical: 16,
     minWidth: 220,
-    maxWidth: 300,
+    maxWidth: 340,
     alignSelf: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -89,6 +199,9 @@ const styles = StyleSheet.create({
     color: theme.colors.successText,
     letterSpacing: 1,
   } as TextStyle,
+  badgeTextFailure: {
+    color: theme.colors.destructiveText,
+  } as TextStyle,
   title: {
     fontSize: 15,
     fontFamily: 'NunitoSans_700Bold',
@@ -111,6 +224,17 @@ const styles = StyleSheet.create({
   pointsContainer: {
     alignItems: 'center',
   } as ViewStyle,
+  pointsValueWrap: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+  } as ViewStyle,
+  pointsPrefix: {
+    color: theme.colors.orange,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 32,
+    lineHeight: 36,
+    marginRight: 2,
+  } as TextStyle,
   pointsValue: {
     fontSize: 32,
     fontFamily: 'NunitoSans_800ExtraBold',

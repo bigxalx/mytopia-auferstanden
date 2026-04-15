@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import * as logger from 'firebase-functions/logger';
 import { firestore, messaging } from './firebase.js';
+import { upsertChannelMessage } from './channelThreads.js';
 
 import {
     V2_FCM_REGISTRATIONS_COLLECTION_PATH,
@@ -77,6 +78,15 @@ export const submissionModerated = onDocumentUpdated(
 
           logger.info('submission approved and scored', { earnedPoints, missionId, uid, submissionId: event.params.submissionId });
 
+          await writeChannelModerationUpdates({
+            afterData,
+            earnedPoints,
+            missionId,
+            outcome: 'approved',
+            submissionId: event.params.submissionId,
+            uid,
+          });
+
           // Send targeted notification
           const missionTitle = afterData.metadata?.missionTitle ?? 'Unbekannt';
           await sendTargetedNotification(uid, {
@@ -92,6 +102,14 @@ export const submissionModerated = onDocumentUpdated(
           const missionTitle = afterData.metadata?.missionTitle ?? 'Unbekannt';
 
           logger.info('submission rejected', { missionId, uid, submissionId: event.params.submissionId });
+
+          await writeChannelModerationUpdates({
+            afterData,
+            missionId,
+            outcome: 'rejected',
+            submissionId: event.params.submissionId,
+            uid,
+          });
 
           await sendTargetedNotification(uid, {
             title: 'Mission leider nicht bestätigt',
@@ -141,4 +159,83 @@ export async function sendTargetedNotification(uid: string, notification: { titl
     } catch (err) {
     logger.error('Failed to send targeted notification', { uid, error: err });
     }
+}
+
+async function writeChannelModerationUpdates({
+  afterData,
+  earnedPoints,
+  missionId,
+  outcome,
+  submissionId,
+  uid,
+}: {
+  afterData: Record<string, any>;
+  earnedPoints?: number;
+  missionId: string;
+  outcome: 'approved' | 'rejected';
+  submissionId: string;
+  uid: string;
+}) {
+  const channelMeta =
+    afterData.metadata && typeof afterData.metadata === 'object' && afterData.metadata.channelMeta && typeof afterData.metadata.channelMeta === 'object'
+      ? afterData.metadata.channelMeta
+      : null;
+  const channelId = channelMeta && typeof channelMeta.channelId === 'string' ? channelMeta.channelId : null;
+  const actorId = channelMeta && typeof channelMeta.actorId === 'string' ? channelMeta.actorId : null;
+  if (!channelId || !actorId) {
+    return;
+  }
+
+  const mode = afterData.mode === 'dev' ? 'dev' : 'production';
+  const createdAtMs = Date.now();
+  const actorName = channelMeta && typeof channelMeta.actorName === 'string' ? channelMeta.actorName : 'System';
+  const actorAvatarUrl =
+    channelMeta && typeof channelMeta.actorAvatarUrl === 'string' ? channelMeta.actorAvatarUrl : undefined;
+  const missionTitle = typeof afterData.metadata?.missionTitle === 'string' ? afterData.metadata.missionTitle : 'Mission';
+  const moderatorNote =
+    typeof afterData.moderatorNote === 'string' && afterData.moderatorNote.trim().length > 0
+      ? afterData.moderatorNote.trim()
+      : outcome === 'approved'
+        ? `Deine Mission "${missionTitle}" wurde bestätigt.`
+        : `Deine Mission "${missionTitle}" wurde leider nicht bestätigt.`;
+
+  await upsertChannelMessage({
+    actorAvatarUrl,
+    actorId,
+    actorName,
+    channelId,
+    channelType: 'actor',
+    createdAtMs,
+    incrementUnread: true,
+    messageId: `${submissionId}:moderation`,
+    mode,
+    ownerUid: uid,
+    text: moderatorNote,
+    title: actorName,
+  });
+
+  await upsertChannelMessage({
+    actorId,
+    channelId,
+    channelType: 'actor',
+    createdAtMs: createdAtMs + 1,
+    incrementUnread: true,
+    isUser: false,
+    messageId: `${submissionId}:result`,
+    mode,
+    ownerUid: uid,
+    title: actorName,
+    attachment: {
+      _type: 'missionResultAttachment',
+      earnedPoints,
+      kind: afterData.sourceType ?? 'mission',
+      missionId,
+      missionTitle,
+      payload: {
+        action: outcome,
+        moderatorNote,
+        status: outcome,
+      },
+    },
+  });
 }

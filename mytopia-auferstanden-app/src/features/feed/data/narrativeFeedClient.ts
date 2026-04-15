@@ -12,6 +12,8 @@ export type NarrativeAttachmentDto =
   | {
     _type: 'systemAttachment';
     kind: 'neutral' | 'prominent';
+    actionLabel?: string;
+    actionType?: 'resumeMission';
   }
   | {
     _type: 'imageAttachment';
@@ -81,6 +83,7 @@ export type NarrativeAttachmentDto =
 
 export type NarrativeMessageDto = {
   actor: {
+    actorId?: string;
     avatarUrl?: string;
     name: string;
     nameColor?: string;
@@ -302,6 +305,9 @@ function normalizeActor(value: unknown): NarrativeMessageDto['actor'] | null {
   }
 
   return {
+    ...((typeof raw.actorId === 'string' && raw.actorId.length > 0) || (typeof raw._id === 'string' && raw._id.length > 0)
+      ? { actorId: (typeof raw.actorId === 'string' && raw.actorId.length > 0 ? raw.actorId : raw._id) as string }
+      : {}),
     ...(typeof raw.avatarUrl === 'string' && raw.avatarUrl.length > 0
       ? { avatarUrl: raw.avatarUrl }
       : {}),

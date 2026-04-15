@@ -15,6 +15,8 @@ import { AppImage } from '@/src/shared/ui/AppImage';
 
 export function AttachmentView({
   attachment,
+  animateAttachment,
+  resultAnimationKey,
   gallerySources,
   onImagePress,
   userInteraction,
@@ -22,6 +24,8 @@ export function AttachmentView({
   actor,
 }: {
   attachment: NarrativeAttachmentDto;
+  animateAttachment?: boolean;
+  resultAnimationKey?: string | null;
   gallerySources: { uri: string }[];
   onImagePress: (index: number) => void;
   userInteraction?: boolean;
@@ -51,7 +55,13 @@ export function AttachmentView({
     case 'submissionAttachment':
       return <SubmissionAttachmentView {...attachment} messageText={messageText} />;
     case 'missionResultAttachment':
-      return <MissionResultView {...attachment} />;
+      return (
+        <MissionResultView
+          {...attachment}
+          animatePoints={animateAttachment}
+          animationKey={resultAnimationKey}
+        />
+      );
     case 'scorecardAttachment':
       return <ScorecardBubble correct={attachment.correct} total={attachment.total} />;
     default:

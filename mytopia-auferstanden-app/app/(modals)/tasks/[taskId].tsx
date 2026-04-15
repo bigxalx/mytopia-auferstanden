@@ -140,8 +140,14 @@ export default function TaskDetailScreen() {
     return { action: result.action };
   }, [mission, selectedMode, router]);
 
-  const handlePhotoComplete = useCallback(async (photoUri: string) => {
+  const handlePhotoComplete = useCallback(async ({
+    upload,
+  }: {
+    localUri: string;
+    upload: (onProgress?: (progress: number) => void) => Promise<string>;
+  }) => {
     if (!mission) throw new Error('Mission not loaded.');
+    const photoUri = await upload();
     const result = await submitPhotoMission(mission._id, photoUri, selectedMode);
 
     if (result.action === 'submitted') {
@@ -303,7 +309,10 @@ function renderMissionBody({
   missionStatus,
 }: {
   handleGpsComplete: () => Promise<{ earned: number }>;
-  handlePhotoComplete: (photoUri: string) => Promise<{ action: string }>;
+  handlePhotoComplete: (params: {
+    localUri: string;
+    upload: (onProgress?: (progress: number) => void) => Promise<string>;
+  }) => Promise<{ action: string }>;
   handleQuizComplete: (answers: number[]) => Promise<{ correct: number; earned: number; total: number }>;
   handleTextComplete: (text: string) => Promise<{ action: string }>;
   mission: MissionListItem;

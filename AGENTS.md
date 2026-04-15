@@ -50,3 +50,12 @@
 - **Native Path Parsing:** To extract amplitude data via `react-native-audio-analyzer` (`computeAmplitude`), the path must be an absolute file path WITHOUT the `file://` prefix. Always format and cache downloaded audio with valid extensions.
 - **Waveform UI Rendering:** Implement waveforms using flat SVG components (e.g. mapping simple `<Rect>` elements and calculating sub-pixel `barW` and `gapW`). Avoid using `<ClipPath>` for playback progress tracking, as React Native SVG struggles to dynamically invalidate standard SVG nodes masked inside ClipPaths natively on Android.
 - **Playback Animation Smoothness:** Pass `{ updateInterval: 50 }` to `useAudioPlayer` from `expo-audio` to lock progress rendering to ~20FPS or better for buttery smooth waveform sweeps.
+
+## Missions & Active Channels
+
+- **Submission API Limits:** Never use raw repository submit calls (like `submitTextMission`, `submitGpsCompletion`) inside channel elements. 
+- **Active Context Default:** Always employ `completeMission(missionId, payload)` provided by `useActiveMission()`. It injects necessary `channelMeta` so moderation pipelines can return feedback directly, and creates immediate optimistic `submissionAttachment` feed bubbles so the UI provides immediate response certainty.
+- **Mission Input Chrome:** Keep inline mission input UIs clean and minimal. Do not reintroduce the old left accent bar or `Aktive Mission` label in chat composers.
+- **System Message Tone:** Chat status/system messages should stay in normal sentence case, not forced uppercase, and keep vertical spacing tight.
+- **GPS Chat UI:** Embedded GPS mission UI should use a standard rectangular map thumbnail, centered `Wegbeschreibung` CTA, and only show `Einchecken` once the user is inside the target radius.
+- See `docs/actor-channel-submissions.md` for extended details.

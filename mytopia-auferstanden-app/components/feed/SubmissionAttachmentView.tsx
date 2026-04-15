@@ -3,7 +3,6 @@ import { theme } from '@/src/shared/ui/theme';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { AppImage } from '@/src/shared/ui/AppImage';
 import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
-import { MissionReference } from './MissionReference';
 
 export type SubmissionStatus = 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
 
@@ -32,27 +31,24 @@ export function SubmissionAttachmentView({
   messageText?: string;
 }) {
   const effectiveText = payload?.text || messageText;
+  const isCompact = kind === 'text' || kind === 'quiz';
+  const isMediaLike = kind === 'photo' || kind === 'gps';
 
   return (
-    <View style={styles.container}>
-      {/* 1. Unified Header (The referenced mission) */}
-      <MissionReference
-        missionId={missionId}
-        missionTitle={missionTitle}
-        compact
-        style={styles.header}
-      />
-
-      {/* 2. Answer Content Area */}
-      <View style={styles.answerArea}>
-        {/* Text Answer */}
+    <View
+      style={[
+        styles.container,
+        isCompact ? styles.containerCompact : null,
+        isMediaLike ? styles.containerMedia : null,
+      ]}
+    >
+      <View style={[styles.answerArea, isCompact ? styles.answerAreaCompact : null]}>
         {kind === 'text' && (
-          <View style={styles.textAnswerBox}>
+          <View style={[styles.textAnswerBox, styles.compactBlock]}>
             <Text style={styles.answerText}>{effectiveText || ''}</Text>
           </View>
         )}
 
-        {/* Photo Answer */}
         {kind === 'photo' && (typeof payload === 'string' || payload?.photoUrl || payload?.photoPath) && (
           <View style={styles.photoContainer}>
             <AppImage 
@@ -63,9 +59,8 @@ export function SubmissionAttachmentView({
           </View>
         )}
 
-        {/* Quiz submission state */}
         {kind === 'quiz' && (
-          <View style={styles.quizBox}>
+          <View style={[styles.quizBox, isCompact ? styles.compactBlock : null]}>
             {payload?.answerText ? (
               <View style={styles.quizAnswerRow}>
                 <Ionicons name="radio-button-on" size={14} color={theme.colors.cardTextSecondary} />
@@ -80,12 +75,10 @@ export function SubmissionAttachmentView({
           </View>
         )}
 
-        {/* GPS Answer */}
         {kind === 'gps' && <GpsPinSection status={status} />}
       </View>
 
-      {/* 3. Status Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, isCompact ? styles.footerCompact : null]}>
         <StatusIndicator status={status} payload={payload} />
       </View>
     </View>
@@ -119,7 +112,11 @@ function StatusIndicator({ status, payload }: { status: SubmissionStatus; payloa
     case 'sending':
       return (
         <View style={styles.statusRow}>
-          <Text style={styles.statusText}>Sende...</Text>
+          <Text style={styles.statusText}>
+            {typeof payload?.uploadProgress === 'number'
+              ? `Sende... ${payload.uploadProgress}%`
+              : 'Sende...'}
+          </Text>
           <ActivityIndicator size="small" color="#666" style={{ transform: [{ scale: 0.6 }] }} />
         </View>
       );
@@ -160,51 +157,36 @@ function StatusIndicator({ status, payload }: { status: SubmissionStatus; payloa
 
 const styles = StyleSheet.create({
   container: {
-    minWidth: 220,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  } as ViewStyle,
+  containerCompact: {
+    flexShrink: 1,
+    minWidth: 0,
+  } as ViewStyle,
+  containerMedia: {
     alignSelf: 'stretch',
-    borderRadius: 14,
-    overflow: 'hidden',
   } as ViewStyle,
-  header: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 14,
-    padding: 6,
-    gap: 8,
-  } as ViewStyle,
-  headerIndicator: {
-    width: 3,
-    backgroundColor: theme.colors.orange,
-    borderTopLeftRadius: 4,
-    borderBottomLeftRadius: 4,
-  } as ViewStyle,
-  headerContent: {
-    flex: 1,
-    paddingRight: 4,
-    justifyContent: 'center',
-  } as ViewStyle,
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  } as ViewStyle,
-  missionTitle: {
-    fontSize: 12,
-    fontFamily: 'NunitoSans_700Bold',
-    color: 'rgba(0,0,0,0.6)',
-  } as TextStyle,
   answerArea: {
     paddingVertical: 2,
     gap: 8,
   } as ViewStyle,
+  answerAreaCompact: {
+    alignSelf: 'flex-start',
+    minWidth: 0,
+  } as ViewStyle,
+  compactBlock: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  } as ViewStyle,
   textAnswerBox: {
-    // Background removed as requested
+    paddingVertical: 2,
   } as ViewStyle,
   answerText: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'NunitoSans_400Regular',
     color: '#1f2937',
-    lineHeight: 22,
+    lineHeight: 20,
   } as TextStyle,
   photoContainer: {
     borderRadius: 12,
@@ -303,8 +285,12 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   } as TextStyle,
   footer: {
+    marginTop: 8,
     paddingBottom: 2,
     alignItems: 'flex-end',
+  } as ViewStyle,
+  footerCompact: {
+    alignSelf: 'flex-start',
   } as ViewStyle,
   statusRow: {
     flexDirection: 'row',

@@ -2,6 +2,7 @@ import { defineConfig } from 'sanity';
 import { structureTool } from 'sanity/structure';
 import { googleMapsInput } from '@sanity/google-maps-input';
 import { colorInput } from '@sanity/color-input';
+import { unsplashImageAsset } from 'sanity-plugin-asset-source-unsplash';
 import { CogIcon } from '@sanity/icons';
 
 import { schemaTypes } from './schemas';
@@ -62,6 +63,7 @@ export default defineConfig({
       defaultLocation: { lat: 50.9847, lng: 12.4364 }, // Altenburg, Germany
     }),
     colorInput(),
+    unsplashImageAsset(),
   ],
   schema: {
     types: schemaTypes,

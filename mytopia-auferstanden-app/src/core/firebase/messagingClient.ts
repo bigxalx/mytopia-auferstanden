@@ -6,7 +6,9 @@ import * as messaging from '@react-native-firebase/messaging';
 const { 
   getMessaging, 
   getToken, 
+  getInitialNotification,
   onMessage,
+  onNotificationOpenedApp,
   subscribeToTopic: firebaseSubscribeToTopic, 
   unsubscribeFromTopic: firebaseUnsubscribeFromTopic,
   requestPermission: firebaseRequestPermission,
@@ -15,7 +17,9 @@ const {
 } = messaging || {
   getMessaging: () => null,
   getToken: async () => null,
+  getInitialNotification: async () => null,
   onMessage: () => () => {},
+  onNotificationOpenedApp: () => () => {},
   subscribeToTopic: async () => {},
   unsubscribeFromTopic: async () => {},
   requestPermission: async () => 0,
@@ -178,6 +182,35 @@ export function subscribeToForegroundNarrativeMessages(
   }
 }
 
+export async function getInitialNarrativeNotificationOpen(): Promise<FcmNarrativePayload | null> {
+  try {
+    const instance = getMessaging();
+    const remoteMessage: any = await getInitialNotification(instance);
+    return extractNarrativePayload(remoteMessage);
+  } catch (error) {
+    if (!isNoDefaultFirebaseAppError(error)) {
+      console.warn('[messaging] Failed to fetch initial notification open.', error);
+    }
+    return null;
+  }
+}
+
+export function subscribeToNarrativeNotificationOpens(
+  callback: (payload: FcmNarrativePayload | null) => void
+) {
+  try {
+    const instance = getMessaging();
+    return onNotificationOpenedApp(instance, (remoteMessage: any) => {
+      callback(extractNarrativePayload(remoteMessage));
+    });
+  } catch (error) {
+    if (!isNoDefaultFirebaseAppError(error)) {
+      console.warn('[messaging] Failed to subscribe to notification opens.', error);
+    }
+    return () => undefined;
+  }
+}
+
 let backgroundHandlerRegistered = false;
 
 export function registerBackgroundNarrativeHandler() {
@@ -208,3 +241,15 @@ function isNoDefaultFirebaseAppError(error: unknown) {
   return typeof message === 'string' && message.includes("No Firebase App '[DEFAULT]'");
 }
 
+function extractNarrativePayload(remoteMessage: any): FcmNarrativePayload | null {
+  const data = (remoteMessage?.data ?? {}) as Record<string, string>;
+  if (data.eventType === 'release' || data.bundleId || data.route) {
+    return {
+      bundleId: data.bundleId,
+      eventType: data.eventType,
+      route: data.route,
+    };
+  }
+
+  return null;
+}
