@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
 
 type TextRunnerProps = {
@@ -47,38 +48,21 @@ export function TextRunner({ onComplete, embedded = false }: TextRunnerProps) {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <Pressable
-          disabled={isSubmitting || !text.trim()}
-          onPress={handleSubmit}
-          style={[styles.actionButton, styles.submitButton, (isSubmitting || !text.trim()) ? styles.actionButtonDisabled : null]}
-      >
-          <Text style={styles.actionButtonText}>
-              {isSubmitting ? 'Wird gesendet...' : 'Einreichen'}
-          </Text>
-      </Pressable>
+      <AppButton
+        disabled={isSubmitting || !text.trim()}
+        fullWidth
+        label={isSubmitting ? 'Wird gesendet...' : 'Einreichen'}
+        loading={isSubmitting}
+        onPress={() => {
+          void handleSubmit();
+        }}
+        variant="primary"
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
-      alignItems: 'center',
-      backgroundColor: theme.colors.cardSubtleBackground,
-      borderColor: theme.colors.cardBorder,
-      borderRadius: 10,
-      borderWidth: 1,
-      paddingVertical: 14,
-  },
-  actionButtonDisabled: {
-      opacity: 0.4,
-  },
-  actionButtonText: {
-      ...theme.typography.button,
-  },
-  submitButton: {
-      backgroundColor: theme.colors.orange,
-      borderColor: theme.colors.orange,
-  },
   container: {
     backgroundColor: theme.colors.beige,
     borderRadius: 16,

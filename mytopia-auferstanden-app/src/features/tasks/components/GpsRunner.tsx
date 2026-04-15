@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
+import { requestForegroundLocationPermission, getForegroundLocationPermissionStatus } from '@/src/core/location/locationPermissionClient';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
 import { GpsMap } from '@/src/features/tasks/components/GpsMap';
@@ -44,6 +46,26 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
 
     useEffect(() => {
         let isActive = true;
+
+        void getForegroundLocationPermissionStatus().then((status) => {
+            if (!isActive) {
+                return;
+            }
+
+            setPermissionStatus(status);
+        });
+
+        return () => {
+            isActive = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (permissionStatus !== 'granted') {
+            return;
+        }
+
+        let isActive = true;
         let subscription: Location.LocationSubscription | null = null;
 
         const applyLocation = (coords: { latitude: number; longitude: number }) => {
@@ -62,18 +84,6 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
         };
 
         async function startWatching() {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                if (isActive) {
-                    setPermissionStatus('denied');
-                }
-                return;
-            }
-
-            if (isActive) {
-                setPermissionStatus('granted');
-            }
-
             try {
                 const currentLocation = await Location.getCurrentPositionAsync({
                     accuracy: Location.Accuracy.Balanced,
@@ -101,13 +111,18 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
             );
         }
 
-        startWatching();
+        void startWatching();
 
         return () => {
             isActive = false;
             subscription?.remove();
         };
-    }, [target.latitude, target.longitude]);
+    }, [permissionStatus, target.latitude, target.longitude]);
+
+    const handleRequestPermission = useCallback(async () => {
+        const status = await requestForegroundLocationPermission();
+        setPermissionStatus(status);
+    }, []);
 
     if (result) {
         const content = (
@@ -125,18 +140,34 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
             : <SectionCard title="Check-in erfolgreich">{content}</SectionCard>;
     }
 
-    if (permissionStatus === 'denied') {
+    if (permissionStatus === 'denied' || permissionStatus === 'undetermined') {
+        const isUndetermined = permissionStatus === 'undetermined';
         const content = (
             <View style={styles.permissionContainer}>
                 <Text style={styles.body}>
-                    Diese Mission benötigt Zugriff auf deinen Standort.
+                    {isUndetermined
+                        ? 'Diese Mission benötigt Standortzugriff, bevor du die Entfernung und den Check-in sehen kannst.'
+                        : 'Diese Mission benötigt Zugriff auf deinen Standort.'}
                 </Text>
                 <Text style={styles.hintText}>
-                    Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.
+                    {isUndetermined
+                        ? 'Der Zugriff wird nur für GPS-Missionen und die Anzeige deiner Entfernung verwendet.'
+                        : 'Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.'}
                 </Text>
-                <Pressable onPress={() => Linking.openSettings()} style={styles.settingsButton}>
-                    <Text style={styles.settingsButtonText}>Einstellungen öffnen</Text>
-                </Pressable>
+                <AppButton
+                    fullWidth
+                    label={isUndetermined ? 'Standort freigeben' : 'Einstellungen öffnen'}
+                    onPress={() => {
+                        if (isUndetermined) {
+                            void handleRequestPermission();
+                            return;
+                        }
+
+                        void Linking.openSettings();
+                    }}
+                    style={styles.settingsButton}
+                    variant={isUndetermined ? 'primary' : 'secondary'}
+                />
             </View>
         );
 
@@ -204,21 +235,15 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
                 </View>
 
                 {isInRange ? (
-                    <Pressable
-                        disabled={isSubmitting}
-                        onPress={handleCheckIn}
-                        style={({ pressed }) => [
-                            styles.compactCheckInButton,
-                            isSubmitting ? styles.checkInButtonDisabled : null,
-                            pressed && { opacity: 0.7 }
-                        ]}
-                    >
-                        {isSubmitting ? (
-                            <ActivityIndicator size="small" color="white" />
-                        ) : (
-                            <Text style={styles.compactCheckInButtonText}>Einchecken</Text>
-                        )}
-                    </Pressable>
+                    <AppButton
+                        fullWidth
+                        label="Einchecken"
+                        loading={isSubmitting}
+                        onPress={() => {
+                            void handleCheckIn();
+                        }}
+                        variant="primary"
+                    />
                 ) : null}
 
                 {error ? <Text style={styles.compactErrorText}>{error}</Text> : null}
@@ -258,30 +283,25 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             {!isInRange ? (
-                <Pressable
+                <AppButton
+                    fullWidth
+                    label="Wegbeschreibung"
                     onPress={() => {
                         void handleOpenDirections();
                     }}
-                    style={({ pressed }) => [
-                        styles.directionsCta,
-                        pressed && { opacity: 0.7 },
-                    ]}
-                >
-                    <Text style={styles.directionsCtaText}>Wegbeschreibung</Text>
-                </Pressable>
+                    variant="secondary"
+                />
             ) : (
-                <Pressable
+                <AppButton
                     disabled={isSubmitting}
-                    onPress={handleCheckIn}
-                    style={[
-                        styles.checkInButton,
-                        isSubmitting ? styles.checkInButtonDisabled : null,
-                    ]}
-                >
-                    <Text style={styles.checkInButtonText}>
-                        {isSubmitting ? 'Check-in läuft…' : 'Einchecken'}
-                    </Text>
-                </Pressable>
+                    fullWidth
+                    label={isSubmitting ? 'Check-in läuft…' : 'Einchecken'}
+                    loading={isSubmitting}
+                    onPress={() => {
+                        void handleCheckIn();
+                    }}
+                    variant="primary"
+                />
             )}
         </View>
     );
@@ -320,18 +340,6 @@ const styles = StyleSheet.create({
         color: theme.colors.cardTextPrimary,
         fontSize: 14,
         lineHeight: 20,
-    },
-    checkInButton: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.orange,
-        borderRadius: 10,
-        paddingVertical: 14,
-    },
-    checkInButtonDisabled: {
-        opacity: 0.4,
-    },
-    checkInButtonText: {
-        ...theme.typography.button,
     },
     container: {
         gap: 16,
@@ -390,14 +398,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     settingsButton: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.orange,
-        borderRadius: 10,
         marginTop: 12,
-        paddingVertical: 12,
-    },
-    settingsButtonText: {
-        ...theme.typography.button,
     },
     resultContainer: {
         gap: 12,
@@ -486,37 +487,10 @@ const styles = StyleSheet.create({
         color: theme.colors.orange,
         textTransform: 'uppercase',
     },
-    compactCheckInButton: {
-        backgroundColor: theme.colors.orange,
-        borderRadius: 20,
-        paddingVertical: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    compactCheckInButtonText: {
-        color: 'white',
-        fontSize: 13,
-        fontFamily: 'Nunito_700Bold',
-        textTransform: 'uppercase',
-    },
     compactErrorText: {
         fontSize: 10,
         color: theme.colors.destructiveText,
         textAlign: 'center',
-    },
-    directionsCta: {
-        alignItems: 'center',
-        alignSelf: 'stretch',
-        borderColor: theme.colors.orange,
-        borderRadius: 10,
-        borderWidth: 1,
-        paddingVertical: 12,
-    },
-    directionsCtaText: {
-        color: theme.colors.orange,
-        fontFamily: 'NunitoSans_700Bold',
-        fontSize: 13,
-        textTransform: 'uppercase',
     },
     compactResult: {
         paddingVertical: 4,

@@ -7,6 +7,8 @@ import MapView, { Circle, Marker, type MapPressEvent } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppImage } from '@/src/shared/ui/AppImage';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { getForegroundLocationPermissionStatus, requestForegroundLocationPermission } from '@/src/core/location/locationPermissionClient';
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { fetchMissions, type MissionListItem } from '@/src/features/tasks/data/missionRepository';
@@ -102,20 +104,20 @@ export default function MapScreen() {
     }, []);
 
     useEffect(() => {
-        async function requestPermission() {
-            const { status } = await Location.requestForegroundPermissionsAsync();
+        async function loadPermissionStatus() {
+            const status = await getForegroundLocationPermissionStatus();
             if (!isMountedRef.current) {
                 return;
             }
 
-            setPermissionStatus(status === 'granted' ? 'granted' : 'denied');
+            setPermissionStatus(status);
 
             if (status === 'granted') {
                 await loadCurrentLocation();
             }
         }
 
-        requestPermission();
+        void loadPermissionStatus();
     }, []);
 
     useEffect(() => {
@@ -164,14 +166,17 @@ export default function MapScreen() {
         };
     }, [selectedMode]);
 
-    const displayMissionPoints: DisplayMissionMapPoint[] = missions.map((mission) => {
+    const displayMissionPoints: DisplayMissionMapPoint[] = missions.flatMap((mission) => {
         const gpsConfig = mission.gpsConfig;
+        if (!gpsConfig) {
+            return [];
+        }
 
         const isCompleted = completedMissions.includes(mission._id);
         const submissionState = submissionStates[mission._id];
         const isPending = submissionState?.status === 'pending';
 
-        return {
+        return [{
             description: mission.description,
             id: mission._id,
             imageUrl: mission.imageUrl,
@@ -182,7 +187,7 @@ export default function MapScreen() {
             radiusMeters: gpsConfig.radiusMeters,
             title: mission.title,
             type: 'mission',
-        };
+        }];
     });
 
     const displayPoints: DisplayMapPoint[] = [...displayMissionPoints, ...checkpoints];
@@ -301,20 +306,53 @@ export default function MapScreen() {
         });
     };
 
-    if (permissionStatus === 'denied') {
+    const handleRequestPermission = async () => {
+        const status = await requestForegroundLocationPermission();
+        if (!isMountedRef.current) {
+            return;
+        }
+
+        setPermissionStatus(status);
+        if (status === 'granted') {
+            await loadCurrentLocation();
+        }
+    };
+
+    if (permissionStatus === 'denied' || permissionStatus === 'undetermined') {
+        const isUndetermined = permissionStatus === 'undetermined';
+
         return (
             <View style={styles.screen}>
                 <View style={[styles.permissionContent, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-                    <SectionCard title="Standortzugriff benötigt">
+                    <SectionCard title={isUndetermined ? 'Standortzugriff erlauben' : 'Standortzugriff benötigt'}>
                         <Text style={styles.body}>
-                            Um die Karte und GPS-Missionen nutzen zu können, benötigen wir Zugriff auf deinen Standort.
+                            {isUndetermined
+                                ? 'Für Karte und GPS-Missionen benötigen wir Zugriff auf deinen Standort.'
+                                : 'Um die Karte und GPS-Missionen nutzen zu können, benötigen wir Zugriff auf deinen Standort.'}
                         </Text>
-                        <Text style={styles.hint}>
-                            Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.
-                        </Text>
-                        <Pressable onPress={() => Linking.openSettings()} style={styles.settingsButton}>
-                            <Text style={styles.settingsButtonText}>Einstellungen öffnen</Text>
-                        </Pressable>
+                        {isUndetermined ? (
+                            <Text style={styles.hint}>
+                                Der Zugriff wird nur benötigt, um deinen Standort auf der Karte anzuzeigen und GPS-Missionen zu prüfen.
+                            </Text>
+                        ) : (
+                            <Text style={styles.hint}>
+                                Du kannst den Zugriff jederzeit in den Systemeinstellungen unter Datenschutz → Ortungsdienste ändern.
+                            </Text>
+                        )}
+                        <AppButton
+                            fullWidth
+                            label={isUndetermined ? 'Standort freigeben' : 'Einstellungen öffnen'}
+                            onPress={() => {
+                                if (isUndetermined) {
+                                    void handleRequestPermission();
+                                    return;
+                                }
+
+                                void Linking.openSettings();
+                            }}
+                            style={styles.settingsButton}
+                            variant={isUndetermined ? 'primary' : 'secondary'}
+                        />
                     </SectionCard>
                 </View>
             </View>
@@ -534,14 +572,15 @@ export default function MapScreen() {
                                 </View>
                             )}
 
-                            <Pressable
+                            <AppButton
+                                fullWidth
+                                label="Wegbeschreibung"
                                 onPress={() => {
                                     void handleOpenDirections(presentedPoint);
                                 }}
-                                style={({ pressed }) => [styles.directionsButton, pressed && styles.directionsButtonPressed]}
-                            >
-                                <Text style={styles.directionsButtonText}>Wegbeschreibung</Text>
-                            </Pressable>
+                                style={styles.directionsButton}
+                                variant="primary"
+                            />
                         </Animated.View>
                     </View>
                 ) : null}
@@ -640,19 +679,9 @@ const styles = StyleSheet.create({
         lineHeight: 24,
     } as TextStyle,
     directionsButton: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.orange,
         margin: 16,
         marginTop: 4,
-        borderRadius: 12,
-        paddingVertical: 14,
     } as ViewStyle,
-    directionsButtonPressed: {
-        opacity: 0.85,
-    } as ViewStyle,
-    directionsButtonText: {
-        ...theme.typography.button,
-    } as TextStyle,
     hint: {
         color: theme.colors.cardTextSecondary,
         fontSize: 13,
@@ -714,11 +743,6 @@ const styles = StyleSheet.create({
         width: 10,
     },
     settingsButton: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.orange,
-        borderRadius: 10,
         marginTop: 16,
-        paddingVertical: 12,
-    },
-    settingsButtonText: theme.typography.button,
+    } as ViewStyle,
 });

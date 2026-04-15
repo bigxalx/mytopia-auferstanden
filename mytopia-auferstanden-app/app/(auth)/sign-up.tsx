@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
-import { Screen } from '@/src/shared/ui/Screen';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
 
@@ -54,85 +54,81 @@ export default function SignUpScreen() {
   }
 
   return (
-    <Screen
-      title="Registrieren"
-      backgroundColor="transparent"
-      headerShown={false}
-      noPadding
+    <ScrollView
+      contentContainerStyle={styles.formContainer}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.formContainer}>
-        <SectionCard title="Registrieren">
-          {feedback ? (
-            <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
-              <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
-                {feedback.text}
-              </Text>
-            </View>
-          ) : null}
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="E-Mail"
-            placeholderTextColor={theme.colors.cardTextMuted}
-            style={styles.input}
-            value={email}
-          />
-          <TextInput
-            onChangeText={setPassword}
-            placeholder="Passwort (mind. 6 Zeichen)"
-            placeholderTextColor={theme.colors.cardTextMuted}
-            secureTextEntry
-            style={styles.input}
-            value={password}
-          />
-          <TextInput
-            onChangeText={setConfirmPassword}
-            placeholder="Passwort bestätigen"
-            placeholderTextColor={theme.colors.cardTextMuted}
-            secureTextEntry
-            style={styles.input}
-            value={confirmPassword}
-          />
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSubmitting || email.trim().length === 0}
-            onPress={handleSignUp}
-            style={[styles.button, (isSubmitting || email.trim().length === 0) && styles.buttonDisabled]}
-          >
-            <Text style={styles.buttonText}>{isSubmitting ? 'Konto wird erstellt...' : 'Konto erstellen'}</Text>
-          </Pressable>
-          <View style={styles.privacyCardContainer}>
-            <Text style={styles.privacyText}>
-              Durch das Anmelden akzeptierst du unsere{' '}
-              <Text
-                style={styles.privacyLink}
-                onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')}
-              >
-                Datenschutzbestimmungen
-              </Text>
-              .
+      <SectionCard title="Registrieren">
+        {feedback ? (
+          <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
+            <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
+              {feedback.text}
             </Text>
           </View>
+        ) : null}
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          onChangeText={setEmail}
+          placeholder="E-Mail"
+          placeholderTextColor={theme.colors.cardTextMuted}
+          style={styles.input}
+          value={email}
+        />
+        <TextInput
+          onChangeText={setPassword}
+          placeholder="Passwort (mind. 6 Zeichen)"
+          placeholderTextColor={theme.colors.cardTextMuted}
+          secureTextEntry
+          style={styles.input}
+          value={password}
+        />
+        <TextInput
+          onChangeText={setConfirmPassword}
+          placeholder="Passwort bestätigen"
+          placeholderTextColor={theme.colors.cardTextMuted}
+          secureTextEntry
+          style={styles.input}
+          value={confirmPassword}
+        />
+        <AppButton
+          disabled={email.trim().length === 0}
+          fullWidth
+          label={isSubmitting ? 'Konto wird erstellt...' : 'Konto erstellen'}
+          loading={isSubmitting}
+          onPress={() => {
+            void handleSignUp();
+          }}
+          variant="primary"
+        />
+        <View style={styles.privacyCardContainer}>
+          <Text style={styles.privacyText}>
+            Durch das Anmelden akzeptierst du unsere{' '}
+            <Text
+              style={styles.privacyLink}
+              onPress={() => Linking.openURL('https://mytopia.world/privacy')}
+            >
+              Datenschutzbestimmungen
+            </Text>
+            .
+          </Text>
+        </View>
+      </SectionCard>
 
-        </SectionCard>
-
-        <SectionCard title="Bereits ein Konto?" backgroundColor={theme.colors.accent}>
-          <Pressable
-            accessibilityRole="button"
-            style={styles.secondaryButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.secondaryButtonText}>Zurück zur Anmeldung</Text>
-          </Pressable>
-        </SectionCard>
-      </View>
-    </Screen>
+      <SectionCard title="Bereits ein Konto?" backgroundColor={theme.colors.accent}>
+        <AppButton fullWidth label="Zurück zur Anmeldung" onPress={() => router.back()} variant="secondary" />
+      </SectionCard>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  formContainer: {
+    gap: 16,
+    paddingBottom: 24,
+  },
   privacyCardContainer: {
     marginTop: 4,
     paddingHorizontal: 8,
@@ -148,22 +144,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
-  formContainer: {
-    padding: 20,
-    gap: 16,
-  },
-  button: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.orange,
-    borderRadius: 10,
-    marginTop: 6,
-    paddingVertical: 12,
-  },
-  buttonDisabled: {
-    backgroundColor: theme.colors.disabledSurface,
-    opacity: 0.6,
-  },
-  buttonText: theme.typography.button,
   feedback: {
     borderRadius: 10,
     borderWidth: 1,
@@ -196,15 +176,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
-  secondaryButton: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.cardSubtleBackground,
-    borderColor: theme.colors.cardBorder,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: theme.typography.button,
 });
 
 function hasValidEmail(value: string) {

@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
@@ -41,9 +42,7 @@ export default function WelcomeBackScreen() {
         <Text style={styles.body}>
           Deine alte Punktzahl wird nur als Referenz gespeichert. Alle Wettbewerbe in dieser App basieren auf den neuen v2-Saisondaten.
         </Text>
-        <Pressable accessibilityRole="button" onPress={continueToFeed} style={styles.button}>
-          <Text style={styles.buttonText}>Weiter zum Feed</Text>
-        </Pressable>
+        <AppButton fullWidth label="Weiter zum Feed" onPress={continueToFeed} variant="primary" />
       </SectionCard>
     </Screen>
   );
@@ -55,14 +54,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  button: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.orange,
-    borderRadius: 10,
-    marginTop: 6,
-    paddingVertical: 12,
-  },
-  buttonText: theme.typography.button,
   label: {
     color: theme.colors.cardTextSecondary,
     flex: 1,

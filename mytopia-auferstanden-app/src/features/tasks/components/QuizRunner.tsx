@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
 import { QuizResultCard } from './QuizResultCard';
 
@@ -93,23 +94,24 @@ export function QuizRunner({ embedded = false, missionId: _missionId, missionTit
 
             <View style={styles.footer}>
                 {isLastQuestion ? (
-                    <Pressable
+                    <AppButton
                         disabled={!hasSelected || isSubmitting}
-                        onPress={handleSubmit}
-                        style={[styles.actionButton, styles.submitButton, (!hasSelected || isSubmitting) ? styles.actionButtonDisabled : null]}
-                    >
-                        <Text style={styles.actionButtonText}>
-                            {isSubmitting ? 'Wird ausgewertet…' : 'Auswerten'}
-                        </Text>
-                    </Pressable>
+                        fullWidth
+                        label={isSubmitting ? 'Wird ausgewertet…' : 'Auswerten'}
+                        loading={isSubmitting}
+                        onPress={() => {
+                            void handleSubmit();
+                        }}
+                        variant="primary"
+                    />
                 ) : (
-                    <Pressable
+                    <AppButton
                         disabled={!hasSelected}
+                        fullWidth
+                        label="Weiter"
                         onPress={handleNext}
-                        style={[styles.actionButton, !hasSelected ? styles.actionButtonDisabled : null]}
-                    >
-                        <Text style={styles.actionButtonText}>Weiter</Text>
-                    </Pressable>
+                        variant="secondary"
+                    />
                 )}
             </View>
         </View>
@@ -117,20 +119,6 @@ export function QuizRunner({ embedded = false, missionId: _missionId, missionTit
 }
 
 const styles = StyleSheet.create({
-    actionButton: {
-        alignItems: 'center',
-        backgroundColor: theme.colors.cardSubtleBackground,
-        borderColor: theme.colors.cardBorder,
-        borderRadius: 10,
-        borderWidth: 1,
-        paddingVertical: 14,
-    },
-    actionButtonDisabled: {
-        opacity: 0.4,
-    },
-    actionButtonText: {
-        ...theme.typography.button,
-    },
     container: {
         gap: 16,
     },
@@ -187,9 +175,5 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: '600',
         lineHeight: 24,
-    },
-    submitButton: {
-        backgroundColor: theme.colors.orange,
-        borderColor: theme.colors.orange,
     },
 });

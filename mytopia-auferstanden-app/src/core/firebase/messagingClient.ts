@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { env } from '@/src/config/env';
 import { type AppMode } from '@/src/core/session/appMode';
@@ -9,6 +10,7 @@ const {
   getInitialNotification,
   onMessage,
   onNotificationOpenedApp,
+  hasPermission: firebaseHasPermission,
   subscribeToTopic: firebaseSubscribeToTopic, 
   unsubscribeFromTopic: firebaseUnsubscribeFromTopic,
   requestPermission: firebaseRequestPermission,
@@ -20,6 +22,7 @@ const {
   getInitialNotification: async () => null,
   onMessage: () => () => {},
   onNotificationOpenedApp: () => () => {},
+  hasPermission: async () => 0,
   subscribeToTopic: async () => {},
   unsubscribeFromTopic: async () => {},
   requestPermission: async () => 0,
@@ -28,9 +31,10 @@ const {
 };
 
 const DEFAULT_NARRATIVE_TOPIC = 'narrative-global-v1';
+const NOTIFICATION_PERMISSION_REQUESTED_KEY = 'mytopia:notifications:requested:v1';
 
 let subscribedTopic: string | null = null;
-let inFlightSubscription: Promise<void> | null = null;
+let inFlightSubscription: Promise<boolean> | null = null;
 
 export function resolveNarrativeTopic(mode: AppMode = 'production') {
   const productionTopic = resolveProductionTopic();
@@ -47,6 +51,10 @@ export function resolveNarrativeTopic(mode: AppMode = 'production') {
 }
 
 export async function getFCMToken(): Promise<string | null> {
+  if (!(await hasNotificationPermission())) {
+    return null;
+  }
+
   try {
     return await getToken(getMessaging());
   } catch (error) {
@@ -65,22 +73,26 @@ export async function ensureNarrativeTopicSubscription(mode: AppMode = 'producti
   }
 
   if (subscribedTopic === topic) {
-    return;
+    return true;
   }
 
   inFlightSubscription = switchTopic(topic)
-    .then(() => {
-      subscribedTopic = topic;
+    .then((didSubscribe) => {
+      if (didSubscribe) {
+        subscribedTopic = topic;
+      }
+      return didSubscribe;
     })
     .catch((error) => {
       if (isNoDefaultFirebaseAppError(error)) {
         console.warn(
           '[messaging] Firebase app is not initialized in this native build. Topic subscription skipped.'
         );
-        return;
+        return false;
       }
 
       console.warn('[messaging] Failed to switch narrative topic subscription.', error);
+      return false;
     })
     .finally(() => {
       inFlightSubscription = null;
@@ -95,19 +107,26 @@ function resolveProductionTopic() {
 }
 
 async function switchTopic(topic: string) {
+  if (!(await hasNotificationPermission())) {
+    return false;
+  }
+
   const previousTopic = subscribedTopic;
   if (previousTopic && previousTopic !== topic) {
     await unsubscribeFromTopic(previousTopic);
   }
 
   await subscribeToTopic(topic);
+  return true;
 }
 
 async function subscribeToTopic(topic: string) {
   const instance = getMessaging();
-
-  await requestPermissionsIfNeeded(instance);
+  if (!(await hasNotificationPermission())) {
+    return false;
+  }
   await firebaseSubscribeToTopic(instance, topic);
+  return true;
 }
 
 async function unsubscribeFromTopic(topic: string) {
@@ -122,42 +141,64 @@ async function unsubscribeFromTopic(topic: string) {
   }
 }
 
-
-async function requestPermissionsIfNeeded(instance: ReturnType<typeof getMessaging>) {
-  if (Platform.OS === 'android') {
-    if (Platform.Version < 33) {
-      return;
-    }
-
-    const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
-    const granted = await PermissionsAndroid.request(permission);
-    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-      throw new Error('Android notification permission was not granted.');
-    }
-    return;
-  }
-
-  if (Platform.OS !== 'ios') {
-    return;
-  }
-
-  const status = await firebaseRequestPermission(instance);
-
-  const isAuthorized =
-    status === AuthorizationStatus.AUTHORIZED ||
-    status === AuthorizationStatus.PROVISIONAL;
-
-  if (!isAuthorized) {
-    throw new Error('Push notification permission was not granted.');
-  }
-}
-
-
 export type FcmNarrativePayload = {
   bundleId?: string;
   eventType?: string;
   route?: string;
 };
+
+export type NotificationPermissionStatus = 'undetermined' | 'granted' | 'denied';
+
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
+  if (Platform.OS === 'android') {
+    if (Platform.Version < 33) {
+      return 'granted';
+    }
+
+    const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+    const granted = await PermissionsAndroid.check(permission);
+    if (granted) {
+      return 'granted';
+    }
+
+    return (await AsyncStorage.getItem(NOTIFICATION_PERMISSION_REQUESTED_KEY)) === 'true'
+      ? 'denied'
+      : 'undetermined';
+  }
+
+  if (Platform.OS !== 'ios') {
+    return 'granted';
+  }
+
+  const status = await firebaseHasPermission(getMessaging());
+  return normalizeNotificationStatus(status);
+}
+
+export async function hasNotificationPermission() {
+  return (await getNotificationPermissionStatus()) === 'granted';
+}
+
+export async function requestNotificationPermission(): Promise<NotificationPermissionStatus> {
+  const currentStatus = await getNotificationPermissionStatus();
+  if (currentStatus !== 'undetermined') {
+    return currentStatus;
+  }
+
+  await AsyncStorage.setItem(NOTIFICATION_PERMISSION_REQUESTED_KEY, 'true');
+
+  if (Platform.OS === 'android') {
+    const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+    const granted = await PermissionsAndroid.request(permission);
+    return granted === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
+  }
+
+  if (Platform.OS !== 'ios') {
+    return 'granted';
+  }
+
+  const status = await firebaseRequestPermission(getMessaging());
+  return normalizeNotificationStatus(status);
+}
 
 export function subscribeToForegroundNarrativeMessages(
   callback: (payload: FcmNarrativePayload) => void
@@ -252,4 +293,16 @@ function extractNarrativePayload(remoteMessage: any): FcmNarrativePayload | null
   }
 
   return null;
+}
+
+function normalizeNotificationStatus(status: number): NotificationPermissionStatus {
+  if (status === AuthorizationStatus.AUTHORIZED || status === AuthorizationStatus.PROVISIONAL) {
+    return 'granted';
+  }
+
+  if (status === AuthorizationStatus.DENIED) {
+    return 'denied';
+  }
+
+  return 'undetermined';
 }

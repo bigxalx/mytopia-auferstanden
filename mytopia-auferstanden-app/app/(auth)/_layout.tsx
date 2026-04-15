@@ -1,76 +1,171 @@
-import { Stack } from 'expo-router';
-import { StyleSheet, Text, View, ImageBackground } from 'react-native';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
+
+import { hasCompletedFirstRunOnboarding, markFirstRunOnboardingComplete } from '@/src/core/onboarding/firstRunOnboarding';
+import { FirstRunOnboardingProvider } from '@/src/features/auth/firstRunOnboardingContext';
 import { theme } from '@/src/shared/ui/theme';
 
 export default function AuthLayout() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const segments = useSegments();
+  const [hasPendingOnboarding, setHasPendingOnboarding] = useState(false);
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
+  const hasStartedOnboardingPresentation = useRef(false);
+
+  const isOnboardingRoute = String(segments[1]) === 'onboarding';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void hasCompletedFirstRunOnboarding()
+      .then((hasCompleted) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setHasPendingOnboarding(!hasCompleted);
+        setIsCheckingOnboarding(false);
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setHasPendingOnboarding(true);
+        setIsCheckingOnboarding(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isCheckingOnboarding || !hasPendingOnboarding) {
+      hasStartedOnboardingPresentation.current = false;
+      return;
+    }
+
+    if (isOnboardingRoute) {
+      hasStartedOnboardingPresentation.current = false;
+      return;
+    }
+
+    if (hasStartedOnboardingPresentation.current) {
+      return;
+    }
+
+    hasStartedOnboardingPresentation.current = true;
+    router.push('../onboarding');
+  }, [hasPendingOnboarding, isCheckingOnboarding, isOnboardingRoute, router]);
+
+  const handleOnboardingComplete = async () => {
+    await markFirstRunOnboardingComplete();
+    setHasPendingOnboarding(false);
+  };
+
+  const isBlockingInteraction = isCheckingOnboarding || (hasPendingOnboarding && !isOnboardingRoute);
 
   return (
-    <View style={styles.container}>
-      <ImageBackground
-        source={require('@/assets/images/signin-background.jpg')}
-        style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-      >
-        <View style={[
-          styles.overlay,
-          {
-            paddingTop: insets.top,
-            paddingBottom: Math.max(insets.bottom, 20)
-          }
-        ]}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoTitle}>Mytopia</Text>
-            <Text style={styles.logoSubtitle}>Auferstanden aus Ruinen</Text>
-          </View>
-          <View style={styles.stackContainer}>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: 'transparent' },
-              }}
-            />
+    <FirstRunOnboardingProvider
+      value={{
+        completeOnboarding: handleOnboardingComplete,
+        hasPendingOnboarding,
+        isCheckingOnboarding,
+      }}
+    >
+      <View style={styles.container}>
+        <View
+          style={[
+            styles.inner,
+            {
+              paddingBottom: Math.max(insets.bottom, 24),
+              paddingTop: insets.top + 24,
+            },
+          ]}
+        >
+          <View style={styles.content}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoTitle}>Mytopia</Text>
+              <Text style={styles.logoSubtitle}>Missionen, Nachrichten und Orte</Text>
+            </View>
+            <View style={styles.stackContainer}>
+              <Stack
+                screenOptions={{
+                  contentStyle: { backgroundColor: 'transparent' },
+                  headerShown: false,
+                }}
+              >
+                <Stack.Screen name="sign-in" />
+                <Stack.Screen name="sign-up" />
+                <Stack.Screen
+                  name="onboarding"
+                  options={{
+                    animation: Platform.OS === 'android' ? 'slide_from_bottom' : 'default',
+                    gestureEnabled: false,
+                    presentation: Platform.OS === 'android' ? 'fullScreenModal' : 'modal',
+                  }}
+                />
+              </Stack>
+            </View>
           </View>
         </View>
-      </ImageBackground>
-    </View>
+
+        {isBlockingInteraction ? (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator color={theme.colors.orange} size="large" />
+          </View>
+        ) : null}
+      </View>
+    </FirstRunOnboardingProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: theme.colors.background,
     flex: 1,
   },
-  overlay: {
+  content: {
+    alignSelf: 'center',
     flex: 1,
+    maxWidth: 420,
+    width: '100%',
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    justifyContent: 'center',
   },
   logoContainer: {
     alignItems: 'center',
-    marginVertical: 64
+    marginBottom: 24,
+    paddingHorizontal: 24,
   },
   logoTitle: {
-    ...theme.typography.h1,
-    color: '#fff',
-    fontSize: 32,
-    lineHeight: 34,
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 10,
+    color: theme.colors.textPrimary,
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 36,
+    lineHeight: 40,
+    marginBottom: 8,
+    textTransform: 'uppercase',
   },
   logoSubtitle: {
-    ...theme.typography.h1,
-    color: '#fff',
-    fontSize: 20,
-    opacity: 0.8,
-    marginBottom: 0,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 8,
+    color: theme.colors.textSecondary,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   stackContainer: {
     flex: 1,
   },
 });
-

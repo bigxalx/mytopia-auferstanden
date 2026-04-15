@@ -30,15 +30,7 @@ export function useFcmTokenSync(uid: string | undefined) {
         const token = await getFCMToken();
         if (isCancelled || !token) return;
 
-        const db = getFirestore();
-        const userRef = doc(db, V2_COLLECTION.fcmRegistrations, userId);
-
-        // We store tokens in an array to support multiple devices.
-        // Using arrayUnion ensures no duplicates.
-        await setDoc(userRef, {
-          fcmTokens: arrayUnion(token),
-          updatedAt: new Date().toISOString(),
-        }, { merge: true });
+        await persistFcmToken(userId, token);
       } catch (error) {
         console.warn('[useFcmTokenSync] Failed to sync FCM token:', error);
       }
@@ -50,4 +42,26 @@ export function useFcmTokenSync(uid: string | undefined) {
       isCancelled = true;
     };
   }, [uid]);
+}
+
+export async function syncFcmTokenForUser(uid: string) {
+  const token = await getFCMToken();
+  if (!token) {
+    return false;
+  }
+
+  await persistFcmToken(uid, token);
+  return true;
+}
+
+async function persistFcmToken(uid: string, token: string) {
+  const db = getFirestore();
+  const userRef = doc(db, V2_COLLECTION.fcmRegistrations, uid);
+
+  // We store tokens in an array to support multiple devices.
+  // Using arrayUnion ensures no duplicates.
+  await setDoc(userRef, {
+    fcmTokens: arrayUnion(token),
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
 }

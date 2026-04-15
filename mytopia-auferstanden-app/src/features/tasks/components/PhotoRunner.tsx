@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Image, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { getStorage, ref, putFile } from '@react-native-firebase/storage/lib/modular';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
 
@@ -110,20 +111,29 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
           <Image source={{ uri: photoUri }} style={styles.previewImage} />
 
           <View style={[embedded ? styles.inlineButtonRow : styles.buttonGroup, styles.previewActions]}>
-            <Pressable
-              disabled={isSubmitting}
-              onPress={handlePickLibrary}
-              style={[
-                embedded ? styles.inlineActionButton : styles.actionButton,
-                !embedded ? styles.retakeButton : null,
-                isSubmitting ? styles.actionButtonDisabled : null,
-              ]}
-            >
-              {embedded ? <Feather name="image" size={18} color="white" /> : null}
-              <Text style={embedded ? styles.inlineActionButtonText : styles.actionButtonText}>
-                Anderes Foto
-              </Text>
-            </Pressable>
+            {embedded ? (
+              <Pressable
+                disabled={isSubmitting}
+                onPress={handlePickLibrary}
+                style={[
+                  styles.inlineActionButton,
+                  isSubmitting ? styles.actionButtonDisabled : null,
+                ]}
+              >
+                <Feather name="image" size={18} color="white" />
+                <Text style={styles.inlineActionButtonText}>Anderes Foto</Text>
+              </Pressable>
+            ) : (
+              <AppButton
+                disabled={isSubmitting}
+                fullWidth
+                label="Anderes Foto"
+                onPress={() => {
+                  void handlePickLibrary();
+                }}
+                variant="secondary"
+              />
+            )}
             {embedded ? (
               <Pressable
                 disabled={isSubmitting || !photoUri}
@@ -145,74 +155,83 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
         </View>
       ) : (
         <View style={embedded ? styles.inlineButtonRow : styles.buttonGroup}>
-          <Pressable
-            disabled={isSubmitting}
-            onPress={handleTakePhoto}
-            style={[
-              embedded ? styles.inlineActionButton : styles.actionButton,
-              isSubmitting ? styles.actionButtonDisabled : null,
-            ]}
-          >
-            {embedded ? <Feather name="camera" size={18} color="white" /> : null}
-            <Text style={embedded ? styles.inlineActionButtonText : styles.actionButtonText}>
-              {embedded ? 'KAMERA' : 'Foto aufnehmen'}
-            </Text>
-          </Pressable>
-          <Pressable
-            disabled={isSubmitting}
-            onPress={handlePickLibrary}
-            style={[
-              embedded ? styles.inlineActionButton : styles.actionButton,
-              isSubmitting ? styles.actionButtonDisabled : null,
-            ]}
-          >
-            {embedded ? <Feather name="image" size={18} color="white" /> : null}
-            <Text style={embedded ? styles.inlineActionButtonText : styles.actionButtonText}>
-              {embedded ? 'GALERIE' : 'Aus Mediathek'}
-            </Text>
-          </Pressable>
+          {embedded ? (
+            <>
+              <Pressable
+                disabled={isSubmitting}
+                onPress={handleTakePhoto}
+                style={[
+                  styles.inlineActionButton,
+                  isSubmitting ? styles.actionButtonDisabled : null,
+                ]}
+              >
+                <Feather name="camera" size={18} color="white" />
+                <Text style={styles.inlineActionButtonText}>KAMERA</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSubmitting}
+                onPress={handlePickLibrary}
+                style={[
+                  styles.inlineActionButton,
+                  isSubmitting ? styles.actionButtonDisabled : null,
+                ]}
+              >
+                <Feather name="image" size={18} color="white" />
+                <Text style={styles.inlineActionButtonText}>GALERIE</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <AppButton
+                disabled={isSubmitting}
+                fullWidth
+                label="Foto aufnehmen"
+                onPress={() => {
+                  void handleTakePhoto();
+                }}
+                variant="primary"
+              />
+              <AppButton
+                disabled={isSubmitting}
+                fullWidth
+                label="Aus Mediathek"
+                onPress={() => {
+                  void handlePickLibrary();
+                }}
+                variant="secondary"
+              />
+            </>
+          )}
         </View>
       )}
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {!embedded ? (
-        <Pressable
+        <AppButton
           disabled={isSubmitting || !photoUri}
-          onPress={handleSubmit}
-          style={[styles.actionButton, styles.submitButton, (isSubmitting || !photoUri) ? styles.actionButtonDisabled : null]}
-        >
-          <Text style={styles.actionButtonText}>
-            {isSubmitting && uploadProgress !== null
+          fullWidth
+          label={
+            isSubmitting && uploadProgress !== null
               ? `Wird hochgeladen... (${uploadProgress}%)`
               : isSubmitting
                 ? 'Wird gesendet...'
-                : 'Einreichen'}
-          </Text>
-        </Pressable>
+                : 'Einreichen'
+          }
+          loading={isSubmitting}
+          onPress={() => {
+            void handleSubmit();
+          }}
+          variant="primary"
+        />
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.cardSubtleBackground,
-    borderColor: theme.colors.cardBorder,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingVertical: 14,
-  },
   actionButtonDisabled: {
       opacity: 0.4,
-  },
-  actionButtonText: {
-      ...theme.typography.button,
-  },
-  submitButton: {
-      backgroundColor: theme.colors.orange,
-      borderColor: theme.colors.orange,
   },
   container: {
     backgroundColor: theme.colors.beige,
@@ -235,6 +254,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   buttonGroup: {
+    gap: 12,
     marginBottom: 16,
   },
   inlineButtonRow: {
@@ -275,9 +295,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_700Bold',
     fontSize: 13,
     letterSpacing: 0.5,
-  },
-  retakeButton: {
-    width: '100%',
   },
   errorText: {
     color: theme.colors.errorText,

@@ -1,9 +1,9 @@
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
-import { Screen } from '@/src/shared/ui/Screen';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
 
@@ -76,89 +76,71 @@ export default function SignInScreen() {
   }
 
   return (
-    <Screen
-      title="Mytopia"
-      backgroundColor="transparent"
-      headerShown={false}
-      noPadding
+    <ScrollView
+      contentContainerStyle={styles.formContainer}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.formContainer}>
-        <SectionCard title="Anmelden">
-          {feedback ? (
-            <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
-              <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
-                {feedback.text}
-              </Text>
-            </View>
-          ) : null}
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="E-Mail"
-            placeholderTextColor={theme.colors.cardTextMuted}
-            style={styles.input}
-            value={email}
-          />
-          <TextInput
-            onChangeText={setPassword}
-            placeholder="Passwort"
-            placeholderTextColor={theme.colors.cardTextMuted}
-            secureTextEntry
-            style={styles.input}
-            value={password}
-          />
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSubmitting || isResetting || email.trim().length === 0}
-            onPress={handleSignIn}
-            style={[styles.button, (isSubmitting || isResetting || email.trim().length === 0) && styles.buttonDisabled]}
-          >
-            <Text style={styles.buttonText}>{isSubmitting ? 'Anmeldung...' : 'Anmelden'}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSubmitting || isResetting}
-            onPress={handleResetPassword}
-            style={styles.inlineAction}
-          >
-            <Text style={styles.inlineActionText}>{isResetting ? 'Link wird gesendet...' : 'Passwort vergessen?'}</Text>
-          </Pressable>
-        </SectionCard>
+      <SectionCard title="Anmelden">
+        {feedback ? (
+          <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
+            <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
+              {feedback.text}
+            </Text>
+          </View>
+        ) : null}
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          onChangeText={setEmail}
+          placeholder="E-Mail"
+          placeholderTextColor={theme.colors.cardTextMuted}
+          style={styles.input}
+          value={email}
+        />
+        <TextInput
+          onChangeText={setPassword}
+          placeholder="Passwort"
+          placeholderTextColor={theme.colors.cardTextMuted}
+          secureTextEntry
+          style={styles.input}
+          value={password}
+        />
+        <AppButton
+          disabled={isResetting || email.trim().length === 0}
+          fullWidth
+          label={isSubmitting ? 'Anmeldung...' : 'Anmelden'}
+          loading={isSubmitting}
+          onPress={() => {
+            void handleSignIn();
+          }}
+          variant="primary"
+        />
+        <AppButton
+          disabled={isSubmitting}
+          fullWidth
+          label={isResetting ? 'Link wird gesendet...' : 'Passwort vergessen?'}
+          loading={isResetting}
+          onPress={() => {
+            void handleResetPassword();
+          }}
+          variant="secondary"
+        />
+      </SectionCard>
 
-        <SectionCard
-          title="Neu bei Mytopia?"
-          backgroundColor={theme.colors.accent}
-        >
-          <Link asChild href="/(auth)/sign-up">
-            <Pressable accessibilityRole="button" style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Account erstellen</Text>
-            </Pressable>
-          </Link>
-        </SectionCard>
-      </View>
-    </Screen>
+      <SectionCard title="Neu bei Mytopia?" backgroundColor={theme.colors.accent}>
+        <AppButton fullWidth label="Account erstellen" onPress={() => router.push('/(auth)/sign-up')} variant="secondary" />
+      </SectionCard>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   formContainer: {
-    padding: 20,
     gap: 16,
+    paddingBottom: 24,
   },
-  button: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.orange,
-    borderRadius: 10,
-    marginTop: 6,
-    paddingVertical: 12,
-  },
-  buttonDisabled: {
-    backgroundColor: theme.colors.disabledSurface,
-    opacity: 0.6,
-  },
-  buttonText: theme.typography.button,
   feedback: {
     borderRadius: 10,
     borderWidth: 1,
@@ -191,26 +173,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 11,
   },
-  inlineAction: {
-    alignSelf: 'center',
-    marginTop: 8,
-    paddingVertical: 6,
-  },
-  inlineActionText: {
-    color: theme.colors.cardTextSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.cardSubtleBackground,
-    borderColor: theme.colors.cardBorder,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: theme.typography.button,
 });
 
 function hasValidEmail(value: string) {
