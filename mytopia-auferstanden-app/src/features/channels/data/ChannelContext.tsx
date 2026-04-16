@@ -7,21 +7,42 @@ import type { NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 
 import {
   ensureActorChannel,
-  findMissionChannelTarget as findMissionChannelTargetInStore,
   HUB_CHANNEL_ID,
   subscribeToChannelSummaries,
   type ActorChannelSeed,
   type ChannelSummary,
-  type MissionChannelTarget,
 } from './channelStore';
 
 export type PendingMissionStart = {
-  action?: 'resume' | 'start';
-  actor: NarrativeMessageDto['actor'];
+  action?: 'open' | 'start';
+  actor?: NarrativeMessageDto['actor'];
   channelId: string;
-  data?: { description?: string; imageUrl?: string; questions?: any[]; title?: string };
+  data?: {
+    description?: string;
+    gpsConfig?: {
+      latitude: number;
+      longitude: number;
+      radiusMeters: number;
+    };
+    imageUrl?: string;
+    questions?: any[];
+    title?: string;
+  };
   kind: MissionKind;
   missionId: string;
+};
+
+export type MissionReturnTarget = 'hub' | 'channel-list';
+
+export type MissionNavigationIntent = {
+  action: 'open' | 'start';
+  actor?: NarrativeMessageDto['actor'];
+  data?: PendingMissionStart['data'];
+  kind: MissionKind;
+  missionId: string;
+  returnTarget: MissionReturnTarget;
+  targetChannelId: string;
+  targetChannelType: 'hub' | 'actor';
 };
 
 export type ChannelScrollState = {
@@ -31,13 +52,16 @@ export type ChannelScrollState = {
 
 type ChannelsContextValue = {
   actorChannels: ChannelSummary[];
-  consumePendingMissionStart: (channelId: string) => PendingMissionStart | null;
+  activeMissionThreadEntry: MissionNavigationIntent | null;
+  clearMissionThreadEntry: (options?: { channelId?: string; missionId?: string }) => void;
+  consumeMissionNavigationIntent: (
+    channelId: string,
+    channelType: 'hub' | 'actor'
+  ) => MissionNavigationIntent | null;
   ensureActorMissionChannel: (seed: ActorChannelSeed) => Promise<string>;
-  findMissionChannelTarget: (missionId: string) => Promise<MissionChannelTarget | null>;
   getChannelScrollState: (channelId: string) => ChannelScrollState;
   hubUnreadCount: number;
-  pendingMissionStart: PendingMissionStart | null;
-  queuePendingMissionStart: (pending: PendingMissionStart | null) => void;
+  queueMissionNavigationIntent: (intent: MissionNavigationIntent | null) => void;
   saveChannelScrollState: (channelId: string, state: ChannelScrollState) => void;
   totalUnreadCount: number;
 };
@@ -48,7 +72,8 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
   const { selectedMode, user } = useSession();
   const { unreadCount: hubUnreadCount } = useNarrativeSignal();
   const [actorChannels, setActorChannels] = useState<ChannelSummary[]>([]);
-  const [pendingMissionStart, setPendingMissionStart] = useState<PendingMissionStart | null>(null);
+  const [activeMissionThreadEntry, setActiveMissionThreadEntry] = useState<MissionNavigationIntent | null>(null);
+  const [pendingMissionNavigationIntent, setPendingMissionNavigationIntent] = useState<MissionNavigationIntent | null>(null);
   const [channelScrollStates, setChannelScrollStates] = useState<Record<string, ChannelScrollState>>({});
 
   useEffect(() => {
@@ -75,29 +100,46 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
     [selectedMode, user?.id]
   );
 
-  const consumePendingMissionStart = useCallback((channelId: string) => {
-    if (!pendingMissionStart || pendingMissionStart.channelId !== channelId) {
+  useEffect(() => {
+    if (user?.id) {
+      return;
+    }
+
+    setActiveMissionThreadEntry(null);
+    setPendingMissionNavigationIntent(null);
+  }, [selectedMode, user?.id]);
+
+  const consumeMissionNavigationIntent = useCallback((
+    channelId: string,
+    channelType: 'hub' | 'actor'
+  ) => {
+    if (
+      !pendingMissionNavigationIntent ||
+      pendingMissionNavigationIntent.targetChannelId !== channelId ||
+      pendingMissionNavigationIntent.targetChannelType !== channelType
+    ) {
       return null;
     }
 
-    setPendingMissionStart(null);
-    return pendingMissionStart;
-  }, [pendingMissionStart]);
+    setPendingMissionNavigationIntent(null);
+    setActiveMissionThreadEntry(pendingMissionNavigationIntent);
+    return pendingMissionNavigationIntent;
+  }, [pendingMissionNavigationIntent]);
 
-  const findMissionChannelTarget = useCallback(
-    async (missionId: string) => {
-      if (!user?.id) {
-        return null;
+  const clearMissionThreadEntry = useCallback((options?: { channelId?: string; missionId?: string }) => {
+    setActiveMissionThreadEntry((current) => {
+      if (!current) {
+        return current;
       }
-
-      return findMissionChannelTargetInStore({
-        missionId,
-        mode: selectedMode,
-        uid: user.id,
-      });
-    },
-    [selectedMode, user?.id]
-  );
+      if (options?.channelId && current.targetChannelId !== options.channelId) {
+        return current;
+      }
+      if (options?.missionId && current.missionId !== options.missionId) {
+        return current;
+      }
+      return null;
+    });
+  }, []);
 
   const totalUnreadCount = useMemo(() => {
     const actorUnread = actorChannels.reduce((sum, channel) => sum + channel.unreadCount, 0);
@@ -137,24 +179,24 @@ export function ChannelsProvider({ children }: PropsWithChildren) {
   const value = useMemo<ChannelsContextValue>(
     () => ({
       actorChannels,
-      consumePendingMissionStart,
+      activeMissionThreadEntry,
+      clearMissionThreadEntry,
+      consumeMissionNavigationIntent,
       ensureActorMissionChannel,
-      findMissionChannelTarget,
       getChannelScrollState,
       hubUnreadCount,
-      pendingMissionStart,
-      queuePendingMissionStart: setPendingMissionStart,
+      queueMissionNavigationIntent: setPendingMissionNavigationIntent,
       saveChannelScrollState,
       totalUnreadCount,
     }),
     [
       actorChannels,
-      consumePendingMissionStart,
+      activeMissionThreadEntry,
+      clearMissionThreadEntry,
+      consumeMissionNavigationIntent,
       ensureActorMissionChannel,
-      findMissionChannelTarget,
       getChannelScrollState,
       hubUnreadCount,
-      pendingMissionStart,
       saveChannelScrollState,
       totalUnreadCount,
     ]
@@ -173,3 +215,18 @@ export function useChannels() {
 }
 
 export { HUB_CHANNEL_ID };
+
+export function buildFeedChannelHref(channelId: string) {
+  if (channelId === HUB_CHANNEL_ID) {
+    return '/(tabs)/feed/hub' as const;
+  }
+
+  return {
+    pathname: '/(tabs)/feed/[channelId]' as const,
+    params: { channelId },
+  };
+}
+
+export function buildMissionReturnHref(returnTarget: MissionReturnTarget) {
+  return returnTarget === 'hub' ? '/(tabs)/feed/hub' : '/(tabs)/feed';
+}

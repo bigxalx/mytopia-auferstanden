@@ -36,6 +36,11 @@ type MapPointCacheEntry = {
 const mapPointCache = new Map<AppMode, MapPointCacheEntry>();
 const inFlightMapPointRequests = new Map<AppMode, Promise<MapPoint[]>>();
 
+export function resetMapPointCache() {
+  mapPointCache.clear();
+  inFlightMapPointRequests.clear();
+}
+
 export async function fetchMapPoints({
   mode = 'production',
   forceRefresh = false,

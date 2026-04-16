@@ -12,6 +12,39 @@ const MISSION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export type MissionKind = 'quiz' | 'gps' | 'text' | 'photo';
 
+export type TimeBonus = {
+    bonusPoints: number;
+    minutesLimit: number;
+};
+
+export type CustomAchievementSummary = {
+    bonusPoints: number;
+    description?: string;
+    id: string;
+    title: string;
+};
+
+export type GroupBonusSummary = {
+    bonusPoints: number;
+    groupId: string;
+    groupTitle: string;
+};
+
+export type RewardBreakdown = {
+    basePoints: number;
+    customAchievements?: CustomAchievementSummary[];
+    groupBonus?: GroupBonusSummary;
+    streakBonusPoints: number;
+    timeBonus?: TimeBonus;
+    totalPoints: number;
+};
+
+export type StreakSummary = {
+    count: number;
+    isActive: boolean;
+    multiplier: number;
+};
+
 export const MISSION_KIND_METADATA: Record<MissionKind, { emoji: string; label: string }> = {
     quiz: { emoji: '🧠', label: 'Quiz' },
     gps: { emoji: '📍', label: 'GPS' },
@@ -22,6 +55,10 @@ export const MISSION_KIND_METADATA: Record<MissionKind, { emoji: string; label: 
 export type MissionListItem = {
     _id: string;
     active: boolean;
+    actorAvatarUrl?: string;
+    actorId?: string;
+    actorName?: string;
+    actorRole?: string;
     description?: string;
     expiresAt?: string;
     gpsConfig?: {
@@ -30,12 +67,14 @@ export type MissionListItem = {
         radiusMeters: number;
     };
     groupId?: string;
+    groupCompletionBonusPoints?: number;
     groupTitle?: string;
     imageUrl?: string;
     kind: MissionKind;
     points: number;
     questionCount?: number;
     questions?: QuizQuestion[];
+    timeBonuses?: TimeBonus[];
     title: string;
     feedbackCorrect?: string;
     feedbackIncorrect?: string;
@@ -49,6 +88,11 @@ type MissionCacheEntry = {
 const missionCache = new Map<AppMode, MissionCacheEntry>();
 const inFlightMissionRequests = new Map<AppMode, Promise<MissionListItem[]>>();
 
+export function resetMissionCache() {
+    missionCache.clear();
+    inFlightMissionRequests.clear();
+}
+
 export type QuizQuestion = {
     options: { text: string; isCorrect: boolean }[];
     questionText: string;
@@ -60,12 +104,16 @@ export type QuizCompleteResult = {
     action: 'scored' | 'already_completed';
     correct: number;
     earned: number;
+    rewardBreakdown?: RewardBreakdown;
+    streakSummary?: StreakSummary;
     total: number;
 };
 
 export type GpsCompleteResult = {
     action: 'scored' | 'already_completed';
     earned: number;
+    rewardBreakdown?: RewardBreakdown;
+    streakSummary?: StreakSummary;
 };
 
 export type SubmitResult = {
@@ -78,6 +126,15 @@ export type MissionChannelMetadata = {
     actorName: string;
     channelId: string;
     channelType: 'actor' | 'hub';
+};
+
+export type MissionSettings = {
+    customAchievementCount?: number;
+    customAchievements?: CustomAchievementSummary[];
+    defaultQuizFeedbackCorrect?: string;
+    defaultQuizFeedbackIncorrect?: string;
+    streakMultiplier?: number;
+    streakRequiredCompletions?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -153,7 +210,7 @@ async function loadMissionsFromApi(mode: AppMode): Promise<MissionListItem[]> {
     return missions;
 }
 
-export async function fetchSettings(mode: AppMode = 'production'): Promise<any> {
+export async function fetchSettings(mode: AppMode = 'production'): Promise<MissionSettings> {
     if (!hasConfiguredMissionApi()) {
         throw new Error('EXPO_PUBLIC_MISSION_API_BASE_URL is not configured.');
     }
@@ -180,7 +237,7 @@ export async function fetchSettings(mode: AppMode = 'production'): Promise<any> 
         throw new Error(`Settings fetch failed (${response.status}): ${body}`);
     }
 
-    return (await response.json());
+    return (await response.json()) as MissionSettings;
 }
 
 // ---------------------------------------------------------------------------

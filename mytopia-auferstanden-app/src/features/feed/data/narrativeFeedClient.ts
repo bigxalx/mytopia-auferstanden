@@ -2,6 +2,7 @@
 import { env, hasConfiguredFeedApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
 import { type AppMode } from '@/src/core/session/appMode';
+import type { RewardBreakdown, StreakSummary, TimeBonus } from '@/src/features/tasks/data/missionRepository';
 import * as authUtils from '@react-native-firebase/auth';
 
 const { getIdToken } = authUtils;
@@ -39,10 +40,12 @@ export type NarrativeAttachmentDto =
   | {
     _type: 'missionAttachment';
     excerpt?: string;
+    groupCompletionBonusPoints?: number;
     missionId: string;
     missionKind?: string;
     missionPoints?: number;
     missionTitle?: string;
+    timeBonuses?: TimeBonus[];
     title?: string;
     imageUrl?: string;
     questions?: {
@@ -77,7 +80,15 @@ export type NarrativeAttachmentDto =
     missionId: string;
     missionTitle: string;
     kind: string;
-    payload: any;
+    payload: {
+      action?: 'approved' | 'rejected' | 'scored' | 'already_completed';
+      correct?: number;
+      moderatorNote?: string;
+      rewardBreakdown?: RewardBreakdown;
+      status?: 'approved' | 'rejected';
+      streakSummary?: StreakSummary;
+      total?: number;
+    };
     earnedPoints?: number;
   };
 
@@ -385,8 +396,12 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       ...(typeof raw.missionKind === 'string' ? { missionKind: raw.missionKind } : {}),
       ...(typeof raw.missionPoints === 'number' ? { missionPoints: raw.missionPoints } : {}),
       ...(typeof raw.missionTitle === 'string' ? { missionTitle: raw.missionTitle } : {}),
+      ...(typeof raw.groupCompletionBonusPoints === 'number'
+        ? { groupCompletionBonusPoints: raw.groupCompletionBonusPoints }
+        : {}),
       ...(typeof raw.title === 'string' && raw.title.length > 0 ? { title: raw.title } : {}),
       ...(typeof raw.imageUrl === 'string' && raw.imageUrl.length > 0 ? { imageUrl: raw.imageUrl } : {}),
+      ...(Array.isArray(raw.timeBonuses) ? { timeBonuses: raw.timeBonuses as TimeBonus[] } : {}),
       ...(Array.isArray(raw.questions) ? { questions: raw.questions } : {}),
       ...(raw.gpsConfig && typeof raw.gpsConfig === 'object' ? { gpsConfig: raw.gpsConfig as any } : {}),
     };
@@ -424,12 +439,32 @@ function normalizeAttachment(value: unknown): NarrativeAttachmentDto | undefined
       missionId: asNonEmptyString(raw.missionId) ?? '',
       missionTitle: asNonEmptyString(raw.missionTitle) ?? '',
       kind: asNonEmptyString(raw.kind) ?? '',
-      payload: raw.payload,
+      payload: normalizeMissionResultPayload(raw.payload),
       earnedPoints: typeof raw.earnedPoints === 'number' ? raw.earnedPoints : undefined,
     };
   }
 
   return undefined;
+}
+
+function normalizeMissionResultPayload(value: unknown): Extract<NarrativeAttachmentDto, { _type: 'missionResultAttachment' }>['payload'] {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const raw = value as Record<string, unknown>;
+
+  return {
+    ...(raw.action === 'approved' || raw.action === 'rejected' || raw.action === 'scored' || raw.action === 'already_completed'
+      ? { action: raw.action }
+      : {}),
+    ...(typeof raw.correct === 'number' ? { correct: raw.correct } : {}),
+    ...(typeof raw.moderatorNote === 'string' ? { moderatorNote: raw.moderatorNote } : {}),
+    ...(raw.rewardBreakdown && typeof raw.rewardBreakdown === 'object' ? { rewardBreakdown: raw.rewardBreakdown as RewardBreakdown } : {}),
+    ...(raw.status === 'approved' || raw.status === 'rejected' ? { status: raw.status } : {}),
+    ...(raw.streakSummary && typeof raw.streakSummary === 'object' ? { streakSummary: raw.streakSummary as StreakSummary } : {}),
+    ...(typeof raw.total === 'number' ? { total: raw.total } : {}),
+  };
 }
 
 function asNonEmptyString(value: unknown) {

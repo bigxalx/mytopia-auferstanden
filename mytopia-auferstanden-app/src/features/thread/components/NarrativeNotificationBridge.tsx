@@ -6,6 +6,7 @@ import {
   subscribeToNarrativeNotificationOpens,
   type FcmNarrativePayload,
 } from '@/src/core/firebase/messagingClient';
+import { buildFeedChannelHref } from '@/src/features/channels/data/ChannelContext';
 import { HUB_CHANNEL_ID } from '@/src/features/channels/data/channelStore';
 import { useThreadNavigation } from '@/src/features/thread/data/ThreadNavigationContext';
 
@@ -27,10 +28,7 @@ export function NarrativeNotificationBridge() {
         });
       }
 
-      router.push({
-        pathname: '/(tabs)/feed/[channelId]',
-        params: { channelId },
-      });
+      router.navigate(buildFeedChannelHref(channelId));
     };
 
     if (!initialHandledRef.current) {

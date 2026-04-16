@@ -45,6 +45,7 @@ export default defineConfig({
                   .items([
                     S.documentTypeListItem('mission').title('Alle Einzelmissionen'),
                     S.documentTypeListItem('sammelaufgabe').title('Sammelaufgaben (Mission-Gruppen)'),
+                    S.documentTypeListItem('customAchievement').title('Abzeichen'),
                   ])
               ),
             S.listItem()

@@ -31,7 +31,6 @@ import { type ThreadTypingState } from '@/src/features/thread/data/threadMessage
 import { theme } from '@/src/shared/ui/theme';
 
 const SCROLL_TO_END_ICON_VARIANT: 'outline' | 'bold' = 'outline';
-
 export type ChatThreadListHandle = {
   getScrollState: () => ChannelScrollState;
   scrollToBottom: (options?: { animated?: boolean }) => void;
@@ -87,9 +86,9 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       [items]
     );
 
-    const feedItems = useMemo(
-      () => buildThreadFeedItems(items, typingState),
-      [items, typingState]
+    const baseFeedItems = useMemo(
+      () => buildThreadFeedItems(items),
+      [items]
     );
 
     const {
@@ -113,13 +112,18 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       showScrollToEndButton,
     } = useThreadViewportState({
       deferUntilReady,
-      feedItems,
+      feedItems: baseFeedItems,
       isHydrated,
       items,
       onMarkRead,
       scrollState,
       threadKey,
     });
+
+    const renderFeedItems = useMemo(
+      () => buildThreadFeedItems(items, isReady ? typingState : null),
+      [isReady, items, typingState]
+    );
 
     useImperativeHandle(
       ref,
@@ -140,9 +144,10 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
     const renderItem = useCallback(
       ({ index, item }: ListRenderItemInfo<FeedItem>) => (
         <ThreadFeedItemRow
+          allowAnimations={isReady}
           animatedResultKey={animatedResultKey}
           didCaptureInitialItemsRef={didCaptureInitialItemsRef}
-          feedItems={feedItems}
+          feedItems={renderFeedItems}
           highlightedMessageKey={highlightedMessageKey}
           imageSources={imageSources}
           index={index}
@@ -152,9 +157,10 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
         />
       ),
       [
+        isReady,
         animatedResultKey,
         didCaptureInitialItemsRef,
-        feedItems,
+        renderFeedItems,
         handleImagePress,
         highlightedMessageKey,
         imageSources,
@@ -185,7 +191,24 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
             !isReady && styles.scrollContentHidden,
           ]}
           keyboardDismissMode="interactive"
-          data={feedItems}
+          data={renderFeedItems}
+          getItemType={(item) => {
+            if (item.type !== 'message') {
+              return item.type;
+            }
+
+            const attachmentType = item.data.message.attachment?._type;
+            if (attachmentType === 'missionResultAttachment') {
+              return 'message:result';
+            }
+            if (attachmentType === 'systemAttachment') {
+              return 'message:system';
+            }
+            if (attachmentType) {
+              return `message:${attachmentType}`;
+            }
+            return item.data.message.isUser ? 'message:user' : 'message:npc';
+          }}
           keyExtractor={(item) => item.key}
           ListEmptyComponent={
             !isHydrated

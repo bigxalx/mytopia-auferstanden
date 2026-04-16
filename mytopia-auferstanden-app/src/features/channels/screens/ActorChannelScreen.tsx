@@ -1,5 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,7 +21,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActorAvatar } from '@/components/feed/ActorAvatar';
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
 import { MissionChoicePicker } from '@/components/feed/MissionChoicePicker';
-import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import {
+  buildMissionReturnHref,
+  useChannels,
+} from '@/src/features/channels/data/ChannelContext';
 import { HUB_CHANNEL_ID } from '@/src/features/channels/data/channelStore';
 import { useSession } from '@/src/core/session/SessionContext';
 import { useActiveMission, useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
@@ -35,26 +39,29 @@ import { theme } from '@/src/shared/ui/theme';
 
 export function ActorChannelScreen({ channelId }: { channelId: string }) {
   const navigation = useNavigation<any>();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { selectedMode } = useSession();
   const {
+    activeMissionThreadEntry,
     actorChannels,
-    consumePendingMissionStart,
+    clearMissionThreadEntry,
+    consumeMissionNavigationIntent,
     getChannelScrollState,
-    pendingMissionStart,
     saveChannelScrollState,
   } = useChannels();
   const {
     activeChannel,
     focusedMission,
+    focusedMissionChannel,
     focusedMissionId,
     highlightMission,
-    interruptMission,
+    openMissionSession,
     quizSession,
     registerOptimisticHandler,
     registerScrollHandler,
-    resumeInterruptedMission,
+    setFocus,
     setActiveChannel,
     startChatQuiz,
     startMission,
@@ -65,7 +72,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
 
   const channel = actorChannels.find((item) => item.channelId === channelId);
   const scrollState = getChannelScrollState(channelId) ?? createDefaultScrollState();
-  const { allItems, applyOptimisticUpdate, hasWarmState, isHydrated, items, markRead, typingState } = useActorThread(channelId);
+  const { allItems, applyOptimisticUpdate, isHydrated, items, markRead, typingState } = useActorThread(channelId);
   const [animatedResultKey, setAnimatedResultKey] = useState<string | null>(null);
   const [celebrationKey, setCelebrationKey] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -74,15 +81,20 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
   const didSeedCelebrationRef = useRef(false);
   const lastResultKeyRef = useRef<string | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isTextMissionActive = focusedMission?.kind === 'text';
+  const bypassMissionExitRef = useRef(false);
+  const isMissionActiveHere =
+    focusedMissionChannel?.channelId === channelId &&
+    focusedMissionChannel?.channelType === 'actor';
+  const isQuizMissionActiveHere = isMissionActiveHere && Boolean(quizSession);
+  const isTextMissionActive = isMissionActiveHere && focusedMission?.kind === 'text';
   const keyboardInset = isTextMissionActive && isKeyboardVisible ? Math.max(0, keyboardHeight - insets.bottom) : 0;
 
   const footerInset =
     Math.max(72, insets.bottom + 84) +
     (activeChannel.channelType === 'actor'
-      ? quizSession
+      ? isQuizMissionActiveHere
         ? 220
-        : focusedMissionId
+        : isMissionActiveHere
           ? 110
           : isMissionBarVisible
             ? 110
@@ -124,33 +136,19 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       });
 
       return () => {
-        if (
-          activeChannel.channelType === 'actor' &&
-          activeChannel.channelId === channelId &&
-          focusedMissionId &&
-          focusedMission
-        ) {
-          void interruptMission();
-        }
-
         const nextScrollState = threadRef.current?.getScrollState() ?? createDefaultScrollState();
         saveChannelScrollState(channelId, nextScrollState);
         registerOptimisticHandler(null);
         registerScrollHandler(null);
       };
     }, [
-      activeChannel.channelId,
-      activeChannel.channelType,
       applyOptimisticUpdate,
       channel?.actorId,
       channel?.avatarUrl,
       channel?.role,
       channel?.title,
       channelId,
-      focusedMission,
-      focusedMissionId,
       highlightMission,
-      interruptMission,
       registerOptimisticHandler,
       registerScrollHandler,
       saveChannelScrollState,
@@ -159,17 +157,24 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
   );
 
   useEffect(() => {
-    const pending = consumePendingMissionStart(channelId);
+    const pending = consumeMissionNavigationIntent(channelId, 'actor');
     if (!pending) {
       return;
     }
 
-    if (pending.action === 'resume') {
-      void resumeInterruptedMission();
+    if (pending.action === 'open') {
+      if (focusedMissionId === pending.missionId) {
+        void setFocus(pending.missionId, {
+          channelId,
+          channelType: 'actor',
+        });
+      } else {
+        void openMissionSession(pending.missionId);
+      }
       return;
     }
 
-    if (pending.kind === 'quiz') {
+    if (pending.kind === 'quiz' && pending.actor) {
       void startChatQuiz(pending.missionId, pending.actor, pending.data);
       return;
     }
@@ -178,7 +183,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       ...pending.data,
       kind: pending.kind,
     });
-  }, [channelId, consumePendingMissionStart, pendingMissionStart, resumeInterruptedMission, startChatQuiz, startMission]);
+  }, [channelId, consumeMissionNavigationIntent, focusedMissionId, openMissionSession, setFocus, startChatQuiz, startMission]);
 
   useEffect(() => {
     const target = consumeExternalTarget(channelId);
@@ -248,6 +253,62 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     setAnimatedResultKey(latestVisibleResult.key);
     setCelebrationKey(latestVisibleResult.key);
   }, [isHydrated, items.length, latestVisibleResult]);
+
+  const missionThreadEntry =
+    activeMissionThreadEntry &&
+    activeMissionThreadEntry.targetChannelId === channelId &&
+    activeMissionThreadEntry.targetChannelType === 'actor'
+      ? activeMissionThreadEntry
+      : null;
+
+  const shouldUseMissionReturnTarget =
+    Boolean(missionThreadEntry) &&
+    focusedMissionId === missionThreadEntry?.missionId &&
+    isMissionActiveHere;
+
+  const leaveMissionThread = useCallback(() => {
+    if (!shouldUseMissionReturnTarget || !missionThreadEntry) {
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+
+      router.dismissTo('/(tabs)/feed');
+      return;
+    }
+
+    bypassMissionExitRef.current = true;
+    clearMissionThreadEntry({
+      channelId,
+      missionId: missionThreadEntry.missionId,
+    });
+    router.dismissTo(buildMissionReturnHref(missionThreadEntry.returnTarget));
+  }, [channelId, clearMissionThreadEntry, missionThreadEntry, router, shouldUseMissionReturnTarget]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event: {
+      data: { action: { type: string } };
+      preventDefault: () => void;
+    }) => {
+      if (bypassMissionExitRef.current) {
+        bypassMissionExitRef.current = false;
+        return;
+      }
+
+      if (!shouldUseMissionReturnTarget) {
+        return;
+      }
+
+      if (!['GO_BACK', 'POP', 'POP_TO_TOP'].includes(event.data.action.type)) {
+        return;
+      }
+
+      event.preventDefault();
+      leaveMissionThread();
+    });
+
+    return unsubscribe;
+  }, [leaveMissionThread, navigation, shouldUseMissionReturnTarget]);
 
   const clearPendingReveal = useCallback(() => {
     if (revealTimeoutRef.current) {
@@ -335,7 +396,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       <View style={styles.threadLayer}>
         <ChatThreadList
           animatedResultKey={animatedResultKey}
-          deferUntilReady={!hasWarmState}
+          deferUntilReady
           ref={threadRef}
           emptyState={
             <View style={styles.stateBox}>
@@ -371,10 +432,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           typingState={typingState}
         />
         {quizSession ? (
-          <MissionChoicePicker />
+          <MissionChoicePicker onClose={leaveMissionThread} />
         ) : (
           <MissionChatInput
             bottomOffset={composerBottomOffset}
+            onClose={leaveMissionThread}
             onRevealRequest={requestComposerReveal}
           />
         )}

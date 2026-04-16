@@ -20,10 +20,11 @@ import {
 import { sanityQuery } from './sanity.js';
 
 import { syncUserToLeaderboard } from './leaderboard.js';
+import { computeRewardOutcome, loadPublishedCustomAchievements, readExistingRewardOutcome } from './rewards.js';
 
 import { verifyFirebaseUser } from './auth.js';
 import {
-    FirebaseResponse, MissionDto
+    FirebaseResponse, MissionDto, MissionSettingsDto
 } from './types.js';
 
 type ChannelMetaInput = {
@@ -101,7 +102,7 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
         defaultQuizFeedbackIncorrect
       }
     }`;
-    const { mission, settings } = await sanityQuery<{ mission: MissionDto | null; settings: any }>(query, { missionId }, mode);
+    const { mission, settings } = await sanityQuery<{ mission: MissionDto | null; settings: MissionSettingsDto | null }>(query, { missionId }, mode);
 
     if (!mission) {
       throw new HttpError(404, 'Mission not found.');
@@ -141,26 +142,34 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       }
     }
 
-    const earned = Math.round((correctCount / questions.length) * mission.points);
+    const basePoints = Math.round((correctCount / questions.length) * mission.points);
     const idempotencyKey = `quiz:${missionId}:${uid}`;
 
     // Check idempotency
-    const existingEvent = await firestore
-      .collection('v2/app/scoreEvents')
-      .where('idempotencyKey', '==', idempotencyKey)
-      .limit(1)
-      .get();
+    const existingEvent = await firestore.collection('v2/app/scoreEvents').doc(idempotencyKey).get();
 
-    if (!existingEvent.empty) {
-      const existing = existingEvent.docs[0].data();
+    if (existingEvent.exists) {
+      const existingReward = await readExistingRewardOutcome({ eventId: idempotencyKey });
       res.status(200).json({
         action: 'already_completed',
         correct: correctCount,
-        earned: existing.delta,
+        earned: existingReward.totalPoints,
+        ...(existingReward.breakdown ? { rewardBreakdown: existingReward.breakdown } : {}),
+        ...(existingReward.streakSummary ? { streakSummary: existingReward.streakSummary } : {}),
         total: questions.length,
       });
       return;
     }
+
+    const awardedAtMs = Date.now();
+    const rewardOutcome = await computeRewardOutcome({
+      awardAtMs: awardedAtMs,
+      basePoints,
+      missionId,
+      mode,
+      timeReferenceAtMs: awardedAtMs,
+      uid,
+    });
 
     // Batch write: scoreEvent + increment user pointsCurrent
     const batch = firestore.batch();
@@ -170,11 +179,13 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     batch.set(eventRef, {
       createdAt: FieldValue.serverTimestamp(),
       createdBy: 'system',
-      delta: earned,
+      delta: rewardOutcome.breakdown.totalPoints,
       idempotencyKey,
       metadata: {
         correct: correctCount,
         missionTitle: mission.title,
+        rewardBreakdown: rewardOutcome.breakdown,
+        streakSummary: rewardOutcome.streakSummary,
         total: questions.length,
       },
       reason: 'quiz_completed',
@@ -184,8 +195,14 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     });
 
     batch.set(userRef, {
+      ...(rewardOutcome.appliedGroupBonusId
+        ? { awardedGroupBonusIds: FieldValue.arrayUnion(rewardOutcome.appliedGroupBonusId) }
+        : {}),
       uid,
-      pointsCurrent: FieldValue.increment(earned),
+      pointsCurrent: FieldValue.increment(rewardOutcome.breakdown.totalPoints),
+      streakCount: rewardOutcome.streakSummary.count,
+      streakLastUpdatedAt: new Date(awardedAtMs).toISOString(),
+      streakMultiplierCurrent: rewardOutcome.streakSummary.multiplier,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -200,7 +217,9 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       payload: {
         correctCount,
         totalCount: questions.length,
-        earned,
+        earned: rewardOutcome.breakdown.totalPoints,
+        rewardBreakdown: rewardOutcome.breakdown,
+        streakSummary: rewardOutcome.streakSummary,
       },
       sourceId: missionId,
       sourceType: 'quiz',
@@ -215,12 +234,20 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
     await batch.commit();
     await syncUserToLeaderboard(uid);
 
-    logger.info('quizComplete scored', { correct: correctCount, earned, missionId, total: questions.length, uid });
+    logger.info('quizComplete scored', {
+      correct: correctCount,
+      earned: rewardOutcome.breakdown.totalPoints,
+      missionId,
+      total: questions.length,
+      uid,
+    });
 
     res.status(200).json({
       action: 'scored',
       correct: correctCount,
-      earned,
+      earned: rewardOutcome.breakdown.totalPoints,
+      rewardBreakdown: rewardOutcome.breakdown,
+      streakSummary: rewardOutcome.streakSummary,
       total: questions.length,
     });
     } catch (error) {
@@ -270,24 +297,32 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Mission is not a GPS mission.');
     }
 
-    const earned = mission.points;
+    const basePoints = mission.points;
     const idempotencyKey = `gps:${missionId}:${uid}`;
 
     // Check idempotency
-    const existingEvent = await firestore
-      .collection('v2/app/scoreEvents')
-      .where('idempotencyKey', '==', idempotencyKey)
-      .limit(1)
-      .get();
+    const existingEvent = await firestore.collection('v2/app/scoreEvents').doc(idempotencyKey).get();
 
-    if (!existingEvent.empty) {
-      const existing = existingEvent.docs[0].data();
+    if (existingEvent.exists) {
+      const existingReward = await readExistingRewardOutcome({ eventId: idempotencyKey });
       res.status(200).json({
         action: 'already_completed',
-        earned: existing.delta,
+        earned: existingReward.totalPoints,
+        ...(existingReward.breakdown ? { rewardBreakdown: existingReward.breakdown } : {}),
+        ...(existingReward.streakSummary ? { streakSummary: existingReward.streakSummary } : {}),
       });
       return;
     }
+
+    const awardedAtMs = Date.now();
+    const rewardOutcome = await computeRewardOutcome({
+      awardAtMs: awardedAtMs,
+      basePoints,
+      missionId,
+      mode,
+      timeReferenceAtMs: awardedAtMs,
+      uid,
+    });
 
     // Batch write: scoreEvent + increment user pointsCurrent
     const batch = firestore.batch();
@@ -297,10 +332,12 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     batch.set(eventRef, {
       createdAt: FieldValue.serverTimestamp(),
       createdBy: 'system',
-      delta: earned,
+      delta: rewardOutcome.breakdown.totalPoints,
       idempotencyKey,
       metadata: {
         missionTitle: mission.title,
+        rewardBreakdown: rewardOutcome.breakdown,
+        streakSummary: rewardOutcome.streakSummary,
       },
       reason: 'gps_completed',
       sourceId: missionId,
@@ -309,8 +346,14 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     });
 
     batch.set(userRef, {
+      ...(rewardOutcome.appliedGroupBonusId
+        ? { awardedGroupBonusIds: FieldValue.arrayUnion(rewardOutcome.appliedGroupBonusId) }
+        : {}),
       uid,
-      pointsCurrent: FieldValue.increment(earned),
+      pointsCurrent: FieldValue.increment(rewardOutcome.breakdown.totalPoints),
+      streakCount: rewardOutcome.streakSummary.count,
+      streakLastUpdatedAt: new Date(awardedAtMs).toISOString(),
+      streakMultiplierCurrent: rewardOutcome.streakSummary.multiplier,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -323,6 +366,7 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
       mode,
       ownerUid: uid,
       payload: {}, // No specific payload needed for GPS yet, just the pin is enough
+      rewardBreakdown: rewardOutcome.breakdown,
       sourceId: missionId,
       sourceType: 'gps',
       status: 'approved',
@@ -334,11 +378,13 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     await batch.commit();
     await syncUserToLeaderboard(uid);
 
-    logger.info('gpsComplete scored', { earned, missionId, uid });
+    logger.info('gpsComplete scored', { earned: rewardOutcome.breakdown.totalPoints, missionId, uid });
 
     res.status(200).json({
       action: 'scored',
-      earned,
+      earned: rewardOutcome.breakdown.totalPoints,
+      rewardBreakdown: rewardOutcome.breakdown,
+      streakSummary: rewardOutcome.streakSummary,
     });
     } catch (error) {
     logger.error('gpsComplete failed', error);
@@ -504,10 +550,19 @@ export async function handleGetSettings(req: Request, res: FirebaseResponse) {
     const mode = resolveMode(readQueryParam(req, 'mode'));
     const query = `*[_type == "siteSettings" && !(_id in path("drafts.**"))][0]{
       defaultQuizFeedbackCorrect,
-      defaultQuizFeedbackIncorrect
+      defaultQuizFeedbackIncorrect,
+      streakRequiredCompletions,
+      streakMultiplier
     }`;
-    const settings = await sanityQuery<any>(query, {}, mode);
-    res.status(200).json(settings || {});
+    const [settings, customAchievements] = await Promise.all([
+      sanityQuery<MissionSettingsDto | null>(query, {}, mode),
+      loadPublishedCustomAchievements(mode),
+    ]);
+    res.status(200).json({
+      ...(settings || {}),
+      customAchievementCount: customAchievements.length,
+      customAchievements,
+    });
   } catch (error) {
     logger.error('handleGetSettings failed', error);
     sendError(res, error);

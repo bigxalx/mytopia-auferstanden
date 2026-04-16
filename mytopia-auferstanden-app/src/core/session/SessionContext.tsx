@@ -13,6 +13,7 @@ import {
 } from '@/src/core/firebase/authClient';
 import { ensureNarrativeTopicSubscription } from '@/src/core/firebase/messagingClient';
 import { useFcmTokenSync } from '@/src/core/firebase/useFcmTokenSync';
+import { clearUserAppCache } from '@/src/core/cache/appCache';
 import { type AppMode } from '@/src/core/session/appMode';
 import {
   onAuthSessionChange,
@@ -125,8 +126,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
         }
       },
       signOut: async () => {
+        const currentUserId = user?.id ?? null;
         try {
           await signOutFromFirebase();
+          if (currentUserId) {
+            await clearUserAppCache(currentUserId);
+          }
         } catch (error) {
           console.error('Failed to sign out from Firebase.', error);
         } finally {

@@ -35,18 +35,28 @@ export const sammelaufgabe = defineType({
             of: [{ type: 'reference', to: [{ type: 'mission' }] }],
             description: 'Füge hier alle Missionen hinzu, die zu dieser Sammelaufgabe gehören sollen.',
         }),
+        defineField({
+            name: 'completionBonusPoints',
+            title: 'Bonus für komplette Sammelaufgabe',
+            type: 'number',
+            description: 'Wird einmalig vergeben, wenn alle Missionen dieser Sammelaufgabe veröffentlicht und erfolgreich abgeschlossen wurden.',
+            validation: (rule) => rule.integer().min(0),
+        }),
     ],
     preview: {
         select: {
             title: 'title',
             active: 'active',
+            completionBonusPoints: 'completionBonusPoints',
             media: 'missions.0->image',
         },
         prepare(selection) {
             const status = selection.active ? '🟢' : '🔴';
             return {
                 title: `${status} ${selection.title || 'Unbenannt'}`,
-                subtitle: 'Sammelaufgabe',
+                subtitle: selection.completionBonusPoints
+                    ? `Sammelaufgabe · +${selection.completionBonusPoints} Gruppen-Bonus`
+                    : 'Sammelaufgabe',
                 media: selection.media,
             };
         },

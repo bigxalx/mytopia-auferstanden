@@ -1,4 +1,5 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Keyboard, Platform, Text, type KeyboardEvent, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,10 +20,16 @@ import { theme } from '@/src/shared/ui/theme';
 
 export default function HubFeedScreen() {
   const navigation = useNavigation<any>();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { selectedMode } = useSession();
-  const { getChannelScrollState, saveChannelScrollState } = useChannels();
-  const { focusedMission, focusedMissionId, highlightMission, quizSession, registerOptimisticHandler, registerScrollHandler, setActiveChannel } =
+  const {
+    clearMissionThreadEntry,
+    consumeMissionNavigationIntent,
+    getChannelScrollState,
+    saveChannelScrollState,
+  } = useChannels();
+  const { focusedMission, focusedMissionChannel, focusedMissionId, highlightMission, openMissionSession, quizSession, registerOptimisticHandler, registerScrollHandler, setActiveChannel, setFocus, startChatQuiz, startMission } =
     useActiveMission();
   const { consumeExternalTarget, highlightedMessageKey, highlightMessageKey } = useThreadNavigation();
   const { isVisible: isMissionBarVisible, isNative: isNativeMissionBar } = useActiveMissionBarVisible();
@@ -32,14 +39,18 @@ export default function HubFeedScreen() {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [pendingExternalBundleId, setPendingExternalBundleId] = useState<string | null>(null);
 
-  const { allItems, canLoadMore, hasWarmState, isHydrated, isLoadingMore, items, loadMore, markRead, typingState } = useHubThread();
+  const { allItems, canLoadMore, isHydrated, isLoadingMore, items, loadMore, markRead, typingState } = useHubThread();
   const scrollState = getChannelScrollState('hub') ?? createDefaultScrollState();
-  const isTextMissionActive = focusedMission?.kind === 'text';
+  const isMissionActiveHere =
+    focusedMissionChannel?.channelId === 'hub' &&
+    focusedMissionChannel?.channelType === 'hub';
+  const isQuizMissionActiveHere = isMissionActiveHere && Boolean(quizSession);
+  const isTextMissionActive = isMissionActiveHere && focusedMission?.kind === 'text';
   const keyboardInset = isTextMissionActive && isKeyboardVisible ? Math.max(0, keyboardHeight - insets.bottom) : 0;
 
   const footerInset =
     Math.max(72, insets.bottom + 108) +
-    (quizSession ? 260 : focusedMissionId ? 140 : 0) +
+    (isQuizMissionActiveHere ? 260 : isMissionActiveHere ? 140 : 0) +
     keyboardInset;
   const scrollToEndButtonBottom = isNativeMissionBar
     ? Math.max(insets.bottom + 16, 24)
@@ -68,6 +79,7 @@ export default function HubFeedScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      clearMissionThreadEntry();
       setActiveChannel({
         channelId: 'hub',
         channelType: 'hub',
@@ -87,8 +99,37 @@ export default function HubFeedScreen() {
         registerOptimisticHandler(null);
         registerScrollHandler(null);
       };
-    }, [highlightMission, registerOptimisticHandler, registerScrollHandler, saveChannelScrollState, setActiveChannel])
+    }, [clearMissionThreadEntry, highlightMission, registerOptimisticHandler, registerScrollHandler, saveChannelScrollState, setActiveChannel])
   );
+
+  useEffect(() => {
+    const pending = consumeMissionNavigationIntent('hub', 'hub');
+    if (!pending) {
+      return;
+    }
+
+    if (pending.action === 'open') {
+      if (focusedMissionId === pending.missionId) {
+        void setFocus(pending.missionId, {
+          channelId: 'hub',
+          channelType: 'hub',
+        });
+      } else {
+        void openMissionSession(pending.missionId);
+      }
+      return;
+    }
+
+    if (pending.kind === 'quiz' && pending.actor) {
+      void startChatQuiz(pending.missionId, pending.actor, pending.data);
+      return;
+    }
+
+    void startMission(pending.missionId, pending.actor, {
+      ...pending.data,
+      kind: pending.kind,
+    });
+  }, [consumeMissionNavigationIntent, focusedMissionId, openMissionSession, setFocus, startChatQuiz, startMission]);
 
   useEffect(() => {
     const target = consumeExternalTarget('hub');
@@ -177,7 +218,7 @@ export default function HubFeedScreen() {
   return (
     <>
       <ChatThreadList
-        deferUntilReady={!hasWarmState}
+        deferUntilReady
         ref={threadRef}
         footerInset={footerInset}
         highlightedMessageKey={highlightedMessageKey}
@@ -193,10 +234,11 @@ export default function HubFeedScreen() {
         typingState={typingState}
       />
       {quizSession ? (
-        <MissionChoicePicker />
+        <MissionChoicePicker onClose={() => router.dismissTo('/(tabs)/feed')} />
       ) : (
         <MissionChatInput
           bottomOffset={composerBottomOffset}
+          onClose={() => router.dismissTo('/(tabs)/feed')}
           onRevealRequest={requestComposerReveal}
         />
       )}

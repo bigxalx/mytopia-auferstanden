@@ -59,6 +59,11 @@ export const SANITY_BUNDLE_PROJECTION = `
         "missionTitle": mission->title,
         "missionKind": mission->kind,
         "missionPoints": mission->points,
+        "timeBonuses": mission->timeBonuses[]{
+          minutesLimit,
+          bonusPoints
+        },
+        "groupCompletionBonusPoints": *[_type == "sammelaufgabe" && active == true && references(mission._ref)][0].completionBonusPoints,
         "imageUrl": mission->image.asset->url,
         "questions": mission->quizConfig.questions[]{
           questionText,
@@ -88,10 +93,16 @@ export const MISSION_LIST_PROJECTION = `
   title,
   kind,
   points,
+  "timeBonuses": timeBonuses[]{
+    minutesLimit,
+    bonusPoints
+  },
   description,
   active,
   expiresAt,
   "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
+  "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,
+  "groupCompletionBonusPoints": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].completionBonusPoints,
   "imageUrl": image.asset->url,
   "gpsConfig": gpsConfig{
     "latitude": location.lat,
@@ -106,11 +117,20 @@ export const MISSION_DETAIL_PROJECTION = `
   title,
   kind,
   points,
+  "timeBonuses": timeBonuses[]{
+    minutesLimit,
+    bonusPoints
+  },
   description,
   active,
   expiresAt,
   "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
   "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,
+  "groupCompletionBonusPoints": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].completionBonusPoints,
+  "actorId": *[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)][0].scriptActor->_id,
+  "actorName": *[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)][0].scriptActor->name,
+  "actorRole": *[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)][0].scriptActor->role,
+  "actorAvatarUrl": *[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)][0].scriptActor->avatar.asset->url,
   "imageUrl": image.asset->url,
   "gpsConfig": gpsConfig{
     "latitude": location.lat,
@@ -133,8 +153,15 @@ export const MISSION_SCORING_PROJECTION = `
   title,
   kind,
   points,
+  "timeBonuses": timeBonuses[]{
+    minutesLimit,
+    bonusPoints
+  },
   active,
   expiresAt,
+  "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
+  "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,
+  "groupCompletionBonusPoints": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].completionBonusPoints,
   "questions": quizConfig.questions[]{
     questionText,
     "options": options[]{text, isCorrect},

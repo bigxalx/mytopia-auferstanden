@@ -4,7 +4,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import {
+  buildFeedChannelHref,
+  useChannels,
+} from '@/src/features/channels/data/ChannelContext';
 import { useSession } from '@/src/core/session/SessionContext';
 import { AppImage } from '@/src/shared/ui/AppImage';
 import { Screen } from '@/src/shared/ui/Screen';
@@ -12,11 +15,13 @@ import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import {
+  fetchSettings,
   fetchMissions,
   getCachedMissions,
   type MissionListItem,
   MISSION_KIND_METADATA,
   type MissionKind,
+  type MissionSettings,
 } from '@/src/features/tasks/data/missionRepository';
 import {
   formatMissionCountdown,
@@ -24,24 +29,33 @@ import {
   getMissionLifecycleStatus,
   type MissionLifecycleStatus,
 } from '@/src/features/tasks/data/missionStatus';
+import { formatTimeBonusText, getRewardBreakdownRows } from '@/src/features/tasks/data/rewardFormatting';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useMissionRewardEvent } from '@/src/features/tasks/data/useUserRewards';
 
 export default function TaskDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { user, selectedMode } = useSession();
-  const { ensureActorMissionChannel, findMissionChannelTarget, queuePendingMissionStart } = useChannels();
-  const { activeChannel, interruptedMission, persistedSessions, setFocus } = useActiveMission();
+  const { ensureActorMissionChannel, queueMissionNavigationIntent } = useChannels();
+  const { activeChannel, focusedMissionChannel, focusedMissionId, missionSessions, persistedSessions } = useActiveMission();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<MissionSettings | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    fetchSettings(selectedMode)
+      .then(setSettings)
+      .catch((err) => console.warn('[TaskDetailScreen] Failed to load settings:', err));
+  }, [selectedMode]);
 
   useEffect(() => {
     let active = true;
@@ -86,10 +100,12 @@ export default function TaskDetailScreen() {
   const missionStatus = mission
     ? getMissionLifecycleStatus(mission, completedMissions, submissionStates)
     : null;
-  const isMissionInterrupted = interruptedMission?.mission._id === taskId;
+  const missionReward = useMissionRewardEvent(user?.id, mission?._id);
+  const isMissionInProgress = focusedMissionId === taskId;
   const isQuizInProgress = mission?.kind === 'quiz' && Boolean(taskId && persistedSessions[taskId]);
+  const missionSession = taskId ? missionSessions[taskId] : undefined;
   const canOpenInThread = missionStatus === 'available' || missionStatus === 'rejected';
-  const actionLabel = isMissionInterrupted || isQuizInProgress ? 'Mission fortsetzen' : 'Mission starten';
+  const actionLabel = isMissionInProgress || isQuizInProgress || missionSession ? 'Mission fortsetzen' : 'Mission starten';
   const bottomInset = Math.max(insets.bottom, 20);
   const ctaInset = bottomInset + 16;
 
@@ -108,7 +124,7 @@ export default function TaskDetailScreen() {
           return left.title.localeCompare(right.title, 'de');
         }
 
-        return leftIsCurrent ? 1 : -1;
+        return leftIsCurrent ? -1 : 1;
       });
   }, [mission, missions]);
 
@@ -158,6 +174,12 @@ export default function TaskDetailScreen() {
   const statusText = getStatusText(missionStatus);
   const countdownText = formatMissionCountdown(mission.expiresAt, now);
   const missionTypeLabel = getMissionTypeLabel(mission.kind);
+  const timeBonuses = [...(mission.timeBonuses ?? [])].sort((left, right) => left.minutesLimit - right.minutesLimit || right.bonusPoints - left.bonusPoints);
+  const customAchievementCount = settings?.customAchievementCount ?? 0;
+  const earnedRewardRows = getRewardBreakdownRows(
+    missionReward?.rewardBreakdown,
+    missionReward?.streakSummary,
+  );
 
   const handleOpenMission = async () => {
     setLaunchError(null);
@@ -176,49 +198,72 @@ export default function TaskDetailScreen() {
           }
           : null;
 
-      const resolvedTarget =
-        isMissionInterrupted && interruptedMission?.actor?.actorId
+      const resumeSession =
+        isMissionInProgress && focusedMissionChannel
           ? {
-            actor: interruptedMission.actor,
-            channelId: interruptedMission.actor.actorId,
-          }
-          : await findMissionChannelTarget(mission._id);
+              ...(missionSession?.actor ? { actor: missionSession.actor } : {}),
+              channel: focusedMissionChannel,
+            }
+          : missionSession ?? null;
 
-      const actor = resolvedTarget?.actor ?? activeActor;
-      if (!actor?.actorId) {
-        await setFocus(mission._id);
-        router.replace('/(tabs)/feed/hub');
-        return;
+      const missionActor =
+        mission.actorId && mission.actorName
+          ? {
+              ...(mission.actorAvatarUrl ? { avatarUrl: mission.actorAvatarUrl } : {}),
+              actorId: mission.actorId,
+              name: mission.actorName,
+              ...(mission.actorRole ? { role: mission.actorRole } : {}),
+            }
+          : null;
+
+      const actor = resumeSession?.actor ?? activeActor ?? missionActor;
+      let channelId = resumeSession?.channel.channelId ?? null;
+      let channelType = resumeSession?.channel.channelType ?? null;
+
+      if (!channelId && actor?.actorId) {
+        channelId = await ensureActorMissionChannel({
+          ...(actor.avatarUrl ? { actorAvatarUrl: actor.avatarUrl } : {}),
+          actorId: actor.actorId,
+          actorName: actor.name,
+          ...(actor.role ? { actorRole: actor.role } : {}),
+        });
+        channelType = 'actor';
       }
 
-      const channelId = await ensureActorMissionChannel({
-        ...(actor.avatarUrl ? { actorAvatarUrl: actor.avatarUrl } : {}),
-        actorId: actor.actorId,
-        actorName: actor.name,
-        ...(actor.role ? { actorRole: actor.role } : {}),
-      });
+      if (!channelId) {
+        if (mission.kind === 'quiz' && !isMissionInProgress) {
+          throw new Error('Quiz konnte keinem Kanal zugeordnet werden.');
+        }
+        channelId = 'hub';
+        channelType = 'hub';
+      }
 
-      queuePendingMissionStart({
-        action: isMissionInterrupted ? 'resume' : 'start',
-        actor: {
-          ...actor,
-          actorId: actor.actorId,
-        },
-        channelId,
+      const shouldOpenExistingSession = Boolean(resumeSession) || isMissionInProgress;
+      queueMissionNavigationIntent({
+        action: shouldOpenExistingSession ? 'open' : 'start',
+        ...(actor?.actorId
+          ? {
+              actor: {
+                ...actor,
+                actorId: actor.actorId,
+              },
+            }
+          : {}),
         data: {
           description: mission.description,
+          ...(mission.gpsConfig ? { gpsConfig: mission.gpsConfig } : {}),
           imageUrl: mission.imageUrl,
           ...(mission.questions ? { questions: mission.questions } : {}),
           title: mission.title,
         },
         kind: mission.kind,
         missionId: mission._id,
+        returnTarget: 'channel-list',
+        targetChannelId: channelId,
+        targetChannelType: channelType === 'actor' ? 'actor' : 'hub',
       });
 
-      router.replace({
-        pathname: '/(tabs)/feed/[channelId]',
-        params: { channelId },
-      });
+      router.dismissTo(buildFeedChannelHref(channelId));
     } catch (err) {
       setLaunchError(err instanceof Error ? err.message : 'Mission konnte nicht geöffnet werden.');
     } finally {
@@ -253,6 +298,34 @@ export default function TaskDetailScreen() {
         <View style={styles.infoCard}>
           <Text style={styles.pointsValue}>{mission.points} Punkte</Text>
 
+          {timeBonuses.length > 0 ? (
+            <View style={styles.infoBlock}>
+              {timeBonuses.map((timeBonus) => (
+                <View key={`${timeBonus.minutesLimit}-${timeBonus.bonusPoints}`} style={styles.rewardRow}>
+                  <TimeBonusIcon />
+                  <Text style={styles.rewardText}>{formatTimeBonusText(timeBonus)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {customAchievementCount > 0 ? (
+            <View style={styles.infoBlock}>
+              <View style={styles.rewardRow}>
+                <CustomBadgeIcon />
+                <Text style={styles.rewardText}>{customAchievementCount} mögliche Abzeichen</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {mission.groupId && mission.groupCompletionBonusPoints ? (
+            <View style={styles.infoBlock}>
+              <Text style={styles.rewardText}>
+                Sammelaufgabe komplett: +{mission.groupCompletionBonusPoints} Bonus-Punkte. Wird erst vergeben, wenn alle Missionen dieser Sammelaufgabe veröffentlicht und erfolgreich abgeschlossen sind.
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.infoBlock}>
             <Text style={styles.infoLabel}>Status</Text>
             <Text style={styles.infoValue}>{statusText}</Text>
@@ -260,6 +333,18 @@ export default function TaskDetailScreen() {
               <Text style={styles.infoMeta}>Hinweis: {submissionStates[mission._id]?.moderatorNote}</Text>
             ) : null}
           </View>
+
+          {missionStatus === 'completed' && missionReward ? (
+            <View style={styles.infoBlock}>
+              <Text style={styles.infoLabel}>Erhalten</Text>
+              <Text style={styles.infoValue}>+{missionReward.rewardBreakdown?.totalPoints ?? missionReward.delta} Punkte</Text>
+              {earnedRewardRows.map((row) => (
+                <Text key={row} style={styles.rewardText}>
+                  {row}
+                </Text>
+              ))}
+            </View>
+          ) : null}
 
           {mission.expiresAt ? (
             <View style={styles.infoBlock}>
@@ -271,9 +356,8 @@ export default function TaskDetailScreen() {
 
           {groupMissions.length > 0 ? (
             <View style={styles.infoBlock}>
-              <Text style={styles.infoLabel}>
-                {mission.groupTitle ? `Sammelaufgabe: ${mission.groupTitle}` : 'Teil einer Sammelaufgabe'}
-              </Text>
+              <Text style={styles.infoLabel}>Teil einer Sammelaufgabe</Text>
+              {mission.groupTitle ? <Text style={styles.infoMeta}>{mission.groupTitle}</Text> : null}
               <View style={styles.groupList}>
                 {groupMissions.map((groupMission) => (
                   <View key={groupMission._id} style={styles.groupRow}>
@@ -285,7 +369,14 @@ export default function TaskDetailScreen() {
                         submissionStates
                       )}
                     />
-                    <Text style={styles.groupTitle}>{groupMission.title}</Text>
+                    <Text
+                      style={[
+                        styles.groupTitle,
+                        groupMission._id === mission._id ? styles.groupTitleCurrent : null,
+                      ]}
+                    >
+                      {groupMission.title}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -363,7 +454,7 @@ function resolveGroupMissionStatus(
   currentMission: MissionListItem,
   completedMissions: string[],
   submissionStates: Record<string, { moderatorNote?: string; status: 'approved' | 'draft' | 'pending' | 'rejected' }>,
-): 'completed' | 'current' | 'failed' {
+): 'completed' | 'current' | 'incomplete' {
   if (groupMission._id === currentMission._id) {
     return 'current';
   }
@@ -373,14 +464,46 @@ function resolveGroupMissionStatus(
     return 'completed';
   }
 
-  if (status === 'rejected' || status === 'expired') {
-    return 'failed';
-  }
-
-  return 'current';
+  return 'incomplete';
 }
 
-function GroupMissionIcon({ status }: { status: 'completed' | 'current' | 'failed' }) {
+function TimeBonusIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        fill="#020202"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 22C16.9706 22 21 17.9706 21 13C21 8.02944 16.9706 4 12 4C7.02944 4 3 8.02944 3 13C3 17.9706 7.02944 22 12 22ZM12 8.25C12.4142 8.25 12.75 8.58579 12.75 9V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V9C11.25 8.58579 11.5858 8.25 12 8.25Z"
+      />
+      <Path
+        fill="#020202"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M9.25 2C9.25 1.58579 9.58579 1.25 10 1.25H14C14.4142 1.25 14.75 1.58579 14.75 2C14.75 2.41421 14.4142 2.75 14 2.75H10C9.58579 2.75 9.25 2.41421 9.25 2Z"
+      />
+    </Svg>
+  );
+}
+
+function CustomBadgeIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+      <Path
+        fill="#020202"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 16C15.866 16 19 12.866 19 9C19 5.13401 15.866 2 12 2C8.13401 2 5 5.13401 5 9C5 12.866 8.13401 16 12 16ZM12 6C11.7159 6 11.5259 6.34084 11.1459 7.02251L11.0476 7.19887C10.9397 7.39258 10.8857 7.48944 10.8015 7.55334C10.7173 7.61725 10.6125 7.64097 10.4028 7.68841L10.2119 7.73161C9.47396 7.89857 9.10501 7.98205 9.01723 8.26432C8.92945 8.54659 9.18097 8.84072 9.68403 9.42898L9.81418 9.58117C9.95713 9.74833 10.0286 9.83191 10.0608 9.93531C10.0929 10.0387 10.0821 10.1502 10.0605 10.3733L10.0408 10.5763C9.96476 11.3612 9.92674 11.7536 10.1565 11.9281C10.3864 12.1025 10.7318 11.9435 11.4227 11.6254L11.6014 11.5431C11.7978 11.4527 11.8959 11.4075 12 11.4075C12.1041 11.4075 12.2022 11.4527 12.3986 11.5431L12.5773 11.6254C13.2682 11.9435 13.6136 12.1025 13.8435 11.9281C14.0733 11.7536 14.0352 11.3612 13.9592 10.5763L13.9395 10.3733C13.9179 10.1502 13.9071 10.0387 13.9392 9.93531C13.9714 9.83191 14.0429 9.74833 14.1858 9.58118L14.316 9.42898C14.819 8.84072 15.0706 8.54659 14.9828 8.26432C14.895 7.98205 14.526 7.89857 13.7881 7.73161L13.5972 7.68841C13.3875 7.64097 13.2827 7.61725 13.1985 7.55334C13.1143 7.48944 13.0603 7.39258 12.9524 7.19887L12.8541 7.02251C12.4741 6.34084 12.2841 6 12 6Z"
+      />
+      <Path
+        fill="#020202"
+        d="M7.09301 15.9414L6.71424 17.323C6.0859 19.6148 5.77173 20.7607 6.19097 21.3881C6.3379 21.6079 6.535 21.7844 6.76372 21.9008C7.41634 22.2331 8.424 21.7081 10.4393 20.658C11.1099 20.3086 11.4452 20.1339 11.8014 20.0959C11.9335 20.0818 12.0665 20.0818 12.1986 20.0959C12.5548 20.1339 12.8901 20.3086 13.5607 20.658C15.576 21.7081 16.5837 22.2331 17.2363 21.9008C17.465 21.7844 17.6621 21.6079 17.809 21.3881C18.2283 20.7607 17.9141 19.6148 17.2858 17.323L16.907 15.9414C15.5208 16.9231 13.8278 17.5 12 17.5C10.1722 17.5 8.47915 16.9231 7.09301 15.9414Z"
+      />
+    </Svg>
+  );
+}
+
+function GroupMissionIcon({ status }: { status: 'completed' | 'current' | 'incomplete' }) {
   if (status === 'completed') {
     return (
       <Svg width={19} height={19} viewBox="0 0 19 19" fill="none">
@@ -394,13 +517,13 @@ function GroupMissionIcon({ status }: { status: 'completed' | 'current' | 'faile
     );
   }
 
-  if (status === 'failed') {
+  if (status === 'incomplete') {
     return (
-      <Svg width={18} height={18} viewBox="0 0 24 24" color="#9FCFE6" fill="none">
+      <Svg width={18} height={18} viewBox="0 0 24 24" color="#D64545" fill="none">
         <Path
-          opacity="0.5"
           d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
           fill="currentColor"
+          opacity="0.18"
         />
         <Path
           d="M8.96967 8.96967C9.26256 8.67678 9.73744 8.67678 10.0303 8.96967L12 10.9394L13.9697 8.96969C14.2626 8.6768 14.7374 8.6768 15.0303 8.96969C15.3232 9.26258 15.3232 9.73746 15.0303 10.0304L13.0607 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0304 15.0303C9.73746 15.3232 9.26258 15.3232 8.96969 15.0303C8.6768 14.7374 8.6768 14.2626 8.96969 13.9697L10.9394 12L8.96967 10.0303C8.67678 9.73744 8.67678 9.26256 8.96967 8.96967Z"
@@ -411,10 +534,10 @@ function GroupMissionIcon({ status }: { status: 'completed' | 'current' | 'faile
   }
 
   return (
-    <Svg width={13} height={18} viewBox="0 0 13 18" fill="none">
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
       <Path
         fill="#F67641"
-        d="M0.625 0C0.970175 0 1.25 0.279825 1.25 0.625V2.16667L2.68389 1.87989C4.05933 1.6048 5.48508 1.7357 6.78742 2.25664L6.95717 2.32453C8.25808 2.84491 9.69 2.94209 11.0493 2.60225C11.6804 2.44449 12.2917 2.92178 12.2917 3.57224V9.71142C12.2917 10.2483 11.9263 10.7163 11.4053 10.8466L11.2267 10.8913C9.752 11.2599 8.19875 11.1545 6.78742 10.59C5.48508 10.069 4.05933 9.93817 2.68389 10.2133L1.25 10.5V17.2917C1.25 17.6368 0.970175 17.9167 0.625 17.9167C0.279825 17.9167 0 17.6368 0 17.2917V0.625C0 0.279825 0.279825 0 0.625 0Z"
+        d="M4.79175 0.833374C5.13692 0.833374 5.41675 1.1132 5.41675 1.45837V3.00004L6.85064 2.71327C8.22608 2.43817 9.65183 2.56907 10.9542 3.09002L11.1239 3.1579C12.4248 3.67828 13.8567 3.77547 15.2161 3.43562C15.8472 3.27787 16.4584 3.75515 16.4584 4.40562V10.5448C16.4584 11.0817 16.093 11.5497 15.5721 11.68L15.3934 11.7246C13.9187 12.0933 12.3655 11.9879 10.9542 11.4234C9.65183 10.9024 8.22608 10.7715 6.85064 11.0466L5.41675 11.3334V18.125C5.41675 18.4702 5.13692 18.75 4.79175 18.75C4.44657 18.75 4.16675 18.4702 4.16675 18.125V1.45837C4.16675 1.1132 4.44657 0.833374 4.79175 0.833374Z"
       />
     </Svg>
   );
@@ -453,6 +576,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
+  },
+  groupTitleCurrent: {
+    fontWeight: '800',
   },
   image: {
     borderRadius: 12,
@@ -499,6 +625,17 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     textAlign: 'left',
   },
+  rewardRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  rewardText: {
+    color: theme.colors.cardTextPrimary,
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   screen: {
     backgroundColor: theme.colors.background,
     flex: 1,
@@ -524,8 +661,8 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 1 }],
   },
   startButtonText: {
-    color: "#020202",
-    textTransform: "uppercase",
+    color: '#020202',
+    textTransform: 'uppercase',
     fontFamily: 'Nunito_700Bold',
     fontSize: 18,
   },

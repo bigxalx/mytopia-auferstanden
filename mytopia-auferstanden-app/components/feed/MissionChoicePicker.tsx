@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, Pressable, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import { theme } from '@/src/shared/ui/theme';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,8 +12,9 @@ import * as Haptics from 'expo-haptics';
  * Modern selection UI for quiz choices that appears at the bottom of the feed.
  * Replaces the standard chat input during a quiz session.
  */
-export const MissionChoicePicker: React.FC = () => {
-  const { activeChannel, quizSession, submitQuizStep, interruptMission } = useActiveMission();
+export const MissionChoicePicker: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
+  const router = useRouter();
+  const { activeChannel, focusedMissionChannel, quizSession, submitQuizStep } = useActiveMission();
   const insets = useSafeAreaInsets();
   const [lockedIndex, setLockedIndex] = useState<number | null>(null);
 
@@ -20,14 +22,27 @@ export const MissionChoicePicker: React.FC = () => {
     setLockedIndex(null);
   }, [quizSession?.currentIndex, quizSession?.showPicker]);
 
-  if (activeChannel.channelType !== 'actor') return null;
-  if (!quizSession || !quizSession.showPicker) return null;
+  const isFocusedInCurrentChannel =
+    focusedMissionChannel?.channelId === activeChannel.channelId &&
+    focusedMissionChannel?.channelType === activeChannel.channelType;
+
+  if (!quizSession || !quizSession.showPicker || !isFocusedInCurrentChannel) return null;
 
   const currentQuestion = quizSession.questions[quizSession.currentIndex];
   if (!currentQuestion) return null;
 
   const handleClose = () => {
-    void interruptMission();
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.dismissTo('/(tabs)/feed');
   };
 
   // Position it above the tab bar consistent with MissionChatInput

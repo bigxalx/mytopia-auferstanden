@@ -62,13 +62,50 @@ export type LegacySummary = {
   totalPoints: number;
 };
 
+export type TimeBonusSummary = {
+  bonusPoints: number;
+  minutesLimit: number;
+};
+
+export type CustomAchievementSummary = {
+  bonusPoints: number;
+  description?: string;
+  id: string;
+  title: string;
+};
+
+export type GroupBonusSummary = {
+  bonusPoints: number;
+  groupId: string;
+  groupTitle: string;
+};
+
+export type RewardBreakdown = {
+  basePoints: number;
+  customAchievements?: CustomAchievementSummary[];
+  groupBonus?: GroupBonusSummary;
+  streakBonusPoints: number;
+  timeBonus?: TimeBonusSummary;
+  totalPoints: number;
+};
+
+export type StreakSummary = {
+  count: number;
+  isActive: boolean;
+  multiplier: number;
+};
+
 export type V2UserDoc = {
+  awardedGroupBonusIds?: string[];
   createdAt: FirestoreTimestampString;
   displayName: string;
   email: string;
   legacySummary?: LegacySummary;
   photoURL?: string;
   pointsCurrent?: number;
+  streakCount?: number;
+  streakLastUpdatedAt?: FirestoreTimestampString;
+  streakMultiplierCurrent?: number;
   uid: string;
   updatedAt: FirestoreTimestampString;
 };
@@ -86,13 +123,16 @@ export type V2TaskDoc = {
 export type V2SubmissionDoc = {
   awarded?: boolean;
   awardedAt?: FirestoreTimestampString;
+  awardedPoints?: number;
   createdAt: FirestoreTimestampString;
+  customAchievementIds?: string[];
   earnedPoints?: number;
   idempotencyKey: string;
   metadata?: Record<string, string | number | boolean | null>;
   moderatorNote?: string;
   ownerUid: string;
   payload: string;
+  rewardBreakdown?: RewardBreakdown;
   reviewedAt?: FirestoreTimestampString;
   reviewedBy?: string;
   sourceId: string;
@@ -113,7 +153,13 @@ export type V2ScoreEventDoc = {
   createdBy: string;
   delta: number;
   idempotencyKey: string;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: {
+    correct?: number;
+    missionTitle?: string;
+    rewardBreakdown?: RewardBreakdown;
+    streakSummary?: StreakSummary;
+    total?: number;
+  };
   reason: ScoreEventReason;
   sourceId: string;
   sourceType: ScoreEventSourceType;

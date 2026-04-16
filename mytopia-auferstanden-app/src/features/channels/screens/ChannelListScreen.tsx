@@ -1,17 +1,19 @@
-import { useLayoutEffect, useMemo } from 'react';
+import { useCallback, useLayoutEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
 import { ActorAvatar } from '@/components/feed/ActorAvatar';
-import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import { buildFeedChannelHref, useChannels } from '@/src/features/channels/data/ChannelContext';
 import { useSession } from '@/src/core/session/SessionContext';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { theme } from '@/src/shared/ui/theme';
 
 export function ChannelListScreen() {
   const navigation = useNavigation<any>();
   const router = useRouter();
-  const { actorChannels, hubUnreadCount } = useChannels();
+  const { actorChannels, clearMissionThreadEntry, hubUnreadCount } = useChannels();
+  const { setActiveChannel } = useActiveMission();
   const { selectedMode } = useSession();
 
   useLayoutEffect(() => {
@@ -23,6 +25,16 @@ export function ChannelListScreen() {
       title: 'Kanäle',
     });
   }, [navigation, selectedMode]);
+
+  useFocusEffect(
+    useCallback(() => {
+      clearMissionThreadEntry();
+      setActiveChannel({
+        channelId: 'hub',
+        channelType: 'hub',
+      });
+    }, [clearMissionThreadEntry, setActiveChannel])
+  );
 
   const actorItems = useMemo(
     () => [...actorChannels].sort((a, b) => b.lastMessageAtMs - a.lastMessageAtMs),
@@ -37,7 +49,7 @@ export function ChannelListScreen() {
         preview={hubUnreadCount > 0 ? `${hubUnreadCount} ungelesene Nachrichten` : 'Story-Nachrichten und Missionen'}
         title="Notfallkanal"
         unreadCount={hubUnreadCount}
-        onPress={() => router.push('/(tabs)/feed/hub')}
+        onPress={() => router.navigate('/(tabs)/feed/hub')}
       />
 
       {actorItems.length > 0 && (
@@ -51,12 +63,7 @@ export function ChannelListScreen() {
               subtitle={formatTimestamp(channel.lastMessageAtMs)}
               title={channel.title}
               unreadCount={channel.unreadCount}
-              onPress={() =>
-                router.push({
-                  pathname: '/(tabs)/feed/[channelId]',
-                  params: { channelId: channel.channelId },
-                })
-              }
+              onPress={() => router.navigate(buildFeedChannelHref(channel.channelId))}
             />
           ))}
         </View>

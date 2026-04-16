@@ -102,6 +102,39 @@ export const quizQuestion = defineType({
     },
 });
 
+export const timeBonus = defineType({
+    name: 'timeBonus',
+    title: 'Zeit-Bonus',
+    type: 'object',
+    fields: [
+        defineField({
+            name: 'minutesLimit',
+            title: 'Zeitlimit (Minuten)',
+            type: 'number',
+            description: 'Wenn die Mission innerhalb dieser Zeit nach Veröffentlichung abgeschlossen wird, wird der Bonus vergeben.',
+            validation: (rule) => rule.required().integer().min(1),
+        }),
+        defineField({
+            name: 'bonusPoints',
+            title: 'Bonus-Punkte',
+            type: 'number',
+            validation: (rule) => rule.required().integer().min(1),
+        }),
+    ],
+    preview: {
+        select: {
+            bonusPoints: 'bonusPoints',
+            minutesLimit: 'minutesLimit',
+        },
+        prepare(selection) {
+            return {
+                title: `Unter ${selection.minutesLimit ?? '?'} Min.`,
+                subtitle: `+${selection.bonusPoints ?? '?'} Zeit-Bonus`,
+            };
+        },
+    },
+});
+
 export const mission = defineType({
     name: 'mission',
     title: 'Mission',
@@ -150,6 +183,13 @@ export const mission = defineType({
             description: 'Wie viele Punkte diese Mission wert ist.',
             validation: (rule) => rule.required().min(1).integer(),
             initialValue: 100,
+        }),
+        defineField({
+            name: 'timeBonuses',
+            title: 'Zeit-Boni',
+            type: 'array',
+            of: [defineArrayMember({ type: 'timeBonus' })],
+            description: 'Optionale Bonus-Punkte, wenn die Mission schnell nach ihrer Veröffentlichung erledigt wird.',
         }),
         defineField({
             name: 'description',

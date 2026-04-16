@@ -90,7 +90,7 @@ export default function AuthLayout() {
           <View style={styles.content}>
             <View style={styles.logoContainer}>
               <Text style={styles.logoTitle}>Mytopia</Text>
-              <Text style={styles.logoSubtitle}>Missionen, Nachrichten und Orte</Text>
+              <Text style={styles.logoSubtitle}>Auferstanden aus Rache</Text>
             </View>
             <View style={styles.stackContainer}>
               <Stack

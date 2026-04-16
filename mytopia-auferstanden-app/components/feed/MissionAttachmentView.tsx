@@ -24,12 +24,16 @@ export function MissionAttachmentView({
   userInteraction?: boolean;
   actor: NarrativeMessageDto['actor'];
 }) {
-  const { focusedMissionId, interruptedMission, setFocus } = useActiveMission();
+  const { activeChannel, focusedMissionChannel, focusedMissionId, setFocus } = useActiveMission();
   const { user } = useSession();
   const completedMissions = useCompletedMissions(user?.id);
   const submissionStates = useMissionSubmissionStates(user?.id);
 
-  const isFocused = focusedMissionId === attachment.missionId;
+  const isMissionInProgress = focusedMissionId === attachment.missionId;
+  const isFocused =
+    isMissionInProgress &&
+    focusedMissionChannel?.channelId === activeChannel.channelId &&
+    focusedMissionChannel?.channelType === activeChannel.channelType;
 
   // Determine if this should be rendered as a simple reference link
   // (e.g. in synthetic feedback messages or when no rich content is provided)
@@ -42,7 +46,6 @@ export function MissionAttachmentView({
 
   const status = getMissionLifecycleStatus(missionObj, completedMissions, submissionStates);
   const isAvailable = status === 'available';
-  const isInterrupted = interruptedMission?.mission._id === attachment.missionId;
 
   const meta = attachment.missionKind
     ? MISSION_KIND_METADATA[attachment.missionKind as MissionKind]
@@ -151,7 +154,7 @@ export function MissionAttachmentView({
           {content}
         </Pressable>
       </Link>
-      {(isAvailable || isInterrupted) && !isFocused && (
+      {(isAvailable || isMissionInProgress) && !isFocused && (
         <MissionInteractionZone
           compact
           missionId={attachment.missionId}

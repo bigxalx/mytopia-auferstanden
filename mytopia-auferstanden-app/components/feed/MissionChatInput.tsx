@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { theme } from '@/src/shared/ui/theme';
@@ -21,17 +22,20 @@ import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
  */
 export const MissionChatInput: React.FC<{
   bottomOffset?: number;
+  onClose?: () => void;
   onRevealRequest?: () => void;
 }> = ({
   bottomOffset,
+  onClose,
   onRevealRequest,
 }) => {
+  const router = useRouter();
   const { 
     activeChannel,
     focusedMission,
+    focusedMissionChannel,
     focusedMissionId,
     completeMission,
-    interruptMission,
   } = useActiveMission();
   
   const insets = useSafeAreaInsets();
@@ -44,12 +48,25 @@ export const MissionChatInput: React.FC<{
     setIsSubmitting(false);
   }, [focusedMissionId]);
 
-  if (activeChannel.channelType !== 'actor') return null;
-  if (!focusedMissionId || !focusedMission) return null;
+  const isFocusedInCurrentChannel =
+    focusedMissionChannel?.channelId === activeChannel.channelId &&
+    focusedMissionChannel?.channelType === activeChannel.channelType;
+
+  if (!focusedMissionId || !focusedMission || !isFocusedInCurrentChannel) return null;
   if (focusedMission.kind === 'quiz') return null;
 
   const handleClose = () => {
-    void interruptMission();
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.dismissTo('/(tabs)/feed');
   };
 
   const handleSubmit = async (payloadOverride?: any) => {
@@ -131,7 +148,7 @@ export const MissionChatInput: React.FC<{
               missionId={focusedMission._id}
               target={focusedMission.gpsConfig}
               onComplete={async () => {
-                await handleSubmit({ joined: true });
+                await handleSubmit({ action: 'checkin' });
                 return { earned: 0 };
               }}
             />

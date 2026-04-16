@@ -14,7 +14,7 @@ import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeed
 import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
-import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import { buildFeedChannelHref, useChannels } from '@/src/features/channels/data/ChannelContext';
 import { useRouter } from 'expo-router';
 
 const TAIL_WIDTH = 20;
@@ -137,10 +137,7 @@ export function MessageBubble({
             onPress={
               linkedChannelId
                 ? () =>
-                    router.push({
-                      pathname: '/(tabs)/feed/[channelId]',
-                      params: { channelId: linkedChannelId },
-                    })
+                    router.navigate(buildFeedChannelHref(linkedChannelId))
                 : undefined
             }
           />

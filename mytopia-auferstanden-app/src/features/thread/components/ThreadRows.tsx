@@ -19,6 +19,7 @@ import { theme } from '@/src/shared/ui/theme';
 const INLINE_TYPING_AVATAR_OFFSET = 42;
 
 export function ThreadFeedItemRow({
+  allowAnimations,
   didCaptureInitialItemsRef,
   feedItems,
   animatedResultKey,
@@ -29,6 +30,7 @@ export function ThreadFeedItemRow({
   onImagePress,
   seenMessageKeysRef,
 }: {
+  allowAnimations: boolean;
   didCaptureInitialItemsRef: MutableRefObject<boolean>;
   feedItems: FeedItem[];
   animatedResultKey?: string | null;
@@ -100,8 +102,11 @@ export function ThreadFeedItemRow({
     nextItem.actor.name === currentActorName &&
     nextItem.actor.actorId === playbackMessage.message.actor.actorId;
   const isLastInBundle = !nextMessage || nextMessage.bundleId !== playbackMessage.bundleId;
-  const shouldAnimate = didCaptureInitialItemsRef.current && !seenMessageKeysRef.current.has(item.key);
-  const shouldAnimateResult = isResultCard && animatedResultKey === item.key;
+  const shouldAnimate =
+    allowAnimations &&
+    didCaptureInitialItemsRef.current &&
+    !seenMessageKeysRef.current.has(item.key);
+  const shouldAnimateResult = allowAnimations && isResultCard && animatedResultKey === item.key;
   const shouldAnimateRow = isResultCard ? shouldAnimateResult : shouldAnimate;
   const resultCardTopSpacing =
     isResultCard && (previousItem?.type === 'typing' || (previousMessage && !previousMessage.message.isUser)) ? 52 : 0;

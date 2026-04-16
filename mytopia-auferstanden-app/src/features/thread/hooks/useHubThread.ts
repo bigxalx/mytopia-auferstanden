@@ -13,6 +13,11 @@ import {
   reconcileLatestBundles,
   type ThreadTypingState,
 } from '@/src/features/thread/data/threadMessages';
+import {
+  clearHubThreadSnapshot,
+  getHubThreadSnapshot,
+  setHubThreadSnapshot,
+} from '@/src/features/thread/data/hubThreadSnapshotStore';
 
 const FEED_CACHE_VERSION = 1;
 const FEED_CACHE_LIMIT = 80;
@@ -24,19 +29,12 @@ type FeedCachePayload = {
   version: number;
 };
 
-type HubThreadSnapshot = {
-  bundles: NarrativeBundleDto[];
-  cacheKey: string;
-  nextCursor: string | null;
-};
-
-let hubThreadSnapshot: HubThreadSnapshot | null = null;
-
 export function useHubThread() {
   const { selectedMode, user } = useSession();
   const { markAsRead, pulse, refreshKey } = useNarrativeSignal();
   const isFocused = useIsFocused();
   const cacheKey = user ? `mytopia_feed_cache:${user.id}:${selectedMode}` : null;
+  const hubThreadSnapshot = getHubThreadSnapshot();
   const snapshot =
     cacheKey && hubThreadSnapshot?.cacheKey === cacheKey ? hubThreadSnapshot : null;
   const hasWarmState = Boolean(snapshot);
@@ -106,7 +104,7 @@ export function useHubThread() {
       setBundles([]);
       setNextCursor(null);
       setIsHydrated(false);
-      hubThreadSnapshot = null;
+      clearHubThreadSnapshot();
       bootstrappedCacheKeyRef.current = null;
       return;
     }
@@ -155,11 +153,11 @@ export function useHubThread() {
       return;
     }
 
-    hubThreadSnapshot = {
+    setHubThreadSnapshot({
       bundles,
       cacheKey,
       nextCursor,
-    };
+    });
 
     const payload: FeedCachePayload = {
       bundles: bundles.slice(-FEED_CACHE_LIMIT),

@@ -4,8 +4,10 @@ import { Alert, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react
 import Constants from 'expo-constants';
 
 import { deleteCurrentUserAccount } from '@/src/core/firebase/accountDeletionClient';
+import { clearUserAppCache } from '@/src/core/cache/appCache';
 import { PrivacyManager } from '@/src/core/firebase/privacyManager';
 import { useSession } from '@/src/core/session/SessionContext';
+import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { getExpoRuntimeVersion } from '@/src/core/updates/expoUpdatesClient';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { Screen } from '@/src/shared/ui/Screen';
@@ -14,8 +16,10 @@ import { theme } from '@/src/shared/ui/theme';
 
 export default function SettingsScreen() {
   const { canUseDevMode, selectedMode, setSelectedMode, signOut, user } = useSession();
+  const { resetMissionState } = useActiveMission();
   const [accountFeedback, setAccountFeedback] = useState<{ message: string; tone: 'error' | 'success' } | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const runtimeVersion = getExpoRuntimeVersion();
   const otaVersion = Constants.expoConfig?.extra?.otaVersion ?? Constants.expoConfig?.version ?? 'Unavailable';
@@ -82,6 +86,43 @@ export default function SettingsScreen() {
     }
   }
 
+  function handleClearCache() {
+    Alert.alert(
+      'Cache leeren',
+      'Lokale Missions-, Feed- und Kanal-Caches werden entfernt. Temporäre Sitzungen müssen danach neu geöffnet werden.',
+      [
+        { style: 'cancel', text: 'Abbrechen' },
+        {
+          text: 'Leeren',
+          onPress: () => {
+            void confirmClearCache();
+          },
+        },
+      ]
+    );
+  }
+
+  async function confirmClearCache() {
+    const currentUserId = user?.id;
+    if (!currentUserId) {
+      return;
+    }
+
+    setIsClearingCache(true);
+    try {
+      await clearUserAppCache(currentUserId, { clearModePreference: false });
+      resetMissionState();
+      Alert.alert('Cache geleert', 'Lokale Missions- und Feed-Caches wurden entfernt.');
+    } catch (error) {
+      Alert.alert(
+        'Fehler',
+        error instanceof Error ? error.message : 'Cache konnte nicht geleert werden.'
+      );
+    } finally {
+      setIsClearingCache(false);
+    }
+  }
+
   return (
     <Screen title="Einstellungen" headerShown={false}>
       <View style={styles.section}>
@@ -141,7 +182,7 @@ export default function SettingsScreen() {
 
       {canUseDevMode ? (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Mode</Text>
+          <Text style={styles.sectionLabel}>Dev Tools</Text>
           <SurfaceCard>
             <View style={styles.modeRow}>
               <AppButton
@@ -159,6 +200,12 @@ export default function SettingsScreen() {
                 variant={selectedMode === 'dev' ? 'primary' : 'secondary'}
               />
             </View>
+            <View style={styles.separator} />
+            <ActionRow
+              disabled={isClearingCache}
+              label={isClearingCache ? 'Cache wird geleert...' : 'Cache leeren'}
+              onPress={handleClearCache}
+            />
           </SurfaceCard>
         </View>
       ) : null}
@@ -166,7 +213,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Hilfe und Support</Text>
         <SurfaceCard style={styles.supportCard}>
-          <SupportRow label="Datenschutz" onPress={() => Linking.openURL('https://mytopia.world/privacy')} />
+          <SupportRow label="Datenschutz" onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')} />
           <View style={styles.separator} />
           <SupportRow label="Impressum" onPress={() => Linking.openURL('https://mytopia.world')} />
         </SurfaceCard>

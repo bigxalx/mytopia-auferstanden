@@ -6,7 +6,11 @@ import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
 
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
-import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import {
+  buildFeedChannelHref,
+  type MissionNavigationIntent,
+  useChannels,
+} from '@/src/features/channels/data/ChannelContext';
 
 import { GpsRunner } from '@/src/features/tasks/components/GpsRunner';
 import { PhotoRunner } from '@/src/features/tasks/components/PhotoRunner';
@@ -49,65 +53,134 @@ export function MissionInteractionZone({
 }: Props) {
   const router = useRouter();
 
-  const { ensureActorMissionChannel, queuePendingMissionStart } = useChannels();
+  const { ensureActorMissionChannel, queueMissionNavigationIntent } = useChannels();
   const { 
     activeChannel,
+    focusedMissionChannel,
     focusedMissionId, 
     activeMission, 
+    missionSessions,
+    openMissionSession,
     startMission,
     startChatQuiz,
     persistedSessions,
     completeMission,
-    interruptedMission,
   } = useActiveMission();
-  const isFocused = focusedMissionId === missionId;
+  const isMissionInProgress = focusedMissionId === missionId;
+  const isFocused =
+    isMissionInProgress &&
+    focusedMissionChannel?.channelId === activeChannel.channelId &&
+    focusedMissionChannel?.channelType === activeChannel.channelType;
   const isQuizInProgress = kind === 'quiz' && persistedSessions[missionId];
-  const isMissionInterrupted = interruptedMission?.mission._id === missionId;
+  const missionSession = missionSessions[missionId];
   const resolvedMissionTitle = activeMission?._id === missionId ? activeMission.title : missionTitle;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [textInput, setTextInput] = useState('');
 
+  const buildMissionNavigationIntent = ({
+    action,
+    targetChannelId,
+    targetChannelType,
+    targetActor,
+  }: {
+    action: 'open' | 'start';
+    targetActor?: NarrativeMessageDto['actor'];
+    targetChannelId: string;
+    targetChannelType: 'hub' | 'actor';
+  }): MissionNavigationIntent => ({
+    action,
+    ...(targetActor ? { actor: targetActor } : {}),
+    data: {
+      description,
+      ...(gpsConfig ? { gpsConfig } : {}),
+      imageUrl,
+      questions,
+      title: resolvedMissionTitle,
+    },
+    kind,
+    missionId,
+    returnTarget: activeChannel.channelType === 'hub' ? 'hub' : 'channel-list',
+    targetChannelId,
+    targetChannelType,
+  });
+
+  const navigateToMissionChannel = (intent: MissionNavigationIntent) => {
+    queueMissionNavigationIntent(intent);
+    router.navigate(buildFeedChannelHref(intent.targetChannelId));
+  };
+
   const handleStartMission = async () => {
     setIsSubmitting(true);
     try {
-      if (actor.actorId && activeChannel.channelId !== actor.actorId) {
+      const sessionChannel = missionSession?.channel;
+      const sessionActor = missionSession?.actor ?? actor;
+      const shouldOpenFocusedChannel =
+        isMissionInProgress &&
+        focusedMissionChannel &&
+        (focusedMissionChannel.channelId !== activeChannel.channelId ||
+          focusedMissionChannel.channelType !== activeChannel.channelType);
+
+      if (shouldOpenFocusedChannel) {
+        navigateToMissionChannel(buildMissionNavigationIntent({
+          action: 'open',
+          targetChannelId: focusedMissionChannel.channelId,
+          targetChannelType: focusedMissionChannel.channelType,
+        }));
+        return;
+      }
+
+      if (
+        missionSession &&
+        sessionChannel &&
+        (sessionChannel.channelId !== activeChannel.channelId ||
+          sessionChannel.channelType !== activeChannel.channelType)
+      ) {
+        navigateToMissionChannel(buildMissionNavigationIntent({
+          action: 'open',
+          ...(sessionActor ? { targetActor: sessionActor } : {}),
+          targetChannelId: sessionChannel.channelId,
+          targetChannelType: sessionChannel.channelType,
+        }));
+        return;
+      }
+
+      if (
+        missionSession &&
+        sessionChannel?.channelId === activeChannel.channelId &&
+        sessionChannel.channelType === activeChannel.channelType
+      ) {
+        await openMissionSession(missionId);
+        return;
+      }
+
+      if (sessionActor.actorId && activeChannel.channelId !== sessionActor.actorId) {
         const channelId = await ensureActorMissionChannel({
-          ...(actor.avatarUrl ? { actorAvatarUrl: actor.avatarUrl } : {}),
-          actorId: actor.actorId,
-          actorName: actor.name,
-          ...(actor.role ? { actorRole: actor.role } : {}),
+          ...(sessionActor.avatarUrl ? { actorAvatarUrl: sessionActor.avatarUrl } : {}),
+          actorId: sessionActor.actorId,
+          actorName: sessionActor.name,
+          ...(sessionActor.role ? { actorRole: sessionActor.role } : {}),
         });
-        queuePendingMissionStart({
-          action: isMissionInterrupted ? 'resume' : 'start',
-          actor,
-          channelId,
-          data: {
-            description,
-            imageUrl,
-            questions,
-            title: resolvedMissionTitle,
-          },
-          kind,
-          missionId,
-        });
-        router.push({
-          pathname: '/(tabs)/feed/[channelId]',
-          params: { channelId },
-        });
+        navigateToMissionChannel(buildMissionNavigationIntent({
+          action: missionSession || isMissionInProgress ? 'open' : 'start',
+          targetActor: sessionActor,
+          targetChannelId: channelId,
+          targetChannelType: 'actor',
+        }));
         return;
       }
 
       if (kind === 'quiz') {
-        await startChatQuiz(missionId, actor, {
+        await startChatQuiz(missionId, sessionActor, {
           title: resolvedMissionTitle,
           questions: questions,
           description: description,
           imageUrl: imageUrl,
         });
       } else {
-        await startMission(missionId, actor, {
+        await startMission(missionId, sessionActor, {
           description,
+          ...(gpsConfig ? { gpsConfig } : {}),
           imageUrl,
           kind,
           title: resolvedMissionTitle,
@@ -135,7 +208,7 @@ export function MissionInteractionZone({
             <ActivityIndicator color={styles.actionButtonText.color} size="small" />
           ) : (
             <Text style={styles.actionButtonText}>
-              {isQuizInProgress || isMissionInterrupted ? 'MISSION FORTSETZEN' : 'MISSION STARTEN'}
+              {isQuizInProgress || isMissionInProgress || missionSession ? 'MISSION FORTSETZEN' : 'MISSION STARTEN'}
             </Text>
           )}
         </Pressable>

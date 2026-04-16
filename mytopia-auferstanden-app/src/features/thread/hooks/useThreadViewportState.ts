@@ -7,6 +7,7 @@ import { type PlaybackMessage } from '@/src/features/feed/utils/playback';
 import { type FeedItem } from '@/src/features/thread/data/threadRenderItems';
 
 const SCROLL_TO_END_SHOW_THRESHOLD_PX = 180;
+const THREAD_READY_SETTLE_MS = 180;
 
 export function useThreadViewportState({
   deferUntilReady,
@@ -27,10 +28,12 @@ export function useThreadViewportState({
 }) {
   const listRef = useRef<FlashListRef<FeedItem>>(null);
   const latestScrollStateRef = useRef(scrollState);
+  const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenMessageKeysRef = useRef(new Set<string>());
   const didCaptureInitialItemsRef = useRef(false);
   const didRestoreScrollRef = useRef(false);
   const hasMeasuredLayoutRef = useRef(false);
+  const isInitialRevealPendingRef = useRef(Boolean(deferUntilReady));
   const isAtBottomRef = useRef(scrollState.wasAtBottom);
   const prevMessageCountRef = useRef(items.length);
   const scrollMetricsRef = useRef({
@@ -45,6 +48,42 @@ export function useThreadViewportState({
   const scrollToEndOpacity = useRef(new Animated.Value(showScrollToEndButton ? 1 : 0)).current;
 
   latestScrollStateRef.current = scrollState;
+
+  const clearReadyTimer = useCallback(() => {
+    if (!readyTimerRef.current) {
+      return;
+    }
+
+    clearTimeout(readyTimerRef.current);
+    readyTimerRef.current = null;
+  }, []);
+
+  const scheduleInitialReveal = useCallback(() => {
+    if (!isInitialRevealPendingRef.current) {
+      return;
+    }
+
+    if (!deferUntilReady) {
+      isInitialRevealPendingRef.current = false;
+      setIsReady(true);
+      return;
+    }
+
+    if (!isHydrated || !hasMeasuredLayoutRef.current) {
+      return;
+    }
+
+    if (feedItems.length > 0 && !didRestoreScrollRef.current) {
+      return;
+    }
+
+    clearReadyTimer();
+    readyTimerRef.current = setTimeout(() => {
+      isInitialRevealPendingRef.current = false;
+      readyTimerRef.current = null;
+      setIsReady(true);
+    }, THREAD_READY_SETTLE_MS);
+  }, [clearReadyTimer, deferUntilReady, feedItems.length, isHydrated]);
 
   const initialContentOffset = useMemo(
     () =>
@@ -167,6 +206,8 @@ export function useThreadViewportState({
     didCaptureInitialItemsRef.current = false;
     didRestoreScrollRef.current = false;
     hasMeasuredLayoutRef.current = false;
+    isInitialRevealPendingRef.current = Boolean(deferUntilReady);
+    clearReadyTimer();
     isAtBottomRef.current = latestScrollState.wasAtBottom;
     prevMessageCountRef.current = 0;
     scrollMetricsRef.current = {
@@ -177,13 +218,7 @@ export function useThreadViewportState({
     setShowNewMessagesBadge(false);
     setShowScrollToEndButton(!latestScrollState.wasAtBottom);
     setIsReady(!deferUntilReady);
-  }, [deferUntilReady, threadKey]);
-
-  useEffect(() => {
-    if (!deferUntilReady && !isReady) {
-      setIsReady(true);
-    }
-  }, [deferUntilReady, isReady]);
+  }, [clearReadyTimer, deferUntilReady, threadKey]);
 
   useEffect(() => {
     if (!isHydrated || didCaptureInitialItemsRef.current) {
@@ -222,8 +257,8 @@ export function useThreadViewportState({
       return;
     }
 
-    setIsReady(true);
-  }, [deferUntilReady, feedItems.length, isHydrated]);
+    scheduleInitialReveal();
+  }, [deferUntilReady, feedItems.length, isHydrated, scheduleInitialReveal]);
 
   useEffect(() => {
     if (!isHydrated || didRestoreScrollRef.current || feedItems.length === 0) {
@@ -242,9 +277,13 @@ export function useThreadViewportState({
 
       didRestoreScrollRef.current = true;
       syncChrome();
-      requestAnimationFrame(() => setIsReady(true));
+      requestAnimationFrame(() => {
+        scheduleInitialReveal();
+      });
     });
-  }, [feedItems.length, isHydrated, scrollState.offsetY, scrollState.wasAtBottom, syncChrome]);
+  }, [feedItems.length, isHydrated, scheduleInitialReveal, scrollState.offsetY, scrollState.wasAtBottom, syncChrome]);
+
+  useEffect(() => () => clearReadyTimer(), [clearReadyTimer]);
 
   useEffect(() => {
     Animated.timing(newMessagesOpacity, {
@@ -266,8 +305,9 @@ export function useThreadViewportState({
     (_width: number, height: number) => {
       scrollMetricsRef.current.contentHeight = height;
       syncChrome();
+      scheduleInitialReveal();
     },
-    [syncChrome]
+    [scheduleInitialReveal, syncChrome]
   );
 
   const handleLayout = useCallback(
@@ -275,11 +315,9 @@ export function useThreadViewportState({
       hasMeasuredLayoutRef.current = true;
       scrollMetricsRef.current.viewportHeight = event.nativeEvent.layout.height;
       syncChrome();
-      if (deferUntilReady && isHydrated && feedItems.length === 0) {
-        setIsReady(true);
-      }
+      scheduleInitialReveal();
     },
-    [deferUntilReady, feedItems.length, isHydrated, syncChrome]
+    [scheduleInitialReveal, syncChrome]
   );
 
   const handleScroll = useCallback(

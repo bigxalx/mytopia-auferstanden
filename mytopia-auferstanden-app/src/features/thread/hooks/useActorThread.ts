@@ -10,27 +10,37 @@ import {
   mergeBundles,
   type ThreadTypingState,
 } from '@/src/features/thread/data/threadMessages';
-
-const actorThreadSnapshots = new Map<string, NarrativeBundleDto[]>();
+import {
+  clearActorThreadSnapshots,
+  getActorThreadSnapshot,
+  setActorThreadSnapshot,
+} from '@/src/features/thread/data/actorThreadSnapshotStore';
 
 export function useActorThread(channelId: string) {
   const { selectedMode, user } = useSession();
   const isFocused = useIsFocused();
-  const snapshot = actorThreadSnapshots.get(snapshotKey(channelId, selectedMode, user?.id));
+  const snapshot = getActorThreadSnapshot(snapshotKey(channelId, selectedMode, user?.id));
   const hasWarmState = Boolean(snapshot);
   const [bundles, setBundles] = useState<NarrativeBundleDto[]>(() => snapshot ?? []);
   const [isHydrated, setIsHydrated] = useState(() => Boolean(snapshot));
   const [clockMs, setClockMs] = useState(() => Date.now());
 
   useEffect(() => {
-    const nextSnapshot = actorThreadSnapshots.get(snapshotKey(channelId, selectedMode, user?.id));
+    const nextSnapshot = getActorThreadSnapshot(snapshotKey(channelId, selectedMode, user?.id));
     setBundles(nextSnapshot ?? []);
     setIsHydrated(Boolean(nextSnapshot));
     setClockMs(Date.now());
   }, [channelId, selectedMode, user?.id]);
 
   useEffect(() => {
-    if (!user?.id || channelId === HUB_CHANNEL_ID) {
+    if (!user?.id) {
+      clearActorThreadSnapshots();
+      setBundles([]);
+      setIsHydrated(true);
+      return;
+    }
+
+    if (channelId === HUB_CHANNEL_ID) {
       setBundles([]);
       setIsHydrated(true);
       return;
@@ -41,7 +51,7 @@ export function useActorThread(channelId: string) {
       listener: (nextBundles) => {
         setBundles((current) => {
           const merged = mergeBundles(current, nextBundles);
-          actorThreadSnapshots.set(snapshotKey(channelId, selectedMode, user.id), merged);
+          setActorThreadSnapshot(snapshotKey(channelId, selectedMode, user.id), merged);
           return merged;
         });
         setIsHydrated(true);
@@ -56,7 +66,7 @@ export function useActorThread(channelId: string) {
     setBundles((current) => {
       const nextBundles = updater(current);
       if (user?.id) {
-        actorThreadSnapshots.set(snapshotKey(channelId, selectedMode, user.id), nextBundles);
+        setActorThreadSnapshot(snapshotKey(channelId, selectedMode, user.id), nextBundles);
       }
       return nextBundles;
     });

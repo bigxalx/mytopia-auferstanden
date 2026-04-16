@@ -18,10 +18,13 @@ import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMiss
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { getMissionLifecycleStatus, isMissionExpired } from '@/src/features/tasks/data/missionStatus';
 import { upsertChannelBundle } from '@/src/features/channels/data/channelStore';
+import {
+  buildMissionFocusKey,
+  buildMissionSessionKey,
+  buildQuizProgressKey,
+} from '@/src/core/cache/appCache';
 
 import { FEATURES } from '@/src/config/features';
-
-const FOCUS_STORAGE_KEY = 'mytopia_focused_mission_id';
 
 /**
  * Shared state for ActiveMissionBar to support dual-instance rendering
@@ -33,23 +36,30 @@ type ActiveMissionContextValue = {
   activeMission: MissionListItem | null; // The currently focused mission (or first available if none focused)
   availableMissions: MissionListItem[];   // All missions currently in 'available' state
   focusedMission: FocusedMissionState | null;
+  focusedMissionChannel: FocusedMissionChannelState | null;
   focusedMissionId: string | null;
   isLoading: boolean;
-  setFocus: (missionId: string | null) => Promise<void>;
+  missionSessions: Record<string, MissionSessionState>;
+  setFocus: (missionId: string | null, channel?: FocusedMissionChannelState | null) => Promise<void>;
+  openMissionSession: (missionId: string) => Promise<boolean>;
   startMission: (
     missionId: string,
     actor?: NarrativeMessageDto['actor'],
-    data?: { description?: string; imageUrl?: string; kind?: MissionListItem['kind']; title?: string }
+    data?: {
+      description?: string;
+      gpsConfig?: MissionListItem['gpsConfig'];
+      imageUrl?: string;
+      kind?: MissionListItem['kind'];
+      title?: string;
+    }
   ) => Promise<void>;
   completeMission: (missionId: string, result: any) => Promise<void>;
-  interruptMission: () => Promise<void>;
-  resumeInterruptedMission: () => Promise<void>;
-  interruptedMission: InterruptedMissionState | null;
   scrollToMessage: (missionId: string) => void;
   highlightedMissionId: string | null;
   highlightMission: (missionId: string) => void;
   registerScrollHandler: (handler: ((missionId: string) => void) | null) => void;
   registerOptimisticHandler: (handler: ((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null) => void;
+  resetMissionState: () => void;
   setActiveChannel: (channel: ActiveChannelState) => void;
   insertQuizAnswerBubble: (missionId: string, missionTitle: string, answerText: string) => void;
 
@@ -93,12 +103,27 @@ type FocusedMissionState = {
   title: string;
 };
 
-type InterruptedMissionState = {
-  actor?: NarrativeMessageDto['actor'];
-  mission: FocusedMissionState;
+type FocusedMissionChannelState = {
+  channelId: string;
+  channelType: 'hub' | 'actor';
 };
 
-const QUIZ_PROGRESS_KEY = 'mytopia_quiz_progress_v1';
+type MissionSessionState = {
+  actor?: NarrativeMessageDto['actor'];
+  channel: FocusedMissionChannelState;
+  data?: {
+    description?: string;
+    gpsConfig?: MissionListItem['gpsConfig'];
+    imageUrl?: string;
+    kind?: MissionListItem['kind'];
+    questions?: any[];
+    title?: string;
+  };
+  kind: MissionListItem['kind'];
+  missionId: string;
+  updatedAt: number;
+};
+
 const QUIZ_PICKER_REVEAL_BUFFER_MS = 120;
 const QUIZ_COMPLETION_BUFFER_MS = 180;
 const QUIZ_NEXT_QUESTION_OFFSET_MS = 140;
@@ -111,7 +136,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [focusedMissionId, setFocusedMissionId] = useState<string | null>(null);
   const [focusedMission, setFocusedMission] = useState<FocusedMissionState | null>(null);
-  const [interruptedMission, setInterruptedMission] = useState<InterruptedMissionState | null>(null);
+  const [focusedMissionChannel, setFocusedMissionChannel] = useState<FocusedMissionChannelState | null>(null);
   const [highlightedMissionId, setHighlightedMissionId] = useState<string | null>(null);
   const [activeChannel, setActiveChannelState] = useState<ActiveChannelState>({
     channelId: 'hub',
@@ -129,8 +154,9 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
   // Conversation Flow State
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null);
+  const [missionSessions, setMissionSessions] = useState<Record<string, MissionSessionState>>({});
   const [persistedSessions, setPersistedSessions] = useState<Record<string, QuizSession>>({});
-  const initialLoadRef = useRef(false);
+  const storageHydratedRef = useRef(false);
   const [siteSettings, setSiteSettings] = useState<any>(null);
   const pauseQuizRef = useRef<() => void>(() => {});
   const scrollToMessageRef = useRef<(missionId: string) => void>(() => {});
@@ -143,48 +169,114 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       .catch(err => console.error('[ActiveMission] Failed to fetch settings:', err));
   }, [selectedMode, user?.id]);
 
-  // Load focused mission ID from storage
+  // Load focused mission state from storage
   useEffect(() => {
     if (!user) {
       setFocusedMissionId(null);
+      setFocusedMission(null);
+      setFocusedMissionChannel(null);
       return;
     }
 
-    AsyncStorage.getItem(`${FOCUS_STORAGE_KEY}:${user.id}`)
+    const focusKey = buildMissionFocusKey(user.id, selectedMode);
+    const legacyFocusKey = `mytopia_focused_mission_id:${user.id}`;
+
+    AsyncStorage.getItem(focusKey)
       .then((val) => {
-        if (val) setFocusedMissionId(val);
+        if (val) {
+          return val;
+        }
+        return AsyncStorage.getItem(legacyFocusKey);
+      })
+      .then((val) => {
+        if (!val) {
+          return;
+        }
+
+        const storedFocus = parseStoredFocusState(val);
+        if (!storedFocus) {
+          return;
+        }
+
+        setFocusedMissionId(storedFocus.missionId);
+        setFocusedMissionChannel(storedFocus.channel);
       })
       .catch((err) => console.warn('Failed to load focusedMissionId:', err));
-  }, [user]);
+  }, [selectedMode, user]);
 
   useEffect(() => {
-    const loadProgress = async () => {
+    if (!user) {
+      storageHydratedRef.current = false;
+      setQuizSession(null);
+      setMissionSessions({});
+      setPersistedSessions({});
+      return;
+    }
+
+    storageHydratedRef.current = false;
+    let isCancelled = false;
+
+    const loadState = async () => {
+      const quizKey = buildQuizProgressKey(user.id, selectedMode);
+      const missionSessionKey = buildMissionSessionKey(user.id, selectedMode);
+
       try {
-        const saved = await AsyncStorage.getItem(QUIZ_PROGRESS_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setPersistedSessions(parsed);
+        const [savedQuiz, savedSessions] = await Promise.all([
+          AsyncStorage.getItem(quizKey),
+          AsyncStorage.getItem(missionSessionKey),
+        ]);
+
+        if (isCancelled) {
+          return;
         }
+
+        setPersistedSessions(
+          savedQuiz ? (JSON.parse(savedQuiz) as Record<string, QuizSession>) : {}
+        );
+        setMissionSessions(
+          savedSessions ? (JSON.parse(savedSessions) as Record<string, MissionSessionState>) : {}
+        );
       } catch (err) {
-        console.warn('[ActiveMission] Failed to load quiz progress:', err);
+        console.warn('[ActiveMission] Failed to load persisted mission state:', err);
+        if (!isCancelled) {
+          setPersistedSessions({});
+          setMissionSessions({});
+        }
       } finally {
-        initialLoadRef.current = true;
+        if (!isCancelled) {
+          storageHydratedRef.current = true;
+        }
       }
     };
-    loadProgress();
-  }, []);
+    void loadState();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedMode, user]);
 
   useEffect(() => {
-    if (!initialLoadRef.current) return;
+    if (!storageHydratedRef.current || !user) return;
+
     const saveProgress = async () => {
+      const quizKey = buildQuizProgressKey(user.id, selectedMode);
+      const missionSessionKey = buildMissionSessionKey(user.id, selectedMode);
+
       try {
-        await AsyncStorage.setItem(QUIZ_PROGRESS_KEY, JSON.stringify(persistedSessions));
+        await Promise.all([
+          Object.keys(persistedSessions).length > 0
+            ? AsyncStorage.setItem(quizKey, JSON.stringify(persistedSessions))
+            : AsyncStorage.removeItem(quizKey),
+          Object.keys(missionSessions).length > 0
+            ? AsyncStorage.setItem(missionSessionKey, JSON.stringify(missionSessions))
+            : AsyncStorage.removeItem(missionSessionKey),
+        ]);
       } catch (err) {
-        console.warn('[ActiveMission] Failed to save quiz progress:', err);
+        console.warn('[ActiveMission] Failed to save persisted mission state:', err);
       }
     };
-    saveProgress();
-  }, [persistedSessions]);
+    void saveProgress();
+  }, [missionSessions, persistedSessions, selectedMode, user]);
 
   const updatePersistedSession = useCallback((session: QuizSession | null) => {
     if (!session) return;
@@ -196,6 +288,20 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
   const removePersistedSession = useCallback((missionId: string) => {
     setPersistedSessions(prev => {
+      const { [missionId]: _, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  const upsertMissionSession = useCallback((session: MissionSessionState) => {
+    setMissionSessions((prev) => ({
+      ...prev,
+      [session.missionId]: session,
+    }));
+  }, []);
+
+  const removeMissionSession = useCallback((missionId: string) => {
+    setMissionSessions((prev) => {
       const { [missionId]: _, ...rest } = prev;
       return rest;
     });
@@ -247,6 +353,30 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
   }, [availableMissions, focusedMissionId]);
 
   useEffect(() => {
+    setMissionSessions((current) => {
+      let changed = false;
+      const nextSessions = { ...current };
+
+      for (const missionId of Object.keys(current)) {
+        const mission = missions.find((item) => item._id === missionId);
+        if (!mission) {
+          continue;
+        }
+
+        const status = getMissionLifecycleStatus(mission, completedMissions, submissionStates);
+        if (status === 'available' || status === 'rejected') {
+          continue;
+        }
+
+        delete nextSessions[missionId];
+        changed = true;
+      }
+
+      return changed ? nextSessions : current;
+    });
+  }, [completedMissions, missions, submissionStates]);
+
+  useEffect(() => {
     if (!focusedMissionId) {
       setFocusedMission(null);
       return;
@@ -273,6 +403,16 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     handler: ((update: (prev: NarrativeBundleDto[]) => NarrativeBundleDto[]) => void) | null
   ) => {
     optimisticHandlerRef.current = handler;
+  }, []);
+
+  const resetMissionState = useCallback(() => {
+    setFocusedMissionId(null);
+    setFocusedMission(null);
+    setFocusedMissionChannel(null);
+    setHighlightedMissionId(null);
+    setQuizSession(null);
+    setMissionSessions({});
+    setPersistedSessions({});
   }, []);
 
   const setActiveChannel = useCallback((channel: ActiveChannelState) => {
@@ -347,10 +487,12 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     attachment?: NarrativeAttachmentDto;
     isUser?: boolean;
     isSystem?: boolean;
+    persist?: boolean;
     releaseOffsetMs?: number;
+    storeInSession?: boolean;
     title?: string;
   }) => {
-    const { actor, text, attachment, isUser, isSystem, releaseOffsetMs = 0, title } = params;
+    const { actor, text, attachment, isUser, isSystem, persist = true, releaseOffsetMs = 0, storeInSession = true, title } = params;
     
     const now = Date.now();
     // For staggering: if we have a future message scheduled, we append to its end.
@@ -391,39 +533,46 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     // Push to feed UI
     upsertOptimisticBundle(bundle);
-    void persistBundleToActorChannel(bundle);
+    if (persist) {
+      void persistBundleToActorChannel(bundle);
+    }
 
     // Persistence for Active Quiz (so history survives restarts/focus changes)
-    setQuizSession(prev => {
-      if (prev) {
-        const updated = { ...prev, bundles: [bundle, ...prev.bundles] };
-        updatePersistedSession(updated);
-        return updated;
-      }
-      return prev;
-    });
+    if (storeInSession) {
+      setQuizSession(prev => {
+        if (prev) {
+          const updated = { ...prev, bundles: [bundle, ...prev.bundles] };
+          updatePersistedSession(updated);
+          return updated;
+        }
+        return prev;
+      });
+    }
 
-    return delay;
+    return { bundle, delay };
   }, [persistBundleToActorChannel, updatePersistedSession, upsertOptimisticBundle]);
 
   const insertSystemMessage = useCallback((
     text: string,
     releaseOffsetMs: number = 0,
     kind: 'neutral' | 'prominent' = 'neutral',
-    action?: { actionLabel: string; actionType: 'resumeMission' }
+    action?: { actionLabel: string; actionType: 'resumeMission' },
+    options?: { persist?: boolean; storeInSession?: boolean }
   ) => {
     const actor = { name: 'System' };
-    insertMessageBundle({
+    return insertMessageBundle({
       actor,
       text,
       attachment: kind ? { _type: 'systemAttachment', kind, ...action } : undefined,
       isSystem: true,
+      persist: options?.persist ?? false,
       releaseOffsetMs,
+      storeInSession: options?.storeInSession ?? false,
     });
   }, [insertMessageBundle]);
 
   const insertUserMessage = useCallback((actor: NarrativeMessageDto['actor'], text: string, releaseOffsetMs: number = 0) => {
-    insertMessageBundle({
+    return insertMessageBundle({
       actor,
       text,
       isUser: true,
@@ -438,19 +587,59 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       attachment,
       isUser: false,
       releaseOffsetMs,
-    });
+    }).delay;
   }, [insertMessageBundle]);
 
   const pauseQuiz = useCallback(() => {
     if (quizSession && !quizSession.isFinished) {
-      insertSystemMessage('Quiz pausiert. Du kannst es jederzeit fortsetzen.', 0, 'neutral');
       setQuizSession(null);
     }
-  }, [quizSession, insertSystemMessage]);
+  }, [quizSession]);
 
   useEffect(() => {
     pauseQuizRef.current = pauseQuiz;
   }, [pauseQuiz]);
+
+  const setFocus = useCallback(async (
+    missionId: string | null,
+    channel?: FocusedMissionChannelState | null
+  ) => {
+    const nextChannel = missionId === null
+      ? null
+      : channel === undefined
+        ? focusedMissionChannel
+        : channel;
+
+    if (focusedMissionId && missionId !== null && missionId !== focusedMissionId) {
+      pauseQuizRef.current();
+    }
+
+    setFocusedMissionId(missionId);
+    if (missionId === null) {
+      setFocusedMission(null);
+      setFocusedMissionChannel(null);
+    } else if (nextChannel !== undefined) {
+      setFocusedMissionChannel(nextChannel);
+    }
+    if (user) {
+      const key = buildMissionFocusKey(user.id, selectedMode);
+      if (missionId) {
+        await AsyncStorage.setItem(key, JSON.stringify({
+          ...(nextChannel ? { channelId: nextChannel.channelId, channelType: nextChannel.channelType } : {}),
+          missionId,
+        }));
+      } else {
+        await AsyncStorage.removeItem(key);
+      }
+    }
+  }, [focusedMissionChannel, focusedMissionId, selectedMode, user]);
+
+  const resolveFocusedMissionChannel = useCallback((channel: ActiveChannelState): FocusedMissionChannelState => {
+    return {
+      channelId: channel.channelId,
+      channelType: channel.channelType,
+    };
+  }, []);
 
   const insertQuizAnswerBubble = useCallback((missionId: string, missionTitle: string, answerText: string) => {
     insertUserMessage({ name: user?.displayName || 'Ich' }, answerText);
@@ -474,6 +663,25 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     };
     if (!mission || !mission.questions) return;
 
+    const focusChannel: FocusedMissionChannelState = {
+      channelId: activeChannelRef.current.channelId,
+      channelType: activeChannelRef.current.channelType,
+    };
+
+    upsertMissionSession({
+      actor,
+      channel: focusChannel,
+      data: {
+        description: mission.description,
+        imageUrl: mission.imageUrl,
+        questions: mission.questions,
+        title: mission.title || 'Mission',
+      },
+      kind: 'quiz',
+      missionId,
+      updatedAt: Date.now(),
+    });
+
     setFocusedMission({
       _id: missionId,
       ...(mission.description ? { description: mission.description } : {}),
@@ -482,7 +690,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       kind: 'quiz',
       title: mission.title || 'Mission',
     });
-    setInterruptedMission(null);
+    await setFocus(missionId, focusChannel);
 
     // Check if we already have a session for this mission
     const saved = persistedSessions[missionId];
@@ -491,6 +699,8 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       if (isMissionExpired(mission)) {
         insertSystemMessage('Diese Mission ist abgelaufen und kann nicht fortgesetzt werden.', 0, 'neutral');
         removePersistedSession(missionId);
+        removeMissionSession(missionId);
+        await setFocus(null);
         return;
       }
 
@@ -509,10 +719,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       }
 
       scrollToMessageRef.current('bottom');
-      
-      // Resume sequence starts immediately
-      insertSystemMessage('Mission fortgesetzt', 0, 'neutral');
-      
+
       // Re-reveal first un-answered question so the user has context
       const currentQ = saved.questions[saved.currentIndex].questionText;
       insertNpcMessage(actor, currentQ);
@@ -533,10 +740,6 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     // Initialize New Session
     scrollToMessageRef.current('bottom');
-    // 0. Status message: Mission started
-    const startDelay = getRemainingQueueDelay(100);
-    await new Promise(resolve => setTimeout(resolve, startDelay));
-    insertSystemMessage('Mission gestartet', 0, 'neutral');
 
     const newSession: QuizSession = {
       missionId,
@@ -583,7 +786,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       });
       scrollToMessageRef.current('bottom');
     }, getRemainingQueueDelay(QUIZ_PICKER_REVEAL_BUFFER_MS)); 
-  }, [quizSession, missions, persistedSessions, insertSystemMessage, removePersistedSession, updatePersistedSession, insertNpcMessage, getRemainingQueueDelay]);
+  }, [quizSession, missions, persistedSessions, removeMissionSession, removePersistedSession, setFocus, updatePersistedSession, insertNpcMessage, getRemainingQueueDelay, insertSystemMessage, upsertMissionSession]);
 
   const submitQuizStep = useCallback(async (optionIndex: number) => {
     const session = quizSession;
@@ -638,27 +841,31 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       }, getRemainingQueueDelay(QUIZ_PICKER_REVEAL_BUFFER_MS));
     }
   }, [quizSession, insertUserMessage, missions, siteSettings, insertNpcMessage, removePersistedSession, updatePersistedSession, getRemainingQueueDelay]);
+  const resolveFocusedMissionState = useCallback((
+    missionId: string,
+    data?: {
+      description?: string;
+      gpsConfig?: MissionListItem['gpsConfig'];
+      imageUrl?: string;
+      kind?: MissionListItem['kind'];
+      title?: string;
+    },
+    baseMission?: FocusedMissionState | null
+  ): FocusedMissionState => {
+    const resolved = missions.find((item) => item._id === missionId);
+    const description = resolved?.description ?? baseMission?.description ?? data?.description;
+    const gpsConfig = resolved?.gpsConfig ?? baseMission?.gpsConfig ?? data?.gpsConfig;
+    const imageUrl = resolved?.imageUrl ?? baseMission?.imageUrl ?? data?.imageUrl;
 
-
-
-  const setFocus = useCallback(async (missionId: string | null) => {
-    if (focusedMissionId && missionId !== null && missionId !== focusedMissionId) {
-      pauseQuizRef.current();
-    }
-
-    setFocusedMissionId(missionId);
-    if (missionId === null) {
-      setFocusedMission(null);
-    }
-    if (user) {
-      const key = `${FOCUS_STORAGE_KEY}:${user.id}`;
-      if (missionId) {
-        await AsyncStorage.setItem(key, missionId);
-      } else {
-        await AsyncStorage.removeItem(key);
-      }
-    }
-  }, [focusedMissionId, user]);
+    return {
+      _id: missionId,
+      ...(description ? { description } : {}),
+      ...(gpsConfig ? { gpsConfig } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
+      kind: resolved?.kind ?? baseMission?.kind ?? data?.kind ?? 'text',
+      title: resolved?.title ?? baseMission?.title ?? data?.title ?? 'Mission',
+    };
+  }, [missions]);
 
   const completeMission = useCallback(async (missionId: string, result: any) => {
     const mission = resolveMissionForCompletion({
@@ -730,9 +937,9 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     // 2. Clear focus without re-triggering mission pause side effects
     setFocusedMissionId(null);
     setFocusedMission(null);
-    setInterruptedMission(null);
+    setFocusedMissionChannel(null);
     if (user) {
-      await AsyncStorage.removeItem(`${FOCUS_STORAGE_KEY}:${user.id}`);
+      await AsyncStorage.removeItem(buildMissionFocusKey(user.id, selectedMode));
     }
 
     // 3. Submit to API using the clean ID
@@ -847,6 +1054,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         });
       }
 
+      removeMissionSession(cleanMissionId);
       await setFocus(null);
       scrollToMessageRef.current('bottom');
 
@@ -878,7 +1086,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       upsertOptimisticBundle(errorBundle);
       void persistBundleToActorChannel(errorBundle);
     }
-  }, [activeMission, focusedMission, missions, persistedSessions, quizSession, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, insertSystemMessage, persistBundleToActorChannel, setFocus]);
+  }, [activeMission, focusedMission, missions, persistedSessions, quizSession, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, insertSystemMessage, persistBundleToActorChannel, removeMissionSession, setFocus]);
 
   const registerScrollHandler = useCallback((handler: ((missionId: string) => void) | null) => {
     scrollHandlerRef.current = handler;
@@ -904,97 +1112,72 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     completeMissionRef.current = completeMission;
   }, [completeMission]);
 
-  const interruptMission = useCallback(async () => {
-    if (!focusedMissionId || !focusedMission) {
-      return;
+  const openMissionSession = useCallback(async (missionId: string) => {
+    const session = missionSessions[missionId];
+    if (!session) {
+      return false;
     }
 
-    const actor =
-      quizSession?.missionId === focusedMissionId
-        ? quizSession.actor
-        : activeChannelRef.current.channelType === 'actor' && activeChannelRef.current.actorName
-          ? {
-              ...(activeChannelRef.current.actorAvatarUrl ? { avatarUrl: activeChannelRef.current.actorAvatarUrl } : {}),
-              ...(activeChannelRef.current.actorId ? { actorId: activeChannelRef.current.actorId } : {}),
-              name: activeChannelRef.current.actorName,
-              ...(activeChannelRef.current.actorRole ? { role: activeChannelRef.current.actorRole } : {}),
-            }
-          : undefined;
+    if (session.kind === 'quiz') {
+      if (!session.actor) {
+        return false;
+      }
 
-    setInterruptedMission({
-      ...(actor ? { actor } : {}),
-      mission: focusedMission,
-    });
-
-    if (quizSession?.missionId === focusedMissionId && !quizSession.isFinished) {
-      setQuizSession(null);
+      await startChatQuiz(missionId, session.actor, session.data);
+      return true;
     }
 
-    setFocusedMission(null);
-    insertSystemMessage('Mission unterbrochen.', 0, 'neutral', {
-      actionLabel: 'Fortsetzen',
-      actionType: 'resumeMission',
-    });
-    await setFocus(null);
-  }, [focusedMission, focusedMissionId, insertSystemMessage, quizSession, setFocus]);
-
-  const resumeInterruptedMission = useCallback(async () => {
-    if (!interruptedMission) {
-      return;
-    }
-
-    const pendingMission = interruptedMission;
-    setInterruptedMission(null);
-
-    if (pendingMission.mission.kind === 'quiz' && pendingMission.actor) {
-      await startChatQuiz(pendingMission.mission._id, pendingMission.actor, {
-        description: pendingMission.mission.description,
-        imageUrl: pendingMission.mission.imageUrl,
-        title: pendingMission.mission.title,
-      });
-      return;
-    }
-
-    setFocusedMission(pendingMission.mission);
-    await setFocus(pendingMission.mission._id);
-    insertSystemMessage('Mission fortgesetzt', 0, 'neutral');
-    scrollToMessageRef.current('bottom');
-  }, [insertSystemMessage, interruptedMission, setFocus, startChatQuiz]);
+    setFocusedMission(resolveFocusedMissionState(missionId, session.data, focusedMission));
+    await setFocus(missionId, session.channel);
+    return true;
+  }, [focusedMission, missionSessions, resolveFocusedMissionState, setFocus, startChatQuiz]);
 
   const startMission = useCallback(async (
     missionId: string,
     actor?: NarrativeMessageDto['actor'],
-    data?: { description?: string; imageUrl?: string; kind?: MissionListItem['kind']; title?: string }
+    data?: {
+      description?: string;
+      gpsConfig?: MissionListItem['gpsConfig'];
+      imageUrl?: string;
+      kind?: MissionListItem['kind'];
+      title?: string;
+    }
   ) => {
-    const mission = missions.find((item) => item._id === missionId);
-    const title = mission?.title ?? data?.title ?? 'Mission';
-    const description = mission?.description ?? data?.description;
-    const imageUrl = mission?.imageUrl ?? data?.imageUrl;
+    const resolvedMission = resolveFocusedMissionState(missionId, data);
+    const focusChannel = resolveFocusedMissionChannel(activeChannelRef.current);
 
-    setFocusedMission({
-      _id: missionId,
-      ...(description ? { description } : {}),
-      ...(mission?.gpsConfig ? { gpsConfig: mission.gpsConfig } : {}),
-      ...(imageUrl ? { imageUrl } : {}),
-      kind: mission?.kind ?? data?.kind ?? 'text',
-      title,
+    upsertMissionSession({
+      ...(actor ? { actor } : {}),
+      channel: focusChannel,
+      data: {
+        description: resolvedMission.description,
+        ...(resolvedMission.gpsConfig ? { gpsConfig: resolvedMission.gpsConfig } : {}),
+        ...(resolvedMission.imageUrl ? { imageUrl: resolvedMission.imageUrl } : {}),
+        ...(data?.kind ? { kind: data.kind } : {}),
+        title: resolvedMission.title,
+      },
+      kind: resolvedMission.kind,
+      missionId,
+      updatedAt: Date.now(),
     });
-    setInterruptedMission(null);
 
-    await setFocus(missionId);
+    setFocusedMission(resolvedMission);
+
+    await setFocus(missionId, focusChannel);
 
     if (actor && activeChannelRef.current.channelType === 'actor') {
-      insertSystemMessage('Mission gestartet', 0, 'neutral');
-      const introText = description ? `${title}\n\n${description}` : title;
+      const introText = resolvedMission.description
+        ? `${resolvedMission.title}\n\n${resolvedMission.description}`
+        : resolvedMission.title;
 
       insertNpcMessage(
         actor,
         introText,
-        imageUrl
+        resolvedMission.imageUrl
           ? {
               _type: 'imageAttachment',
-              caption: title,
-              url: imageUrl,
+              caption: resolvedMission.title,
+              url: resolvedMission.imageUrl,
             }
           : undefined,
         120
@@ -1002,7 +1185,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }
 
     scrollToMessageRef.current('bottom');
-  }, [insertNpcMessage, insertSystemMessage, missions, setFocus]);
+  }, [insertNpcMessage, resolveFocusedMissionChannel, resolveFocusedMissionState, setFocus, upsertMissionSession]);
 
   const value = useMemo(
     () => ({ 
@@ -1010,19 +1193,20 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       activeChannel,
       availableMissions,
       focusedMission,
+      focusedMissionChannel,
       focusedMissionId,
       isLoading,
+      missionSessions,
+      openMissionSession,
       setFocus,
       startMission,
       completeMission,
-      interruptMission,
-      resumeInterruptedMission,
-      interruptedMission,
       scrollToMessage,
       highlightedMissionId,
       highlightMission,
       registerScrollHandler,
       registerOptimisticHandler,
+      resetMissionState,
       setActiveChannel,
       insertQuizAnswerBubble,
       quizSession,
@@ -1037,16 +1221,18 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       activeChannel,
       availableMissions, 
       focusedMission,
+      focusedMissionChannel,
       focusedMissionId, 
       isLoading, 
+      missionSessions,
       highlightedMissionId, 
+      openMissionSession,
       quizSession, 
       persistedSessions,
       pauseQuiz,
       startChatQuiz, 
       submitQuizStep,
       completeMission,
-      interruptMission,
       insertQuizAnswerBubble,
       scrollToMessage,
       setFocus,
@@ -1054,8 +1240,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       highlightMission,
       registerScrollHandler,
       registerOptimisticHandler,
-      resumeInterruptedMission,
-      interruptedMission,
+      resetMissionState,
       setActiveChannel,
     ]
   );
@@ -1090,6 +1275,40 @@ export function useActiveMissionBarVisible() {
   const isNative = Platform.OS === 'ios' && getIOSMajorVersion() >= 26 && FEATURES.ENABLE_NATIVE_BOTTOM_ACCESSORY;
   
   return { isVisible, isNative };
+}
+
+function parseStoredFocusState(value: string): { channel: FocusedMissionChannelState | null; missionId: string } | null {
+  try {
+    const parsed = JSON.parse(value) as {
+      channelId?: unknown;
+      channelType?: unknown;
+      missionId?: unknown;
+    };
+
+    if (typeof parsed?.missionId !== 'string' || parsed.missionId.trim().length === 0) {
+      return null;
+    }
+
+    return {
+      channel:
+        typeof parsed.channelId === 'string' &&
+        parsed.channelId.trim().length > 0 &&
+        (parsed.channelType === 'hub' || parsed.channelType === 'actor')
+          ? {
+              channelId: parsed.channelId,
+              channelType: parsed.channelType,
+            }
+          : null,
+      missionId: parsed.missionId,
+    };
+  } catch {
+    return value.trim().length > 0
+      ? {
+          channel: null,
+          missionId: value,
+        }
+      : null;
+  }
 }
 
 function resolveMissionForCompletion({

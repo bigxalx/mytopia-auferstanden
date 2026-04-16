@@ -10,6 +10,8 @@ import {
     V2_USERS_COLLECTION_PATH
 } from './constants.js';
 import { syncUserToLeaderboard } from './leaderboard.js';
+import { computeRewardOutcome } from './rewards.js';
+import type { RewardBreakdownDto, StreakSummaryDto } from './types.js';
 export const submissionModerated = onDocumentUpdated(
       {
         document: `${V2_SUBMISSIONS_COLLECTION_PATH}/{submissionId}`,
@@ -26,8 +28,8 @@ export const submissionModerated = onDocumentUpdated(
         const afterStatus = afterData.status;
 
         if (beforeStatus !== 'approved' && afterStatus === 'approved') {
-          const earnedPoints = Number(afterData.earnedPoints);
-          if (!Number.isFinite(earnedPoints) || earnedPoints <= 0) {
+          const basePoints = Number(afterData.earnedPoints);
+          if (!Number.isFinite(basePoints) || basePoints <= 0) {
             logger.warn('Approved submission without valid earnedPoints', { submissionId: event.params.submissionId });
             return;
           }
@@ -40,6 +42,19 @@ export const submissionModerated = onDocumentUpdated(
           const missionId = afterData.sourceId;
           const sourceType = afterData.sourceType as 'text' | 'photo';
           const submitIdempotencyKey = afterData.idempotencyKey;
+          const customAchievementIds = Array.isArray(afterData.customAchievementIds)
+            ? afterData.customAchievementIds.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0)
+            : [];
+          const awardedAtMs = Date.now();
+          const rewardOutcome = await computeRewardOutcome({
+            awardAtMs: awardedAtMs,
+            basePoints,
+            customAchievementIds,
+            missionId,
+            mode: afterData.mode === 'dev' ? 'dev' : 'production',
+            timeReferenceAtMs: toMillis(afterData.createdAt) ?? awardedAtMs,
+            uid,
+          });
 
           const awardIdempotencyKey = `award:${submitIdempotencyKey}`;
           const eventRef = firestore.collection(V2_SCORE_EVENTS_COLLECTION_PATH).doc(awardIdempotencyKey);
@@ -51,10 +66,12 @@ export const submissionModerated = onDocumentUpdated(
           batch.set(eventRef, {
             createdAt: FieldValue.serverTimestamp(),
             createdBy: 'system',
-            delta: earnedPoints,
+            delta: rewardOutcome.breakdown.totalPoints,
             idempotencyKey: awardIdempotencyKey,
             metadata: {
               missionTitle: afterData.metadata?.missionTitle ?? 'Unbekannt',
+              rewardBreakdown: rewardOutcome.breakdown,
+              streakSummary: rewardOutcome.streakSummary,
             },
             reason: `${sourceType}_approved`,
             sourceId: missionId,
@@ -63,27 +80,42 @@ export const submissionModerated = onDocumentUpdated(
           });
 
           batch.set(userRef, {
+            ...(rewardOutcome.appliedGroupBonusId
+              ? { awardedGroupBonusIds: FieldValue.arrayUnion(rewardOutcome.appliedGroupBonusId) }
+              : {}),
             uid,
-            pointsCurrent: FieldValue.increment(earnedPoints),
+            pointsCurrent: FieldValue.increment(rewardOutcome.breakdown.totalPoints),
+            streakCount: rewardOutcome.streakSummary.count,
+            streakLastUpdatedAt: new Date(awardedAtMs).toISOString(),
+            streakMultiplierCurrent: rewardOutcome.streakSummary.multiplier,
             updatedAt: FieldValue.serverTimestamp(),
           }, { merge: true });
 
           batch.set(submissionRef, {
             awarded: true,
             awardedAt: FieldValue.serverTimestamp(),
+            awardedPoints: rewardOutcome.breakdown.totalPoints,
+            rewardBreakdown: rewardOutcome.breakdown,
           }, { merge: true });
 
           await batch.commit();
           await syncUserToLeaderboard(uid);
 
-          logger.info('submission approved and scored', { earnedPoints, missionId, uid, submissionId: event.params.submissionId });
+          logger.info('submission approved and scored', {
+            earnedPoints: rewardOutcome.breakdown.totalPoints,
+            missionId,
+            uid,
+            submissionId: event.params.submissionId,
+          });
 
           await writeChannelModerationUpdates({
             afterData,
-            earnedPoints,
+            earnedPoints: rewardOutcome.breakdown.totalPoints,
             missionId,
             outcome: 'approved',
+            rewardBreakdown: rewardOutcome.breakdown,
             submissionId: event.params.submissionId,
+            streakSummary: rewardOutcome.streakSummary,
             uid,
           });
 
@@ -91,7 +123,7 @@ export const submissionModerated = onDocumentUpdated(
           const missionTitle = afterData.metadata?.missionTitle ?? 'Unbekannt';
           await sendTargetedNotification(uid, {
             title: 'Mission bestätigt!',
-            body: `Deine Mission "${missionTitle}" wurde bestätigt. Du hast ${earnedPoints} Punkte erhalten.`,
+            body: `Deine Mission "${missionTitle}" wurde bestätigt. Du hast ${rewardOutcome.breakdown.totalPoints} Punkte erhalten.`,
           }, {
             type: 'submission_approved',
             missionId,
@@ -102,6 +134,14 @@ export const submissionModerated = onDocumentUpdated(
           const missionTitle = afterData.metadata?.missionTitle ?? 'Unbekannt';
 
           logger.info('submission rejected', { missionId, uid, submissionId: event.params.submissionId });
+
+          await firestore.collection(V2_USERS_COLLECTION_PATH).doc(uid).set({
+            streakCount: 0,
+            streakLastUpdatedAt: new Date().toISOString(),
+            streakMultiplierCurrent: 1,
+            uid,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
 
           await writeChannelModerationUpdates({
             afterData,
@@ -166,14 +206,18 @@ async function writeChannelModerationUpdates({
   earnedPoints,
   missionId,
   outcome,
+  rewardBreakdown,
   submissionId,
+  streakSummary,
   uid,
 }: {
   afterData: Record<string, any>;
   earnedPoints?: number;
   missionId: string;
   outcome: 'approved' | 'rejected';
+  rewardBreakdown?: RewardBreakdownDto;
   submissionId: string;
+  streakSummary?: StreakSummaryDto;
   uid: string;
 }) {
   const channelMeta =
@@ -234,8 +278,40 @@ async function writeChannelModerationUpdates({
       payload: {
         action: outcome,
         moderatorNote,
+        ...(rewardBreakdown ? { rewardBreakdown } : {}),
         status: outcome,
+        ...(streakSummary ? { streakSummary } : {}),
       },
     },
   });
+}
+
+function toMillis(value: unknown): number | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    if (typeof (value as { toMillis?: unknown }).toMillis === 'function') {
+      try {
+        const result = (value as { toMillis: () => number }).toMillis();
+        return Number.isFinite(result) ? result : null;
+      } catch {
+        return null;
+      }
+    }
+
+    const seconds = (value as { seconds?: unknown }).seconds;
+    const nanoseconds = (value as { nanoseconds?: unknown }).nanoseconds;
+    if (typeof seconds === 'number') {
+      return (seconds * 1000) + (typeof nanoseconds === 'number' ? Math.floor(nanoseconds / 1_000_000) : 0);
+    }
+  }
+
+  return null;
 }

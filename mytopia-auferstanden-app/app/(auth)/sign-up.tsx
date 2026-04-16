@@ -108,7 +108,7 @@ export default function SignUpScreen() {
             Durch das Anmelden akzeptierst du unsere{' '}
             <Text
               style={styles.privacyLink}
-              onPress={() => Linking.openURL('https://mytopia.world/privacy')}
+              onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')}
             >
               Datenschutzbestimmungen
             </Text>

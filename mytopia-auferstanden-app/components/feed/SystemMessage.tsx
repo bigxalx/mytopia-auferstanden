@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle, TextStyle } from 'react-native';
-import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 
 interface SystemMessageProps {
   text: string;
@@ -19,26 +18,13 @@ export const SystemMessage: React.FC<SystemMessageProps> = ({
   text,
   style,
   variant = 'neutral',
-  actionLabel,
-  actionType,
 }) => {
   const isProminent = variant === 'prominent';
-  const { resumeInterruptedMission } = useActiveMission();
-  const hasAction = Boolean(actionLabel?.trim()) && actionType === 'resumeMission';
 
   return (
     <View style={[styles.container, style]}>
       <View style={[styles.pill, isProminent && styles.prominentPill]}>
-        {hasAction ? (
-          <Text style={[styles.inlineText, isProminent && styles.prominentInlineText]}>
-            <Text>{text} </Text>
-            <Text style={styles.actionText} onPress={resumeInterruptedMission}>
-              {actionLabel}
-            </Text>
-          </Text>
-        ) : (
-          <Text style={[styles.text, isProminent && styles.prominentText]}>{text}</Text>
-        )}
+        <Text style={[styles.text, isProminent && styles.prominentText]}>{text}</Text>
       </View>
     </View>
   );
@@ -76,21 +62,5 @@ const styles = StyleSheet.create({
   prominentText: {
     color: '#FFFFFF',
     fontSize: 14,
-  } as TextStyle,
-  inlineText: {
-    color: 'rgba(238, 242, 239, 0.82)',
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: 'center',
-  } as TextStyle,
-  prominentInlineText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-  } as TextStyle,
-  actionText: {
-    color: '#FFFFFF',
-    fontFamily: 'NunitoSans_800ExtraBold',
-    textDecorationLine: 'underline',
   } as TextStyle,
 });

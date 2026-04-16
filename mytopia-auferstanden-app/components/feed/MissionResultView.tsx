@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/src/shared/ui/theme';
+import { getRewardBreakdownRows } from '@/src/features/tasks/data/rewardFormatting';
 
 export interface MissionResultViewProps {
   missionId: string;
@@ -46,6 +47,7 @@ export function MissionResultView({
     Boolean(animatePoints) &&
     typeof normalizedEarnedPoints === 'number' &&
     normalizedEarnedPoints > 0;
+  const rewardBreakdownRows = getRewardBreakdownRows(payload?.rewardBreakdown, payload?.streakSummary);
 
   useEffect(() => {
     if (typeof normalizedEarnedPoints !== 'number') {
@@ -159,6 +161,16 @@ export function MissionResultView({
             <Text style={styles.pointsLabel}>Punkte erhalten</Text>
           </View>
         )}
+
+        {rewardBreakdownRows.length > 0 ? (
+          <View style={styles.breakdownList}>
+            {rewardBreakdownRows.map((row) => (
+              <Text key={row} style={styles.breakdownRow}>
+                {row}
+              </Text>
+            ))}
+          </View>
+        ) : null}
       </View>
     </Animated.View>
   );
@@ -219,6 +231,21 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_700Bold',
     color: '#6b7280',
     letterSpacing: 0.2,
+    textAlign: 'center',
+  } as TextStyle,
+  breakdownList: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(1, 106, 211, 0.06)',
+    borderRadius: 12,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  } as ViewStyle,
+  breakdownRow: {
+    color: '#334155',
+    fontSize: 12,
+    fontFamily: 'NunitoSans_700Bold',
+    lineHeight: 18,
     textAlign: 'center',
   } as TextStyle,
   pointsContainer: {

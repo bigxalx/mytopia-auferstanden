@@ -7,6 +7,7 @@ import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
 import { MissionsCard } from '@/components/tasks/MissionsCard';
 import { RankingSummaryCard } from '@/components/profile/RankingSummaryCard';
+import { RewardsHistoryCard } from '@/components/profile/RewardsHistoryCard';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
 
@@ -80,6 +81,7 @@ export default function ProfileScreen() {
       />
 
       <RankingSummaryCard user={user} refreshTrigger={refreshTrigger} />
+      <RewardsHistoryCard userId={user.id} refreshTrigger={refreshTrigger} />
     </ScrollView>
   );
 }

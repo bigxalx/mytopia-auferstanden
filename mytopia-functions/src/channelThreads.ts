@@ -53,28 +53,44 @@ export async function ensureActorChannelThread({
 }) {
   const threadDocId = buildChannelThreadDocId({ channelId: actorId, mode, uid });
   const nowMs = Date.now();
+  const threadRef = firestore.collection(V2_CHANNEL_THREADS_COLLECTION_PATH).doc(threadDocId);
+  const existingSnapshot = await threadRef.get();
 
-  await firestore
-    .collection(V2_CHANNEL_THREADS_COLLECTION_PATH)
-    .doc(threadDocId)
-    .set(
+  if (existingSnapshot.exists) {
+    await threadRef.set(
       {
         actorId,
         ...(actorAvatarUrl ? { avatarUrl: actorAvatarUrl } : {}),
         channelId: actorId,
         channelType: 'actor',
-        lastMessageAtMs: nowMs,
-        lastPreview: 'Kanal erstellt',
-        lastReadAtMs: nowMs,
-        messageCount: 0,
         mode,
-        openedAtMs: nowMs,
         ownerUid: uid,
         title: actorName,
-        unreadCount: 0,
       },
       { merge: true }
     );
+
+    return threadDocId;
+  }
+
+  await threadRef.set(
+    {
+      actorId,
+      ...(actorAvatarUrl ? { avatarUrl: actorAvatarUrl } : {}),
+      channelId: actorId,
+      channelType: 'actor',
+      lastMessageAtMs: nowMs,
+      lastPreview: 'Kanal erstellt',
+      lastReadAtMs: nowMs,
+      messageCount: 0,
+      mode,
+      openedAtMs: nowMs,
+      ownerUid: uid,
+      title: actorName,
+      unreadCount: 0,
+    },
+    { merge: true }
+  );
 
   return threadDocId;
 }
@@ -107,7 +123,7 @@ export async function upsertChannelMessage(params: UpsertChannelMessageParams) {
     openedAtMs: params.createdAtMs,
     ownerUid: params.ownerUid,
     title: params.title,
-    unreadCount: FieldValue.increment(params.incrementUnread ? 1 : 0),
+    unreadCount: params.incrementUnread ? FieldValue.increment(1) : 0,
   };
 
   const batch = firestore.batch();

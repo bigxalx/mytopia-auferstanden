@@ -1,3 +1,46 @@
+export type TimeBonusDto = {
+      bonusPoints: number;
+      minutesLimit: number;
+};
+
+export type CustomAchievementDto = {
+      bonusPoints: number;
+      description?: string;
+      id: string;
+      title: string;
+};
+
+export type GroupBonusDto = {
+      bonusPoints: number;
+      groupId: string;
+      groupTitle: string;
+};
+
+export type RewardBreakdownDto = {
+      basePoints: number;
+      customAchievements?: CustomAchievementDto[];
+      groupBonus?: GroupBonusDto;
+      streakBonusPoints: number;
+      timeBonus?: TimeBonusDto;
+      totalPoints: number;
+};
+
+export type StreakSummaryDto = {
+      count: number;
+      isActive: boolean;
+      multiplier: number;
+};
+
+export type MissionResultPayloadDto = {
+      action?: 'approved' | 'rejected' | 'scored' | 'already_completed';
+      correct?: number;
+      moderatorNote?: string;
+      rewardBreakdown?: RewardBreakdownDto;
+      status?: 'approved' | 'rejected';
+      streakSummary?: StreakSummaryDto;
+      total?: number;
+};
+
 export type AttachmentDto = | {
         _type: 'systemAttachment';
         kind: 'neutral' | 'prominent';
@@ -40,7 +83,7 @@ export type AttachmentDto = | {
         missionId: string;
         missionTitle: string;
         kind: string;
-        payload: any;
+        payload: MissionResultPayloadDto;
         earnedPoints?: number;
       };
 export type MessageDto = {
@@ -112,6 +155,9 @@ export type MissionDto = {
       _id: string;
       active: boolean;
       expiresAt?: string;
+      groupCompletionBonusPoints?: number;
+      groupId?: string;
+      groupTitle?: string;
       kind: 'gps' | 'quiz' | 'text' | 'photo';
       points: number;
       questions?: Array<{
@@ -120,9 +166,19 @@ export type MissionDto = {
         feedbackCorrect?: string;
         feedbackIncorrect?: string;
       }>;
+      timeBonuses?: TimeBonusDto[];
       title: string;
       feedbackCorrect?: string;
       feedbackIncorrect?: string;
+};
+
+export type MissionSettingsDto = {
+      customAchievementCount?: number;
+      customAchievements?: CustomAchievementDto[];
+      defaultQuizFeedbackCorrect?: string;
+      defaultQuizFeedbackIncorrect?: string;
+      streakMultiplier?: number;
+      streakRequiredCompletions?: number;
 };
 
 type BaseMapPointDto = {
@@ -150,6 +206,7 @@ export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 export type SubmissionDto = {
     createdAt: any; // Typically serverTimestamp in firestore, but ISO when sent to client
+    customAchievementIds?: string[];
     idempotencyKey: string;
     metadata: {
         missionTitle: string;

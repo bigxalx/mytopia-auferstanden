@@ -69,6 +69,22 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['pointsCurrent'])
           || request.resource.data.pointsCurrent is number
         )
+        && (
+          !request.resource.data.keys().hasAny(['streakCount'])
+          || request.resource.data.streakCount is number
+        )
+        && (
+          !request.resource.data.keys().hasAny(['streakLastUpdatedAt'])
+          || request.resource.data.streakLastUpdatedAt is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(['streakMultiplierCurrent'])
+          || request.resource.data.streakMultiplierCurrent is number
+        )
+        && (
+          !request.resource.data.keys().hasAny(['awardedGroupBonusIds'])
+          || request.resource.data.awardedGroupBonusIds is list
+        )
         && hasOnlyKeys(request.resource.data, [
           'uid',
           'displayName',
@@ -76,6 +92,10 @@ service cloud.firestore {
           'photoURL',
           'legacySummary',
           'pointsCurrent',
+          'streakCount',
+          'streakLastUpdatedAt',
+          'streakMultiplierCurrent',
+          'awardedGroupBonusIds',
           'createdAt',
           'updatedAt'
         ]);
@@ -150,7 +170,6 @@ service cloud.firestore {
           'mode',
           'openedAtMs',
           'ownerUid',
-          'role',
           'title',
           'unreadCount'
         ])
@@ -214,7 +233,13 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isModerator();
       allow create: if isOwner(uid)
         && isAllowedUserProfileWrite(uid)
-        && !request.resource.data.keys().hasAny(['pointsCurrent']);
+        && !request.resource.data.keys().hasAny([
+          'pointsCurrent',
+          'streakCount',
+          'streakLastUpdatedAt',
+          'streakMultiplierCurrent',
+          'awardedGroupBonusIds'
+        ]);
       allow update: if isOwner(uid)
         && isAllowedUserProfileWrite(uid)
         && request.resource.data.uid == resource.data.uid
@@ -229,6 +254,50 @@ service cloud.firestore {
             resource.data.keys().hasAny(['pointsCurrent'])
             && request.resource.data.keys().hasAny(['pointsCurrent'])
             && request.resource.data.pointsCurrent == resource.data.pointsCurrent
+          )
+        )
+        && (
+          (
+            !resource.data.keys().hasAny(['streakCount'])
+            && !request.resource.data.keys().hasAny(['streakCount'])
+          )
+          || (
+            resource.data.keys().hasAny(['streakCount'])
+            && request.resource.data.keys().hasAny(['streakCount'])
+            && request.resource.data.streakCount == resource.data.streakCount
+          )
+        )
+        && (
+          (
+            !resource.data.keys().hasAny(['streakLastUpdatedAt'])
+            && !request.resource.data.keys().hasAny(['streakLastUpdatedAt'])
+          )
+          || (
+            resource.data.keys().hasAny(['streakLastUpdatedAt'])
+            && request.resource.data.keys().hasAny(['streakLastUpdatedAt'])
+            && request.resource.data.streakLastUpdatedAt == resource.data.streakLastUpdatedAt
+          )
+        )
+        && (
+          (
+            !resource.data.keys().hasAny(['streakMultiplierCurrent'])
+            && !request.resource.data.keys().hasAny(['streakMultiplierCurrent'])
+          )
+          || (
+            resource.data.keys().hasAny(['streakMultiplierCurrent'])
+            && request.resource.data.keys().hasAny(['streakMultiplierCurrent'])
+            && request.resource.data.streakMultiplierCurrent == resource.data.streakMultiplierCurrent
+          )
+        )
+        && (
+          (
+            !resource.data.keys().hasAny(['awardedGroupBonusIds'])
+            && !request.resource.data.keys().hasAny(['awardedGroupBonusIds'])
+          )
+          || (
+            resource.data.keys().hasAny(['awardedGroupBonusIds'])
+            && request.resource.data.keys().hasAny(['awardedGroupBonusIds'])
+            && request.resource.data.awardedGroupBonusIds == resource.data.awardedGroupBonusIds
           )
         );
       allow delete: if false;

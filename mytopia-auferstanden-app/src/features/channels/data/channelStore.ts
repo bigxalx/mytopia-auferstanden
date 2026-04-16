@@ -1,12 +1,10 @@
 import { V2_COLLECTION, type ChannelType } from '@/src/core/firestore/schema';
 import type { AppMode } from '@/src/core/session/appMode';
-import {
+import firestore, {
   collection,
-  collectionGroup,
   doc,
-  getDocs,
+  getDoc,
   getFirestore,
-  limit,
   onSnapshot,
   orderBy,
   query,
@@ -16,8 +14,11 @@ import {
   writeBatch,
   type FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
-
-import type { NarrativeAttachmentDto, NarrativeBundleDto, NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
+import type {
+  NarrativeAttachmentDto,
+  NarrativeBundleDto,
+  NarrativeMessageDto,
+} from '@/src/features/feed/data/narrativeFeedClient';
 
 export const HUB_CHANNEL_ID = 'hub';
 const CHANNEL_MESSAGES_SUBCOLLECTION = 'messages';
@@ -53,11 +54,6 @@ export type ActorChannelSeed = {
   actorId: string;
   actorName: string;
   actorRole?: string;
-};
-
-export type MissionChannelTarget = {
-  actor: NarrativeMessageDto['actor'];
-  channelId: string;
 };
 
 export function buildChannelThreadDocId({
@@ -165,10 +161,30 @@ export async function ensureActorChannel({
   const nowMs = Date.now();
   const threadDocId = buildChannelThreadDocId({ channelId: actorId, mode, uid });
   const threadRef = doc(db, V2_COLLECTION.channelThreads, threadDocId);
+  const existingSnapshot = await getDoc(threadRef);
+
+  if (existingSnapshot.exists()) {
+    await setDoc(
+      threadRef,
+      sanitizeForFirestore({
+        ...(actorAvatarUrl ? { avatarUrl: actorAvatarUrl } : {}),
+        actorId,
+        channelId: actorId,
+        channelType: 'actor',
+        mode,
+        ownerUid: uid,
+        ...(actorRole ? { role: actorRole } : {}),
+        title: actorName,
+      }),
+      { merge: true }
+    );
+
+    return threadDocId;
+  }
 
   await setDoc(
     threadRef,
-    {
+    sanitizeForFirestore({
       ...(actorAvatarUrl ? { avatarUrl: actorAvatarUrl } : {}),
       actorId,
       channelId: actorId,
@@ -183,61 +199,11 @@ export async function ensureActorChannel({
       ...(actorRole ? { role: actorRole } : {}),
       title: actorName,
       unreadCount: 0,
-    },
+    }),
     { merge: true }
   );
 
   return threadDocId;
-}
-
-export async function findMissionChannelTarget({
-  missionId,
-  mode,
-  uid,
-}: {
-  missionId: string;
-  mode: AppMode;
-  uid: string;
-}): Promise<MissionChannelTarget | null> {
-  const db = getFirestore();
-  const messagesQuery = query(
-    collectionGroup(db, CHANNEL_MESSAGES_SUBCOLLECTION),
-    where('ownerUid', '==', uid),
-    where('mode', '==', mode),
-    where('message.attachment.missionId', '==', missionId),
-    limit(10)
-  );
-  const snapshot = await getDocs(messagesQuery);
-
-  for (const docSnapshot of snapshot.docs) {
-    const data = docSnapshot.data() as Partial<ChannelBundleDoc> & Record<string, unknown>;
-    const message = data.message as NarrativeMessageDto | undefined;
-    const actor = message?.actor;
-    if (!actor || typeof actor.name !== 'string' || actor.name.trim().length === 0) {
-      continue;
-    }
-
-    const actorId =
-      typeof actor.actorId === 'string' && actor.actorId.trim().length > 0
-        ? actor.actorId
-        : typeof data.channelId === 'string' && data.channelId !== HUB_CHANNEL_ID && data.channelId.trim().length > 0
-          ? data.channelId
-          : null;
-
-    if (!actorId) {
-      continue;
-    }
-
-    return {
-      actor: {
-        ...actor,
-        actorId,
-      },
-      channelId: actorId,
-    };
-  }
-
-  return null;
 }
 
 export async function markChannelAsRead({
@@ -301,7 +267,7 @@ export async function upsertChannelBundle({
   );
   batch.set(
     threadRef,
-    sanitizeForFirestore({
+    {
       ...(channelActor?.actorAvatarUrl ? { avatarUrl: channelActor.actorAvatarUrl } : {}),
       ...(channelActor?.actorId ? { actorId: channelActor.actorId } : {}),
       ...(channelActor?.actorRole ? { role: channelActor.actorRole } : {}),
@@ -310,13 +276,13 @@ export async function upsertChannelBundle({
       lastMessageAtMs: createdAtMs,
       lastPreview: buildBundlePreview(bundle),
       ...(incrementUnread ? {} : { lastReadAtMs: createdAtMs }),
-      messageCount: 1,
+      messageCount: firestore.FieldValue.increment(1),
       mode,
       openedAtMs: createdAtMs,
       ownerUid: uid,
       title: channelType === 'hub' ? 'Notfallkanal' : (channelActor?.actorName ?? firstMessage.actor.name),
-      unreadCount: incrementUnread ? 1 : 0,
-    }),
+      unreadCount: incrementUnread ? firestore.FieldValue.increment(1) : 0,
+    },
     { merge: true }
   );
   await batch.commit();
