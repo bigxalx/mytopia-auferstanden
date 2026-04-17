@@ -346,6 +346,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /v2/app/narrativeReactions/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /v2/app/narrativeUserReactions/{docId} {
+      allow read: if isModerator() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow write: if false;
+    }
+
     match /v2/app/fcmRegistrations/{uid} {
       allow read, write: if isOwner(uid);
     }

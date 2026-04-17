@@ -24,8 +24,10 @@ import {
   buildThreadFeedItems,
   type FeedItem,
 } from '@/src/features/thread/data/threadRenderItems';
+import { type ThreadReactionTarget } from '@/src/features/thread/data/threadReactionTarget';
 import { useThreadViewportState } from '@/src/features/thread/hooks/useThreadViewportState';
 import { type ChannelScrollState } from '@/src/features/channels/data/ChannelContext';
+import { type NarrativeMessageReactionState } from '@/src/features/feed/reactions/reactionCatalog';
 import { type PlaybackMessage } from '@/src/features/feed/utils/playback';
 import { type ThreadTypingState } from '@/src/features/thread/data/threadMessages';
 import { theme } from '@/src/shared/ui/theme';
@@ -52,6 +54,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       deferUntilReady = false,
       emptyState,
       footerInset,
+      getReactionState,
       highlightedMessageKey,
       hero,
       isHydrated,
@@ -60,6 +63,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       loadingState,
       newMessagesBottom,
       onEndReached,
+      onMessageLongPress,
       onMarkRead,
       scrollState,
       scrollToEndButtonBottom,
@@ -148,10 +152,12 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
           animatedResultKey={animatedResultKey}
           didCaptureInitialItemsRef={didCaptureInitialItemsRef}
           feedItems={renderFeedItems}
+          getReactionState={getReactionState}
           highlightedMessageKey={highlightedMessageKey}
           imageSources={imageSources}
           index={index}
           item={item}
+          onMessageLongPress={onMessageLongPress}
           onImagePress={handleImagePress}
           seenMessageKeysRef={seenMessageKeysRef}
         />
@@ -161,9 +167,11 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
         animatedResultKey,
         didCaptureInitialItemsRef,
         renderFeedItems,
+        getReactionState,
         handleImagePress,
         highlightedMessageKey,
         imageSources,
+        onMessageLongPress,
         seenMessageKeysRef,
       ]
     );
@@ -305,6 +313,7 @@ type ChatThreadListProps = {
   deferUntilReady?: boolean;
   emptyState?: React.ReactElement | null;
   footerInset: number;
+  getReactionState?: (playbackMessage: PlaybackMessage) => NarrativeMessageReactionState | null;
   highlightedMessageKey?: string | null;
   hero?: React.ReactElement | null;
   isHydrated: boolean;
@@ -313,6 +322,7 @@ type ChatThreadListProps = {
   loadingState?: React.ReactElement | null;
   newMessagesBottom: number;
   onEndReached?: () => void;
+  onMessageLongPress?: (target: ThreadReactionTarget) => void;
   onMarkRead?: () => void | Promise<void>;
   scrollState: ChannelScrollState;
   scrollToEndButtonBottom: number;

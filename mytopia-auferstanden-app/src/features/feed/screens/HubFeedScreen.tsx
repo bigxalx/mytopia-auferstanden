@@ -1,19 +1,25 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Keyboard, Platform, Text, type KeyboardEvent, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
 import { MissionChoicePicker } from '@/components/feed/MissionChoicePicker';
+import { NarrativeReactionOverlay } from '@/components/feed/NarrativeReactionOverlay';
 import { useChannels } from '@/src/features/channels/data/ChannelContext';
 import { useSession } from '@/src/core/session/SessionContext';
 import { useActiveMission, useActiveMissionBarVisible } from '@/src/features/tasks/context/ActiveMissionContext';
+import { useNarrativeReactions } from '@/src/features/feed/hooks/useNarrativeReactions';
+import { type NarrativeReactionId } from '@/src/features/feed/reactions/reactionCatalog';
+import { type PlaybackMessage } from '@/src/features/feed/utils/playback';
 import {
   ChatThreadList,
   createDefaultScrollState,
   type ChatThreadListHandle,
 } from '@/src/features/thread/components/ChatThreadList';
+import { type ThreadReactionTarget } from '@/src/features/thread/data/threadReactionTarget';
 import { useHubThread } from '@/src/features/thread/hooks/useHubThread';
 import { useThreadNavigation } from '@/src/features/thread/data/ThreadNavigationContext';
 import { theme } from '@/src/shared/ui/theme';
@@ -22,7 +28,7 @@ export default function HubFeedScreen() {
   const navigation = useNavigation<any>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { selectedMode } = useSession();
+  const { selectedMode, user } = useSession();
   const {
     clearMissionThreadEntry,
     consumeMissionNavigationIntent,
@@ -38,8 +44,14 @@ export default function HubFeedScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [pendingExternalBundleId, setPendingExternalBundleId] = useState<string | null>(null);
+  const [reactionTarget, setReactionTarget] = useState<ThreadReactionTarget | null>(null);
 
   const { allItems, canLoadMore, isHydrated, isLoadingMore, items, loadMore, markRead, typingState } = useHubThread();
+  const { getMessageReaction, submitReaction } = useNarrativeReactions({
+    items: allItems,
+    mode: selectedMode,
+    userId: user?.id,
+  });
   const scrollState = getChannelScrollState('hub') ?? createDefaultScrollState();
   const isMissionActiveHere =
     focusedMissionChannel?.channelId === 'hub' &&
@@ -215,18 +227,52 @@ export default function HubFeedScreen() {
     };
   }, [clearPendingReveal, isTextMissionActive, requestComposerReveal]);
 
+  const handleReactionOverlayClose = useCallback(() => {
+    setReactionTarget(null);
+  }, []);
+
+  const handleMessageLongPress = useCallback((target: ThreadReactionTarget) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setReactionTarget(target);
+  }, []);
+
+  const handleReactionSelectionCommit = useCallback((reaction: NarrativeReactionId | null) => {
+    if (!reactionTarget) {
+      return;
+    }
+
+    void submitReaction({
+      bundleId: reactionTarget.playbackMessage.bundleId,
+      messageId: reactionTarget.playbackMessage.message.messageId,
+      reaction,
+    });
+  }, [reactionTarget, submitReaction]);
+
+  const getPlaybackMessageReaction = useCallback((playbackMessage: PlaybackMessage) => {
+    return getMessageReaction(playbackMessage.bundleId, playbackMessage.message.messageId);
+  }, [getMessageReaction]);
+
+  const activeReactionState = reactionTarget
+    ? getMessageReaction(
+        reactionTarget.playbackMessage.bundleId,
+        reactionTarget.playbackMessage.message.messageId
+      )
+    : null;
+
   return (
     <>
       <ChatThreadList
         deferUntilReady
         ref={threadRef}
         footerInset={footerInset}
+        getReactionState={getPlaybackMessageReaction}
         highlightedMessageKey={highlightedMessageKey}
         isHydrated={isHydrated}
         isLoadingMore={isLoadingMore}
         items={items}
         newMessagesBottom={newMessagesBottom}
         onEndReached={canLoadMore ? loadMore : undefined}
+        onMessageLongPress={handleMessageLongPress}
         onMarkRead={markRead}
         scrollState={scrollState}
         scrollToEndButtonBottom={scrollToEndButtonBottom}
@@ -242,6 +288,13 @@ export default function HubFeedScreen() {
           onRevealRequest={requestComposerReveal}
         />
       )}
+      <NarrativeReactionOverlay
+        onClose={handleReactionOverlayClose}
+        onCommitSelection={handleReactionSelectionCommit}
+        reactionState={activeReactionState}
+        target={reactionTarget}
+        visible={reactionTarget !== null}
+      />
     </>
   );
 }

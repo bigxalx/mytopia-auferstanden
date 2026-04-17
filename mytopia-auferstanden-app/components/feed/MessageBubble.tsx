@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Pressable, StyleSheet, View, Text, type ViewStyle, type TextStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
   useAnimatedStyle,
@@ -13,8 +13,11 @@ import { theme } from '@/src/shared/ui/theme';
 import { type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
 import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
+import { NarrativeReactionBadges } from './NarrativeReactionBadges';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { buildFeedChannelHref, useChannels } from '@/src/features/channels/data/ChannelContext';
+import { type NarrativeMessageReactionState } from '@/src/features/feed/reactions/reactionCatalog';
+import { type ThreadReactionFrame } from '@/src/features/thread/data/threadReactionTarget';
 import { useRouter } from 'expo-router';
 
 const TAIL_WIDTH = 20;
@@ -49,6 +52,8 @@ export function MessageBubble({
   avatarBottomOffset = 0,
   containerStyle,
   isHighlighted = false,
+  reactionState,
+  onLongPress,
   userInteraction,
   isLastInGroup,
 }: {
@@ -62,6 +67,8 @@ export function MessageBubble({
   avatarBottomOffset?: number;
   containerStyle?: ViewStyle;
   isHighlighted?: boolean;
+  reactionState?: NarrativeMessageReactionState | null;
+  onLongPress?: (sourceFrame: ThreadReactionFrame | null) => void;
   userInteraction?: boolean;
   isLastInGroup?: boolean;
 }) {
@@ -78,6 +85,7 @@ export function MessageBubble({
   const { highlightedMissionId } = useActiveMission();
   const highlightProgress = useSharedValue(0);
   const avatarOffsetProgress = useSharedValue(avatarBottomOffset);
+  const messageRootRef = useRef<View>(null);
 
   const isTargetMission =
     message.attachment?._type === 'missionAttachment' &&
@@ -128,77 +136,135 @@ export function MessageBubble({
     bottom: -32 - avatarOffsetProgress.value,
   }));
 
-  return (
-    <View style={[styles.messageRow, isUser && styles.messageRowUser, containerStyle]}>
-      {effectiveShowAvatar && (
-        <Animated.View style={[styles.avatarColumn, animatedAvatarStyle]}>
-          <ActorAvatar
-            actor={message.actor}
-            onPress={
-              linkedChannelId
-                ? () =>
-                    router.navigate(buildFeedChannelHref(linkedChannelId))
-                : undefined
-            }
-          />
-        </Animated.View>
-      )}
+  const handleLongPress = useCallback(() => {
+    if (!onLongPress) {
+      return;
+    }
 
+    messageRootRef.current?.measureInWindow((x, y, width, height) => {
+      if (width > 0 && height > 0) {
+        onLongPress({
+          height,
+          width,
+          x,
+          y,
+        });
+        return;
+      }
+
+      onLongPress(null);
+    });
+  }, [onLongPress]);
+
+  return (
+    <View ref={messageRootRef} style={[styles.messageRoot, isUser && styles.messageRootUser, containerStyle]}>
       <View style={[
-        styles.bubbleContainer,
-        isCentered ? styles.bubbleContainerCentered : (isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC)
+        styles.messageBody,
       ]}>
+        {effectiveShowAvatar && (
+          <Animated.View style={[styles.avatarColumn, animatedAvatarStyle]}>
+            <ActorAvatar
+              actor={message.actor}
+              onPress={
+                linkedChannelId
+                  ? () =>
+                      router.navigate(buildFeedChannelHref(linkedChannelId))
+                  : undefined
+              }
+            />
+          </Animated.View>
+        )}
+
         <Animated.View
           style={[
-            styles.messageBubble,
-            isUser && styles.messageBubbleUser,
-            shouldStretchBubble && styles.messageBubbleAttachment,
-            isCentered && styles.messageBubbleCentered,
-            animatedBubbleStyle,
+            styles.bubbleContainer,
+            isCentered ? styles.bubbleContainerCentered : (isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC)
           ]}
         >
-          {effectiveShowName && (
-            <Text
-              style={[
-                styles.headline,
-                message.actor.nameColor ? { color: message.actor.nameColor } : {},
-              ]}
+          <View
+            style={[
+              styles.bubbleShell,
+              shouldStretchBubble && styles.bubbleShellAttachment,
+              isCentered && styles.bubbleShellCentered,
+              isUser && styles.bubbleShellUser,
+            ]}
+          >
+            <Pressable
+              delayLongPress={220}
+              disabled={!onLongPress}
+              onLongPress={handleLongPress}
+              style={styles.bubblePressable}
             >
-              {message.actor.name}
-            </Text>
-          )}
-          {message.text && (message.attachment?._type !== 'submissionAttachment') && (
-            <Text style={[styles.messageText, isUser && styles.messageTextUser]}>
-              {message.text}
-            </Text>
-          )}
-          {message.attachment && (
-            <AttachmentView
-              attachment={message.attachment}
-              animateAttachment={animateAttachment}
-              resultAnimationKey={resultAnimationKey}
-              messageText={message.text}
-              gallerySources={gallerySources}
-              onImagePress={onImagePress}
-              userInteraction={userInteraction}
-              actor={message.actor}
-            />
-          )}
+              <Animated.View
+                style={[
+                  styles.messageBubble,
+                  isUser && styles.messageBubbleUser,
+                  shouldStretchBubble && styles.messageBubbleAttachment,
+                  isCentered && styles.messageBubbleCentered,
+                  animatedBubbleStyle,
+                ]}
+              >
+                {effectiveShowName && (
+                  <Text
+                    style={[
+                      styles.headline,
+                      message.actor.nameColor ? { color: message.actor.nameColor } : {},
+                    ]}
+                  >
+                    {message.actor.name}
+                  </Text>
+                )}
+                {message.text && (message.attachment?._type !== 'submissionAttachment') && (
+                  <Text style={[styles.messageText, isUser && styles.messageTextUser]}>
+                    {message.text}
+                  </Text>
+                )}
+                {message.attachment && (
+                  <AttachmentView
+                    attachment={message.attachment}
+                    animateAttachment={animateAttachment}
+                    resultAnimationKey={resultAnimationKey}
+                    messageText={message.text}
+                    gallerySources={gallerySources}
+                    onImagePress={onImagePress}
+                    userInteraction={userInteraction}
+                    actor={message.actor}
+                  />
+                )}
+              </Animated.View>
+            </Pressable>
+            {(isLastInGroup && !isCentered) && <BubbleTail isUser={isUser} />}
+          </View>
         </Animated.View>
-        {(isLastInGroup && !isCentered) && <BubbleTail isUser={isUser} />}
       </View>
+
+      <NarrativeReactionBadges
+        containerStyle={[
+          styles.reactionBadgesWrap,
+          isCentered
+            ? styles.reactionBadgesWrapCentered
+            : isUser
+              ? styles.reactionBadgesWrapUser
+              : styles.reactionBadgesWrapNPC,
+        ]}
+        isUser={isUser}
+        reactionState={reactionState}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  messageRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  messageRoot: {
     position: 'relative',
   } as ViewStyle,
-  messageRowUser: {
+  messageRootUser: {
     paddingLeft: 40,
+  } as ViewStyle,
+  messageBody: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    position: 'relative',
   } as ViewStyle,
   avatarColumn: {
     position: 'absolute',
@@ -221,6 +287,24 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginRight: 10,
     alignItems: 'flex-end',
+  } as ViewStyle,
+  bubbleShell: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    position: 'relative',
+  } as ViewStyle,
+  bubbleShellAttachment: {
+    alignSelf: 'stretch',
+    width: '100%',
+  } as ViewStyle,
+  bubbleShellCentered: {
+    alignSelf: 'center',
+  } as ViewStyle,
+  bubbleShellUser: {
+    alignSelf: 'flex-end',
+  } as ViewStyle,
+  bubblePressable: {
+    alignSelf: 'stretch',
   } as ViewStyle,
   messageBubble: {
     alignSelf: 'flex-start',
@@ -258,6 +342,22 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   tailWrapRight: {
     right: 6,
+  } as ViewStyle,
+  reactionBadgesWrap: {
+    minHeight: 0,
+    marginTop: -10,
+    transform: [{ translateX: 10 }],
+    zIndex: 2,
+  } as ViewStyle,
+  reactionBadgesWrapNPC: {
+    marginLeft: 60,
+  } as ViewStyle,
+  reactionBadgesWrapUser: {
+    marginLeft: 20,
+    marginRight: 2,
+  } as ViewStyle,
+  reactionBadgesWrapCentered: {
+    marginHorizontal: 12,
   } as ViewStyle,
   headline: {
     color: theme.colors.charcoal,
