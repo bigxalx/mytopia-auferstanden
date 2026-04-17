@@ -41,6 +41,13 @@ export type MissionResultPayloadDto = {
       total?: number;
 };
 
+export type NarrativeReactionId =
+      | 'thumbsUp'
+      | 'thumbsDown'
+      | 'heart'
+      | 'shocked'
+      | 'laughing';
+
 export type AttachmentDto = | {
         _type: 'systemAttachment';
         kind: 'neutral' | 'prominent';

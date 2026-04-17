@@ -10,8 +10,10 @@ import Svg, { Path } from 'react-native-svg';
 
 import { ActorAvatar } from '@/components/feed/ActorAvatar';
 import { MessageBubble } from '@/components/feed/MessageBubble';
+import { type NarrativeMessageReactionState } from '@/src/features/feed/reactions/reactionCatalog';
 import { SystemMessage } from '@/components/feed/SystemMessage';
 import { type PlaybackMessage } from '@/src/features/feed/utils/playback';
+import { type ThreadReactionTarget } from '@/src/features/thread/data/threadReactionTarget';
 import { type FeedItem } from '@/src/features/thread/data/threadRenderItems';
 import { threadListStyles as styles } from '@/src/features/thread/components/threadListStyles';
 import { theme } from '@/src/shared/ui/theme';
@@ -22,22 +24,26 @@ export function ThreadFeedItemRow({
   allowAnimations,
   didCaptureInitialItemsRef,
   feedItems,
+  getReactionState,
   animatedResultKey,
   highlightedMessageKey,
   imageSources,
   index,
   item,
+  onMessageLongPress,
   onImagePress,
   seenMessageKeysRef,
 }: {
   allowAnimations: boolean;
   didCaptureInitialItemsRef: MutableRefObject<boolean>;
   feedItems: FeedItem[];
+  getReactionState?: (playbackMessage: PlaybackMessage) => NarrativeMessageReactionState | null;
   animatedResultKey?: string | null;
   highlightedMessageKey?: string | null;
   imageSources: { uri: string }[];
   index: number;
   item: FeedItem;
+  onMessageLongPress?: (target: ThreadReactionTarget) => void;
   onImagePress: (index: number) => void;
   seenMessageKeysRef: MutableRefObject<Set<string>>;
 }) {
@@ -110,6 +116,10 @@ export function ThreadFeedItemRow({
   const shouldAnimateRow = isResultCard ? shouldAnimateResult : shouldAnimate;
   const resultCardTopSpacing =
     isResultCard && (previousItem?.type === 'typing' || (previousMessage && !previousMessage.message.isUser)) ? 52 : 0;
+  const showAvatar = (isLastInGroup || typingContinuesGroup) && !currentIsUser;
+  const showName = isFirstInGroup && !currentIsUser;
+  const isReactableMessage = Boolean(onMessageLongPress) && !isSystem && !isResultCard;
+  const reactionState = getReactionState?.(playbackMessage) ?? null;
 
   if (!seenMessageKeysRef.current.has(item.key)) {
     seenMessageKeysRef.current.add(item.key);
@@ -165,10 +175,23 @@ export function ThreadFeedItemRow({
           isHighlighted={highlightedMessageKey === item.key}
           isLastInGroup={isLastInGroup && !typingContinuesGroup}
           message={playbackMessage.message}
+          onLongPress={
+            isReactableMessage
+              ? (sourceFrame) =>
+                  onMessageLongPress?.({
+                    isLastInGroup: isLastInGroup && !typingContinuesGroup,
+                    playbackMessage,
+                    showAvatar,
+                    showName,
+                    sourceFrame,
+                  })
+              : undefined
+          }
           onImagePress={onImagePress}
+          reactionState={reactionState}
           resultAnimationKey={shouldAnimateResult ? item.key : null}
-          showAvatar={(isLastInGroup || typingContinuesGroup) && !currentIsUser}
-          showName={isFirstInGroup && !currentIsUser}
+          showAvatar={showAvatar}
+          showName={showName}
         />
         {typingContinuesGroup ? (
           <View style={styles.inlineTypingWrap}>

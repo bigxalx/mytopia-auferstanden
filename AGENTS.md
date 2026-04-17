@@ -31,6 +31,13 @@
 - Notfallkanal feed uses scroll-to-last-read positioning: scrolls to bottom if all messages read, or to first unread message with badge.
 - List renders hidden with spinner overlay until positioned to prevent visual jump on app start.
 
+## Notfallkanal Reactions
+
+- Reactions are currently enabled only on the Notfallkanal hub feed, not actor-channel threads.
+- Long-press reactions should measure and animate the full visible message row so the focused overlay matches chat layout exactly, including reaction badges.
+- Focused reaction dismissal should always use the reverse animation back to the original measured row, including when the user selects or removes an emoji.
+- Reaction badges should slightly overlap the message bubble, use the pale actor-channel blue fill, and avoid decorative borders.
+
 ## Docs Sync Rule
 
 - `docs/tasks.md` is a local snapshot only and can lag behind Linear.

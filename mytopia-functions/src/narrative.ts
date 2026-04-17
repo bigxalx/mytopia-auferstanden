@@ -9,6 +9,8 @@ import {
     MISSION_DETAIL_PROJECTION,
     NARRATIVE_STATE_COLLECTION_PATH, NARRATIVE_STATE_COLLECTION_PATH_DEV,
     SANITY_BUNDLE_PROJECTION,
+    V2_NARRATIVE_REACTIONS_COLLECTION_PATH,
+    V2_NARRATIVE_USER_REACTIONS_COLLECTION_PATH,
     V2_SUBMISSIONS_COLLECTION_PATH
 } from './constants.js';
 
@@ -29,12 +31,13 @@ import {
 
 import { applySanityImageTransforms, sanityQuery, verifySanitySignature } from './sanity.js';
 import { handleDeleteAccount, verifyFirebaseUser } from './auth.js';
+import { emptyReactionCounts, isNarrativeReactionId } from './reactions.js';
 import {
     BundleDto, FeedCursor,
     FirebaseResponse,
     MapPointDto,
     MessageDto,
-    NarrativeMode, NarrativeStateEventType,
+    NarrativeMode, NarrativeReactionId, NarrativeStateEventType,
     SanityWebhookPayload
 } from './types.js';
 export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
@@ -57,6 +60,11 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
 
       if (path === '/feed') {
         await handleFeedProxy(req, res);
+        return;
+      }
+
+      if (path === '/feed/reactions') {
+        await handleFeedReactions(req, res);
         return;
       }
 
@@ -371,6 +379,62 @@ export async function handleFeedProxy(req: Request, res: FirebaseResponse) {
   }
 }
 
+export async function handleFeedReactions(req: Request, res: FirebaseResponse) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev feed reactions require Firebase custom claim dev=true.');
+    }
+
+    const bundleId =
+      typeof req.body?.bundleId === 'string' ? normalizeBundleId(req.body.bundleId.trim()) : '';
+    const messageId = typeof req.body?.messageId === 'string' ? req.body.messageId.trim() : '';
+    const rawReaction = req.body?.reaction;
+    const reaction = normalizeReactionInput(rawReaction);
+
+    if (!bundleId) {
+      throw new HttpError(400, 'Missing bundleId.');
+    }
+
+    if (!messageId) {
+      throw new HttpError(400, 'Missing messageId.');
+    }
+
+    if (rawReaction !== null && reaction === null) {
+      throw new HttpError(400, 'Invalid reaction.');
+    }
+
+    const bundle = await getBundleById(bundleId, mode);
+    if (!bundle || !isBundleReleasedToFeed(bundle)) {
+      throw new HttpError(404, 'Bundle not found in released feed.');
+    }
+
+    const bundleMessages = normalizeBundleMessages(bundle);
+    if (!bundleMessages.some((message) => message.messageId === messageId)) {
+      throw new HttpError(404, 'Message not found in released feed bundle.');
+    }
+
+    await writeNarrativeReaction({
+      bundleId,
+      messageId,
+      mode,
+      reaction,
+      uid: decodedToken.uid,
+    });
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    logger.error('feedReactions failed', error);
+    sendError(res, error);
+  }
+}
+
 export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
     if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -489,6 +553,19 @@ export function normalizeBundleMessages(bundle: BundleDto): MessageDto[] {
       messageId: `script_${bundle._id}_${index + 1}`,
       text: chunk,
     }));
+}
+
+function normalizeReactionInput(value: unknown): NarrativeReactionId | null {
+  if (value === null) {
+    return null;
+  }
+
+  return isNarrativeReactionId(value) ? value : null;
+}
+
+function isBundleReleasedToFeed(bundle: BundleDto) {
+  const releaseMs = Date.parse(bundle.releaseAt);
+  return Number.isFinite(releaseMs) && releaseMs <= Date.now();
 }
 
 export function extractBundleId(payload: SanityWebhookPayload | null | undefined): string | null {
@@ -670,6 +747,203 @@ export async function touchNarrativeState({
 export function narrativeStateRef(bundleId: string, mode: NarrativeMode) {
     const collectionPath = mode === 'dev' ? NARRATIVE_STATE_COLLECTION_PATH_DEV : NARRATIVE_STATE_COLLECTION_PATH;
     return firestore.collection(collectionPath).doc(bundleId);
+}
+
+export async function writeNarrativeReaction({
+      bundleId,
+      messageId,
+      mode,
+      reaction,
+      uid,
+    }: {
+          bundleId: string;
+          messageId: string;
+          mode: NarrativeMode;
+          reaction: NarrativeReactionId | null;
+          uid: string;
+        }) {
+    const aggregateRef = narrativeReactionsRef(bundleId, mode);
+    const userRef = narrativeUserReactionsRef(bundleId, mode, uid);
+
+    await firestore.runTransaction(async (transaction) => {
+      const [aggregateSnapshot, userSnapshot] = await Promise.all([
+        transaction.get(aggregateRef),
+        transaction.get(userRef),
+      ]);
+
+      const aggregateData = (aggregateSnapshot.data() as Record<string, unknown> | undefined) ?? {};
+      const userData = (userSnapshot.data() as Record<string, unknown> | undefined) ?? {};
+      const aggregateMessages = cloneAggregateMessages(aggregateData.messages);
+      const userMessages = cloneUserMessages(userData.messages);
+
+      const previousReaction = userMessages[messageId] ?? null;
+      if (previousReaction === reaction) {
+        return;
+      }
+
+      const nextCounts = {
+        ...emptyReactionCounts(),
+        ...(aggregateMessages[messageId] ?? {}),
+      };
+
+      if (previousReaction) {
+        const previousCount = nextCounts[previousReaction] ?? 0;
+        if (previousCount <= 1) {
+          delete nextCounts[previousReaction];
+        } else {
+          nextCounts[previousReaction] = previousCount - 1;
+        }
+      }
+
+      if (reaction) {
+        nextCounts[reaction] = (nextCounts[reaction] ?? 0) + 1;
+        userMessages[messageId] = reaction;
+      } else {
+        delete userMessages[messageId];
+      }
+
+      if (Object.keys(nextCounts).length > 0) {
+        aggregateMessages[messageId] = nextCounts;
+      } else {
+        delete aggregateMessages[messageId];
+      }
+
+      if (Object.keys(aggregateMessages).length === 0) {
+        transaction.delete(aggregateRef);
+      } else {
+        transaction.set(aggregateRef, {
+          bundleId,
+          messages: serializeAggregateMessages(aggregateMessages),
+          mode,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (Object.keys(userMessages).length === 0) {
+        transaction.delete(userRef);
+      } else {
+        transaction.set(userRef, {
+          bundleId,
+          messages: serializeUserMessages(userMessages),
+          mode,
+          ownerUid: uid,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    });
+}
+
+function narrativeReactionsRef(bundleId: string, mode: NarrativeMode) {
+  return firestore.collection(V2_NARRATIVE_REACTIONS_COLLECTION_PATH).doc(buildNarrativeReactionDocId({ bundleId, mode }));
+}
+
+function narrativeUserReactionsRef(bundleId: string, mode: NarrativeMode, uid: string) {
+  return firestore.collection(V2_NARRATIVE_USER_REACTIONS_COLLECTION_PATH).doc(
+    buildNarrativeUserReactionDocId({
+      bundleId,
+      mode,
+      uid,
+    })
+  );
+}
+
+function buildNarrativeReactionDocId({
+      bundleId,
+      mode,
+    }: {
+          bundleId: string;
+          mode: NarrativeMode;
+        }) {
+    return `${mode}__${bundleId}`;
+}
+
+function buildNarrativeUserReactionDocId({
+      bundleId,
+      mode,
+      uid,
+    }: {
+          bundleId: string;
+          mode: NarrativeMode;
+          uid: string;
+        }) {
+    return `${mode}__${uid}__${bundleId}`;
+}
+
+function cloneAggregateMessages(value: unknown) {
+  const cloned: Record<string, Partial<Record<NarrativeReactionId, number>>> = {};
+  if (!value || typeof value !== 'object') {
+    return cloned;
+  }
+
+  for (const [messageId, rawEntry] of Object.entries(value as Record<string, unknown>)) {
+    if (!rawEntry || typeof rawEntry !== 'object') {
+      continue;
+    }
+
+    const rawCounts = (rawEntry as Record<string, unknown>).counts;
+    if (!rawCounts || typeof rawCounts !== 'object') {
+      continue;
+    }
+
+    const counts = emptyReactionCounts();
+    for (const [reactionId, rawCount] of Object.entries(rawCounts as Record<string, unknown>)) {
+      if (!isNarrativeReactionId(reactionId) || typeof rawCount !== 'number' || !Number.isFinite(rawCount) || rawCount <= 0) {
+        continue;
+      }
+
+      counts[reactionId] = Math.floor(rawCount);
+    }
+
+    if (Object.keys(counts).length > 0) {
+      cloned[messageId] = counts;
+    }
+  }
+
+  return cloned;
+}
+
+function cloneUserMessages(value: unknown) {
+  const cloned: Record<string, NarrativeReactionId> = {};
+  if (!value || typeof value !== 'object') {
+    return cloned;
+  }
+
+  for (const [messageId, rawEntry] of Object.entries(value as Record<string, unknown>)) {
+    if (!rawEntry || typeof rawEntry !== 'object') {
+      continue;
+    }
+
+    const reaction = (rawEntry as Record<string, unknown>).reaction;
+    if (!isNarrativeReactionId(reaction)) {
+      continue;
+    }
+
+    cloned[messageId] = reaction;
+  }
+
+  return cloned;
+}
+
+function serializeAggregateMessages(messages: Record<string, Partial<Record<NarrativeReactionId, number>>>) {
+  return Object.fromEntries(
+    Object.entries(messages).map(([messageId, counts]) => [
+      messageId,
+      {
+        counts,
+      },
+    ])
+  );
+}
+
+function serializeUserMessages(messages: Record<string, NarrativeReactionId>) {
+  return Object.fromEntries(
+    Object.entries(messages).map(([messageId, reaction]) => [
+      messageId,
+      {
+        reaction,
+      },
+    ])
+  );
 }
 
 export async function verifyCloudTaskInvocation(req: Request) {

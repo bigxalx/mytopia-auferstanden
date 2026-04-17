@@ -3,6 +3,8 @@ export const V2_COLLECTION = {
   leaderboard: 'v2/app/leaderboard',
   narrativeState: 'v2/app/narrativeState',
   narrativeStateDev: 'v2/app/narrativeStateDev',
+  narrativeReactions: 'v2/app/narrativeReactions',
+  narrativeUserReactions: 'v2/app/narrativeUserReactions',
   scoreEvents: 'v2/app/scoreEvents',
   submissions: 'v2/app/submissions',
   tasks: 'v2/app/tasks',
@@ -188,4 +190,19 @@ export type V2NarrativeStateDoc = {
   releasedAt?: FirestoreTimestampString;
   updatedAt: FirestoreTimestampString;
   version: number;
+};
+
+export type V2NarrativeReactionDoc = {
+  bundleId: string;
+  messages: Record<string, { counts: Record<string, number> }>;
+  mode: ChannelMode;
+  updatedAt: FirestoreTimestampString;
+};
+
+export type V2NarrativeUserReactionDoc = {
+  bundleId: string;
+  messages: Record<string, { reaction: string }>;
+  mode: ChannelMode;
+  ownerUid: string;
+  updatedAt: FirestoreTimestampString;
 };
