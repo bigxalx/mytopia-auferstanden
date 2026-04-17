@@ -127,6 +127,7 @@ type MissionSessionState = {
 const QUIZ_PICKER_REVEAL_BUFFER_MS = 120;
 const QUIZ_COMPLETION_BUFFER_MS = 180;
 const QUIZ_NEXT_QUESTION_OFFSET_MS = 140;
+const QUIZ_RESULT_CARD_HOLD_MS = 2400;
 
 const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(null);
 
@@ -798,7 +799,15 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     const isLastQuestion = session.currentIndex === session.totalQuestions - 1;
     const newAnswers = [...session.answers, optionIndex];
 
-    setQuizSession(prev => prev ? { ...prev, answers: newAnswers, showPicker: false } : null);
+    setQuizSession(prev => {
+      if (!prev) {
+        return null;
+      }
+
+      const updated = { ...prev, answers: newAnswers, showPicker: false };
+      updatePersistedSession(updated);
+      return updated;
+    });
 
     // 1. User Message
     insertUserMessage(session.actor, choice.text);
@@ -817,8 +826,6 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       // Delay finishing state until feedback has played
       setTimeout(() => {
         void completeMissionRef.current(session.missionId, newAnswers);
-        removePersistedSession(session.missionId);
-        setQuizSession(null);
       }, getRemainingQueueDelay(QUIZ_COMPLETION_BUFFER_MS));
     } else {
       const nextIdx = session.currentIndex + 1;
@@ -840,7 +847,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         scrollToMessageRef.current('bottom');
       }, getRemainingQueueDelay(QUIZ_PICKER_REVEAL_BUFFER_MS));
     }
-  }, [quizSession, insertUserMessage, missions, siteSettings, insertNpcMessage, removePersistedSession, updatePersistedSession, getRemainingQueueDelay]);
+  }, [quizSession, insertUserMessage, missions, siteSettings, insertNpcMessage, updatePersistedSession, getRemainingQueueDelay]);
   const resolveFocusedMissionState = useCallback((
     missionId: string,
     data?: {
@@ -934,12 +941,17 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       void persistBundleToActorChannel(virtualBundle);
     }
     
-    // 2. Clear focus without re-triggering mission pause side effects
-    setFocusedMissionId(null);
-    setFocusedMission(null);
-    setFocusedMissionChannel(null);
-    if (user) {
-      await AsyncStorage.removeItem(buildMissionFocusKey(user.id, selectedMode));
+    const shouldHoldQuizResult = mission.kind === 'quiz';
+
+    // Non-quiz missions can clear their focus immediately. Quiz missions keep
+    // their layout context until the result card has finished presenting.
+    if (!shouldHoldQuizResult) {
+      setFocusedMissionId(null);
+      setFocusedMission(null);
+      setFocusedMissionChannel(null);
+      if (user) {
+        await AsyncStorage.removeItem(buildMissionFocusKey(user.id, selectedMode));
+      }
     }
 
     // 3. Submit to API using the clean ID
@@ -1038,6 +1050,8 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         mission.kind === 'quiz' ||
         mission.kind === 'gps';
       
+      const resultRevealDelayMs = moderatorNote ? 1200 : 180;
+
       if (showCard) {
         insertMessageBundle({
           actor: { name: 'System' },
@@ -1050,18 +1064,31 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             earnedPoints: apiResult?.earned,
           },
           isSystem: true,
-          releaseOffsetMs: moderatorNote ? 1200 : 180,
+          releaseOffsetMs: resultRevealDelayMs,
         });
       }
 
       removeMissionSession(cleanMissionId);
-      await setFocus(null);
       scrollToMessageRef.current('bottom');
+
+      if (shouldHoldQuizResult) {
+        await new Promise((resolve) => setTimeout(resolve, (showCard ? resultRevealDelayMs : 0) + QUIZ_RESULT_CARD_HOLD_MS));
+        removePersistedSession(cleanMissionId);
+        setQuizSession((prev) => (prev?.missionId === cleanMissionId ? null : prev));
+      }
+
+      await setFocus(null);
 
     } catch (err) {
       console.error('[ActiveMission] Submission failed:', err);
       if (!virtualBundle) {
         insertSystemMessage('Übertragung fehlgeschlagen', 0, 'neutral');
+        if (mission.kind === 'quiz') {
+          removePersistedSession(cleanMissionId);
+          removeMissionSession(cleanMissionId);
+          setQuizSession((prev) => (prev?.missionId === cleanMissionId ? null : prev));
+          await setFocus(null);
+        }
         return;
       }
 
@@ -1085,8 +1112,15 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       };
       upsertOptimisticBundle(errorBundle);
       void persistBundleToActorChannel(errorBundle);
+
+      if (mission.kind === 'quiz') {
+        removePersistedSession(cleanMissionId);
+        removeMissionSession(cleanMissionId);
+        setQuizSession((prev) => (prev?.missionId === cleanMissionId ? null : prev));
+        await setFocus(null);
+      }
     }
-  }, [activeMission, focusedMission, missions, persistedSessions, quizSession, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, insertSystemMessage, persistBundleToActorChannel, removeMissionSession, setFocus]);
+  }, [activeMission, focusedMission, missions, persistedSessions, quizSession, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, insertSystemMessage, persistBundleToActorChannel, removeMissionSession, removePersistedSession, setFocus]);
 
   const registerScrollHandler = useCallback((handler: ((missionId: string) => void) | null) => {
     scrollHandlerRef.current = handler;

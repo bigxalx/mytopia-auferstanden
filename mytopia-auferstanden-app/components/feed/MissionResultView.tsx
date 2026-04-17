@@ -155,8 +155,14 @@ export function MissionResultView({
         {typeof normalizedEarnedPoints === 'number' && (
           <View style={styles.pointsContainer}>
             <View style={styles.pointsValueWrap}>
-              {normalizedEarnedPoints > 0 ? <Text style={styles.pointsPrefix}>+</Text> : null}
-              <Text style={styles.pointsValue}>{displayedPoints}</Text>
+              <View pointerEvents="none" style={styles.pointsValueSizer}>
+                {normalizedEarnedPoints > 0 ? <Text style={[styles.pointsPrefix, styles.pointsGhost]}>+</Text> : null}
+                <Text style={[styles.pointsValue, styles.pointsGhost]}>{normalizedEarnedPoints}</Text>
+              </View>
+              <View pointerEvents="none" style={styles.pointsValueOverlay}>
+                {normalizedEarnedPoints > 0 ? <Text style={styles.pointsPrefix}>+</Text> : null}
+                <Text style={styles.pointsValue}>{displayedPoints}</Text>
+              </View>
             </View>
             <Text style={styles.pointsLabel}>Punkte erhalten</Text>
           </View>
@@ -254,7 +260,28 @@ const styles = StyleSheet.create({
   pointsValueWrap: {
     alignItems: 'baseline',
     flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 36,
+    position: 'relative',
   } as ViewStyle,
+  pointsValueSizer: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    opacity: 0,
+  } as ViewStyle,
+  pointsValueOverlay: {
+    alignItems: 'baseline',
+    bottom: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  } as ViewStyle,
+  pointsGhost: {
+    opacity: 0,
+  } as TextStyle,
   pointsPrefix: {
     color: theme.colors.orange,
     fontFamily: 'NunitoSans_800ExtraBold',
