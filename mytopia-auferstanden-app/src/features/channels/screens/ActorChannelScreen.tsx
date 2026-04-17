@@ -1,12 +1,15 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useHeaderHeight } from '@react-navigation/elements';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -81,7 +84,6 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
   const didSeedCelebrationRef = useRef(false);
   const lastResultKeyRef = useRef<string | null>(null);
   const revealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bypassMissionExitRef = useRef(false);
   const isMissionActiveHere =
     focusedMissionChannel?.channelId === channelId &&
     focusedMissionChannel?.channelType === 'actor';
@@ -109,12 +111,6 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     isTextMissionActive && isKeyboardVisible
       ? 8
       : insets.bottom + (Platform.OS === 'android' ? 40 : 24);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: channel?.title ?? 'Kanal',
-    });
-  }, [channel?.title, navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -277,7 +273,6 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       return;
     }
 
-    bypassMissionExitRef.current = true;
     clearMissionThreadEntry({
       channelId,
       missionId: missionThreadEntry.missionId,
@@ -285,30 +280,43 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     router.dismissTo(buildMissionReturnHref(missionThreadEntry.returnTarget));
   }, [channelId, clearMissionThreadEntry, missionThreadEntry, router, shouldUseMissionReturnTarget]);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (event: {
-      data: { action: { type: string } };
-      preventDefault: () => void;
-    }) => {
-      if (bypassMissionExitRef.current) {
-        bypassMissionExitRef.current = false;
-        return;
-      }
-
-      if (!shouldUseMissionReturnTarget) {
-        return;
-      }
-
-      if (!['GO_BACK', 'POP', 'POP_TO_TOP'].includes(event.data.action.type)) {
-        return;
-      }
-
-      event.preventDefault();
-      leaveMissionThread();
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      gestureEnabled: !shouldUseMissionReturnTarget,
+      headerBackButtonMenuEnabled: false,
+      headerBackVisible: !shouldUseMissionReturnTarget,
+      headerLeft: shouldUseMissionReturnTarget
+        ? () => (
+            <Pressable
+              accessibilityLabel="Kanal schließen"
+              hitSlop={8}
+              onPress={leaveMissionThread}
+              style={styles.headerBackButton}
+            >
+              <MaterialIcons color={theme.colors.textPrimary} name="arrow-back" size={24} />
+            </Pressable>
+          )
+        : undefined,
+      title: channel?.title ?? 'Kanal',
     });
+  }, [channel?.title, leaveMissionThread, navigation, shouldUseMissionReturnTarget]);
 
-    return unsubscribe;
-  }, [leaveMissionThread, navigation, shouldUseMissionReturnTarget]);
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android' || !shouldUseMissionReturnTarget) {
+        return undefined;
+      }
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        leaveMissionThread();
+        return true;
+      });
+
+      return () => {
+        subscription.remove();
+      };
+    }, [leaveMissionThread, shouldUseMissionReturnTarget])
+  );
 
   const clearPendingReveal = useCallback(() => {
     if (revealTimeoutRef.current) {
@@ -446,6 +454,11 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
 }
 
 const styles = StyleSheet.create({
+  headerBackButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  } as ViewStyle,
   screen: {
     backgroundColor: theme.colors.background,
     flex: 1,
