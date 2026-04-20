@@ -108,10 +108,6 @@ export async function handleQuizComplete(req: Request, res: FirebaseResponse) {
       throw new HttpError(404, 'Mission not found.');
     }
 
-    if (!mission.active) {
-      throw new HttpError(400, 'Mission is not active.');
-    }
-
     assertMissionNotExpired(mission);
 
     if (mission.kind !== 'quiz') {
@@ -280,15 +276,11 @@ export async function handleGpsComplete(req: Request, res: FirebaseResponse) {
     }
 
     // Fetch mission from Sanity (no answers needed, just verify it exists)
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
       throw new HttpError(404, 'Mission not found.');
-    }
-
-    if (!mission.active) {
-      throw new HttpError(400, 'Mission is not active.');
     }
 
     assertMissionNotExpired(mission);
@@ -420,15 +412,11 @@ export async function handleTextSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing text payload.');
     }
 
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
       throw new HttpError(404, 'Mission not found.');
-    }
-
-    if (!mission.active) {
-      throw new HttpError(400, 'Mission is not active.');
     }
 
     assertMissionNotExpired(mission);
@@ -494,15 +482,11 @@ export async function handlePhotoSubmit(req: Request, res: FirebaseResponse) {
       throw new HttpError(400, 'Missing photoPath payload.');
     }
 
-    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, active, expiresAt }`;
+    const query = `*[_type == "mission" && _id == $missionId && !(_id in path("drafts.**")) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0][0]{ _id, title, kind, points, expiresAt }`;
     const mission = await sanityQuery<MissionDto | null>(query, { missionId }, mode);
 
     if (!mission) {
       throw new HttpError(404, 'Mission not found.');
-    }
-
-    if (!mission.active) {
-      throw new HttpError(400, 'Mission is not active.');
     }
 
     assertMissionNotExpired(mission);

@@ -100,7 +100,6 @@ export const MISSION_LIST_PROJECTION = `
     bonusPoints
   },
   description,
-  active,
   expiresAt,
   "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
   "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,
@@ -124,7 +123,6 @@ export const MISSION_DETAIL_PROJECTION = `
     bonusPoints
   },
   description,
-  active,
   expiresAt,
   "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
   "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,
@@ -159,7 +157,6 @@ export const MISSION_SCORING_PROJECTION = `
     minutesLimit,
     bonusPoints
   },
-  active,
   expiresAt,
   "groupId": *[_type == "sammelaufgabe" && active == true && references(^._id)][0]._id,
   "groupTitle": *[_type == "sammelaufgabe" && active == true && references(^._id)][0].title,

@@ -206,10 +206,17 @@ export const mission = defineType({
         }),
         defineField({
             name: 'active',
-            title: 'Aktiv',
+            title: 'Aktiv (veraltet)',
             type: 'boolean',
-            description: 'Nur aktive Missionen werden den Spielern angezeigt.',
-            initialValue: false,
+            description:
+                'Veraltet: Missionen werden automatisch verfügbar, sobald sie in einer veröffentlichten Story referenziert sind.',
+            deprecated: {
+                reason:
+                    'Missionen werden jetzt ausschließlich über veröffentlichte Story-Nachrichten freigeschaltet. Zum Abschalten Story oder Missions-Anhang entfernen bzw. unveröffentlichen.',
+            },
+            readOnly: true,
+            hidden: ({ value }) => value === undefined,
+            initialValue: undefined,
         }),
         defineField({
             name: 'image',
@@ -285,17 +292,15 @@ export const mission = defineType({
             title: 'title',
             kind: 'kind',
             points: 'points',
-            active: 'active',
             expiresAt: 'expiresAt',
             media: 'image',
         },
         prepare(selection) {
             const kindLabel = selection.kind === 'quiz' ? '🧠 Quiz' : selection.kind === 'gps' ? '📍 GPS' : selection.kind === 'text' ? '📝 Text' : selection.kind === 'photo' ? '📸 Foto' : '❓';
-            const status = selection.active ? '' : ' (inaktiv)';
             const expiresLabel = selection.expiresAt ? ` · bis ${new Date(selection.expiresAt).toLocaleDateString('de-DE')}` : '';
             return {
                 title: selection.title || 'Unbenannte Mission',
-                subtitle: `${kindLabel} · ${selection.points ?? '?'} Punkte${expiresLabel}${status}`,
+                subtitle: `${kindLabel} · ${selection.points ?? '?'} Punkte${expiresLabel}`,
                 media: selection.media,
             };
         },

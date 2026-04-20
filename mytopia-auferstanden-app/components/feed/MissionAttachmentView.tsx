@@ -35,9 +35,16 @@ export function MissionAttachmentView({
     focusedMissionChannel?.channelId === activeChannel.channelId &&
     focusedMissionChannel?.channelType === activeChannel.channelType;
 
-  // Determine if this should be rendered as a simple reference link
-  // (e.g. in synthetic feedback messages or when no rich content is provided)
-  const isReferenceOnly = !attachment.excerpt && !attachment.imageUrl && !attachment.questions;
+  // Only collapse to a simple reference for synthetic mission mentions
+  // that carry no actionable mission metadata of their own.
+  const hasRichMissionData =
+    Boolean(attachment.excerpt) ||
+    Boolean(attachment.imageUrl) ||
+    Boolean(attachment.gpsConfig) ||
+    Boolean(attachment.missionKind) ||
+    Boolean(attachment.missionPoints) ||
+    (Array.isArray(attachment.questions) && attachment.questions.length > 0);
+  const isReferenceOnly = !hasRichMissionData;
 
   // Create a mission object compatible with getMissionLifecycleStatus
   const missionObj = {

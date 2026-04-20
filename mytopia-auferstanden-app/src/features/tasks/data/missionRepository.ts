@@ -54,7 +54,6 @@ export const MISSION_KIND_METADATA: Record<MissionKind, { emoji: string; label: 
 
 export type MissionListItem = {
     _id: string;
-    active: boolean;
     actorAvatarUrl?: string;
     actorId?: string;
     actorName?: string;

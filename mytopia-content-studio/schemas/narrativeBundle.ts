@@ -132,7 +132,7 @@ export const missionAttachment = defineType({
       title: 'Mission',
       type: 'reference',
       to: [{ type: 'mission' }],
-      description: 'Wähle die verknüpfte Mission aus.',
+      description: 'Wähle die verknüpfte Mission aus. Sie wird verfügbar, sobald diese Story veröffentlicht ist.',
       validation: (rule) => rule.required(),
     }),
     defineField({

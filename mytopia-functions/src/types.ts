@@ -160,7 +160,6 @@ export type FirebaseResponse = {
     };
 export type MissionDto = {
       _id: string;
-      active: boolean;
       expiresAt?: string;
       groupCompletionBonusPoints?: number;
       groupId?: string;

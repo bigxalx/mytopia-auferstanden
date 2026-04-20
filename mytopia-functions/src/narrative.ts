@@ -135,6 +135,11 @@ export async function handleSanityWebhook(req: Request, res: FirebaseResponse) {
 
       // Default behavior for narrativeBundle (and other types not explicitly handled)
       await deleteReleaseTask(docId, mode);
+      await touchNarrativeState({
+        bundleId: docId,
+        eventType: 'content_update',
+        mode,
+      });
       logger.info('sanityWebhook document_deleted_or_unpublished', { docId, docType, mode });
       res.status(200).json({ ok: true, action: 'deleted_or_unpublished', docId, mode });
       return;
@@ -449,7 +454,7 @@ export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
       throw new HttpError(403, 'Dev missions require Firebase custom claim dev=true.');
     }
 
-    const query = `*[_type == "mission" && active == true && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
+    const query = `*[_type == "mission" && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0] | order(title asc) {${MISSION_DETAIL_PROJECTION}}`;
     const missions = await sanityQuery<unknown[]>(query, {}, mode);
 
     res.status(200).json({ missions });
@@ -473,7 +478,7 @@ export async function handleMapPointsProxy(req: Request, res: FirebaseResponse) 
       throw new HttpError(403, 'Dev map points require Firebase custom claim dev=true.');
     }
 
-    const missionQuery = `*[_type == "mission" && kind == "gps" && active == true && defined(gpsConfig.location.lat) && defined(gpsConfig.location.lng) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0] | order(title asc) {${MAP_MISSION_POINT_PROJECTION}}`;
+    const missionQuery = `*[_type == "mission" && kind == "gps" && defined(gpsConfig.location.lat) && defined(gpsConfig.location.lng) && count(*[_type == "narrativeBundle" && !(_id in path("drafts.**")) && (publishMode == "instant" || (defined(releaseAt) && dateTime(releaseAt) <= dateTime(now()))) && references(^._id)]) > 0] | order(title asc) {${MAP_MISSION_POINT_PROJECTION}}`;
     const checkpointQuery = `*[_type == "mytopiaCheckpoint" && !(_id in path("drafts.**")) && defined(location.lat) && defined(location.lng)] | order(title asc) {${MAP_CHECKPOINT_PROJECTION}}`;
 
     const [missionPoints, checkpointPoints] = await Promise.all([

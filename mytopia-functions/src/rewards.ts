@@ -257,7 +257,6 @@ async function loadRewardContext({
       title,
       kind,
       points,
-      active,
       expiresAt,
       "timeBonuses": timeBonuses[]{
         minutesLimit,

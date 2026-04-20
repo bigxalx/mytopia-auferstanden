@@ -21,11 +21,23 @@ service cloud.firestore {
       return isSignedIn() && data.ownerUid == request.auth.uid;
     }
 
+    function hasDevClaim() {
+      return isSignedIn() && request.auth.token.dev == true;
+    }
+
+    function canReadNarrativeReactionDoc(docId) {
+      return isSignedIn()
+        && (
+          docId.matches('^production__[^/]+$')
+          || (docId.matches('^dev__[^/]+$') && hasDevClaim())
+        );
+    }
+
     function isNarrativeUserReactionOwnerDoc(docId) {
       return isSignedIn()
         && (
           docId.matches('^production__' + request.auth.uid + '__[^/]+$')
-          || docId.matches('^dev__' + request.auth.uid + '__[^/]+$')
+          || (docId.matches('^dev__' + request.auth.uid + '__[^/]+$') && hasDevClaim())
         );
     }
 
@@ -350,12 +362,12 @@ service cloud.firestore {
     }
 
     match /v2/app/narrativeStateDev/{bundleId} {
-      allow read: if isSignedIn();
+      allow read: if hasDevClaim();
       allow write: if false;
     }
 
     match /v2/app/narrativeReactions/{docId} {
-      allow read: if isSignedIn();
+      allow read: if canReadNarrativeReactionDoc(docId);
       allow write: if false;
     }
 
