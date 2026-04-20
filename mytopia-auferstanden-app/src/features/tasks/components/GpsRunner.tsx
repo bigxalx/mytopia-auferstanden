@@ -3,6 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 
 import { requestForegroundLocationPermission, getForegroundLocationPermissionStatus } from '@/src/core/location/locationPermissionClient';
+import { getLocationUnavailableMessage } from '@/src/core/location/locationErrors';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
@@ -96,19 +97,26 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
                 // Keep the live watcher below as the fallback source of location updates.
             }
 
-            subscription = await Location.watchPositionAsync(
-                {
-                    accuracy: Location.Accuracy.High,
-                    distanceInterval: 5,
-                    timeInterval: 3000,
-                },
-                (location) => {
-                    applyLocation({
-                        latitude: location.coords.latitude,
-                        longitude: location.coords.longitude,
-                    });
+            try {
+                subscription = await Location.watchPositionAsync(
+                    {
+                        accuracy: Location.Accuracy.High,
+                        distanceInterval: 5,
+                        timeInterval: 3000,
+                    },
+                    (location) => {
+                        applyLocation({
+                            latitude: location.coords.latitude,
+                            longitude: location.coords.longitude,
+                        });
+                        setError(null);
+                    }
+                );
+            } catch (watchError) {
+                if (isActive) {
+                    setError(getLocationUnavailableMessage(watchError));
                 }
-            );
+            }
         }
 
         void startWatching();

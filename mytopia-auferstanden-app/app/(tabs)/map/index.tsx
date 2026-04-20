@@ -1,6 +1,7 @@
+import { useFocusEffect } from '@react-navigation/native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Linking, Pressable, StyleSheet, Text, View, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Circle, Marker, type MapPressEvent } from 'react-native-maps';
@@ -21,6 +22,7 @@ import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMission
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
 import { darkMapStyle } from '@/src/shared/ui/darkMapStyle';
+import { getLocationUnavailableMessage } from '@/src/core/location/locationErrors';
 import { openDirections } from '@/src/features/tasks/utils/openDirections';
 import {
     CheckIcon,
@@ -71,6 +73,7 @@ export default function MapScreen() {
     const detailCardAnimation = useRef(new Animated.Value(0)).current;
     const [permissionStatus, setPermissionStatus] = useState<'undetermined' | 'granted' | 'denied'>('undetermined');
     const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [locationError, setLocationError] = useState<string | null>(null);
     const [isRecentering, setIsRecentering] = useState(false);
     const [showActive, setShowActive] = useState(true);
     const [showDone, setShowDone] = useState(false);
@@ -81,19 +84,27 @@ export default function MapScreen() {
     const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
     const [presentedPoint, setPresentedPoint] = useState<DisplayMapPoint | null>(null);
 
-    const loadCurrentLocation = async () => {
-        const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-        });
-        const nextCoords = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-        };
-        if (isMountedRef.current) {
-            setUserCoords(nextCoords);
+    const loadCurrentLocation = useCallback(async () => {
+        try {
+            const location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            });
+            const nextCoords = {
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+            };
+            if (isMountedRef.current) {
+                setUserCoords(nextCoords);
+                setLocationError(null);
+            }
+            return nextCoords;
+        } catch (error) {
+            if (isMountedRef.current) {
+                setLocationError(getLocationUnavailableMessage(error));
+            }
+            return null;
         }
-        return nextCoords;
-    };
+    }, []);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -103,22 +114,32 @@ export default function MapScreen() {
         };
     }, []);
 
-    useEffect(() => {
-        async function loadPermissionStatus() {
-            const status = await getForegroundLocationPermissionStatus();
-            if (!isMountedRef.current) {
-                return;
-            }
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
 
-            setPermissionStatus(status);
+            async function loadPermissionStatus() {
+                const status = await getForegroundLocationPermissionStatus();
+                if (!isMountedRef.current || !isActive) {
+                    return;
+                }
 
-            if (status === 'granted') {
+                setPermissionStatus(status);
+                if (status !== 'granted') {
+                    setLocationError(null);
+                    return;
+                }
+
                 await loadCurrentLocation();
             }
-        }
 
-        void loadPermissionStatus();
-    }, []);
+            void loadPermissionStatus();
+
+            return () => {
+                isActive = false;
+            };
+        }, [loadCurrentLocation])
+    );
 
     useEffect(() => {
         let isActive = true;
@@ -271,7 +292,9 @@ export default function MapScreen() {
 
         try {
             const coords = await loadCurrentLocation();
-            mapRef.current?.animateToRegion({ ...coords, ...USER_REGION_DELTA }, 500);
+            if (coords) {
+                mapRef.current?.animateToRegion({ ...coords, ...USER_REGION_DELTA }, 500);
+            }
         } finally {
             if (isMountedRef.current) {
                 setIsRecentering(false);
@@ -436,6 +459,12 @@ export default function MapScreen() {
                         );
                     })}
                 </MapView>
+
+                {locationError ? (
+                    <View style={styles.locationErrorBanner}>
+                        <Text style={styles.locationErrorText}>{locationError}</Text>
+                    </View>
+                ) : null}
 
                 <View style={[styles.controlsLayer, { top: controlsTop }]}>
                     {permissionStatus === 'granted' && (
@@ -700,6 +729,22 @@ const styles = StyleSheet.create({
         flex: 1,
         position: 'relative',
     },
+    locationErrorBanner: {
+        backgroundColor: 'rgba(16, 19, 24, 0.9)',
+        borderRadius: 16,
+        left: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        position: 'absolute',
+        right: 12,
+        top: 12,
+    } as ViewStyle,
+    locationErrorText: {
+        color: theme.colors.cardTextPrimary,
+        fontSize: 13,
+        lineHeight: 18,
+        textAlign: 'center',
+    } as TextStyle,
     screen: {
         backgroundColor: theme.colors.background,
         flex: 1,

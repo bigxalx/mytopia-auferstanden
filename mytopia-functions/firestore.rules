@@ -21,6 +21,14 @@ service cloud.firestore {
       return isSignedIn() && data.ownerUid == request.auth.uid;
     }
 
+    function isNarrativeUserReactionOwnerDoc(docId) {
+      return isSignedIn()
+        && (
+          docId.matches('^production__' + request.auth.uid + '__[^/]+$')
+          || docId.matches('^dev__' + request.auth.uid + '__[^/]+$')
+        );
+    }
+
     function hasOnlyKeys(data, keys) {
       return data.keys().hasOnly(keys);
     }
@@ -352,7 +360,7 @@ service cloud.firestore {
     }
 
     match /v2/app/narrativeUserReactions/{docId} {
-      allow read: if isModerator() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow read: if isModerator() || isNarrativeUserReactionOwnerDoc(docId);
       allow write: if false;
     }
 
