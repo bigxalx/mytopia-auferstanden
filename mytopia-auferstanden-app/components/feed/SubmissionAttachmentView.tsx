@@ -43,13 +43,22 @@ export function SubmissionAttachmentView({
   missionId?: string;
   messageText?: string;
 }) {
+  const { retryMissionSubmission, submissionStates } = useActiveMission();
+  const liveSubmissionState =
+    missionId && status !== 'sending' && status !== 'error'
+      ? submissionStates[missionId]
+      : undefined;
+  const effectiveStatus =
+    status === 'pending' && liveSubmissionState &&
+    (liveSubmissionState.status === 'approved' || liveSubmissionState.status === 'rejected')
+      ? liveSubmissionState.status
+      : status;
   const effectiveText = payload?.text || messageText;
   const isCompact = kind === 'text' || kind === 'quiz';
   const isMediaLike = kind === 'photo' || kind === 'gps';
   const photoUri = kind === 'photo' ? resolveRenderablePhotoUri(payload) : null;
-  const errorDetails = status === 'error' ? resolveErrorDetails(payload) : null;
+  const errorDetails = effectiveStatus === 'error' ? resolveErrorDetails(payload) : null;
   const canRetry = kind === 'photo' && Boolean(missionId) && Boolean(resolveRetryLocalPhotoUri(payload));
-  const { retryMissionSubmission } = useActiveMission();
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -122,15 +131,15 @@ export function SubmissionAttachmentView({
             </View>
           )}
 
-          {kind === 'gps' && <GpsPinSection status={status} />}
+          {kind === 'gps' && <GpsPinSection status={effectiveStatus} />}
         </View>
 
         <View style={[styles.footer, isCompact ? styles.footerCompact : null]}>
           <StatusIndicator
-            status={status}
+            status={effectiveStatus}
             payload={payload}
             onErrorPress={
-              status === 'error' && errorDetails
+              effectiveStatus === 'error' && errorDetails
                 ? () => setIsErrorModalVisible(true)
                 : undefined
             }

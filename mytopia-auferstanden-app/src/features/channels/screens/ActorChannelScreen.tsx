@@ -24,6 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActorAvatar } from '@/components/feed/ActorAvatar';
 import { MissionChatInput } from '@/components/feed/MissionChatInput';
 import { MissionChoicePicker } from '@/components/feed/MissionChoicePicker';
+import { ActorProfileCard } from '@/src/features/actors/components/ActorProfileCard';
+import { buildActorProfileHref } from '@/src/features/actors/navigation';
 import {
   buildMissionReturnHref,
   useChannels,
@@ -111,6 +113,14 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
     isTextMissionActive && isKeyboardVisible
       ? 8
       : insets.bottom + (Platform.OS === 'android' ? 40 : 24);
+  const actorProfileHref = channel?.actorId
+    ? buildActorProfileHref({
+        ...(channel.avatarUrl ? { actorAvatarUrl: channel.avatarUrl } : {}),
+        actorId: channel.actorId,
+        actorName: channel.title,
+        ...(channel.role ? { actorRole: channel.role } : {}),
+      })
+    : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -285,6 +295,32 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       gestureEnabled: !shouldUseMissionReturnTarget,
       headerBackButtonMenuEnabled: false,
       headerBackVisible: !shouldUseMissionReturnTarget,
+      headerTitle: () =>
+        actorProfileHref ? (
+          <Pressable
+            hitSlop={8}
+            onPress={() => router.push(actorProfileHref)}
+            style={({ pressed }) => [styles.headerTitleWrap, pressed && styles.headerTitlePressed]}
+          >
+            <ActorAvatar
+              actor={{ ...(channel?.avatarUrl ? { avatarUrl: channel.avatarUrl } : {}), name: channel?.title ?? 'Kanal' }}
+              size={28}
+            />
+            <Text numberOfLines={1} style={styles.headerTitleText}>
+              {channel?.title ?? 'Kanal'}
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.headerTitleWrap}>
+            <ActorAvatar
+              actor={{ ...(channel?.avatarUrl ? { avatarUrl: channel.avatarUrl } : {}), name: channel?.title ?? 'Kanal' }}
+              size={28}
+            />
+            <Text numberOfLines={1} style={styles.headerTitleText}>
+              {channel?.title ?? 'Kanal'}
+            </Text>
+          </View>
+        ),
       headerLeft: shouldUseMissionReturnTarget
         ? () => (
             <Pressable
@@ -297,9 +333,8 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
             </Pressable>
           )
         : undefined,
-      title: channel?.title ?? 'Kanal',
     });
-  }, [channel?.title, leaveMissionThread, navigation, shouldUseMissionReturnTarget]);
+  }, [actorProfileHref, channel?.avatarUrl, channel?.title, leaveMissionThread, navigation, router, shouldUseMissionReturnTarget]);
 
   useFocusEffect(
     useCallback(() => {
@@ -415,13 +450,16 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           highlightedMessageKey={highlightedMessageKey}
           hero={
             channel ? (
-              <View style={styles.channelHero}>
-                <ActorAvatar actor={{ ...(channel.avatarUrl ? { avatarUrl: channel.avatarUrl } : {}), name: channel.title }} />
-                <Text style={styles.channelTitle}>{channel.title}</Text>
-                <Text style={styles.channelDescription}>
-                  {channel.role?.trim() ? channel.role : 'Privater Missionskanal'}
-                </Text>
-              </View>
+              <ActorProfileCard
+                actor={{
+                  ...(channel.avatarUrl ? { avatarUrl: channel.avatarUrl } : {}),
+                  name: channel.title,
+                  ...(channel.role ? { role: channel.role } : {}),
+                }}
+                onInfoPress={actorProfileHref ? () => router.push(actorProfileHref) : undefined}
+                showChannelButton={false}
+                style={styles.channelHero}
+              />
             ) : null
           }
           isHydrated={isHydrated}
@@ -435,6 +473,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           newMessagesBottom={newMessagesBottom}
           onMarkRead={markRead}
           scrollState={scrollState}
+          showNpcAvatars={false}
           scrollToEndButtonBottom={scrollToEndButtonBottom}
           threadKey={`actor:${channelId}:${selectedMode}`}
           typingState={typingState}
@@ -459,6 +498,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 4,
   } as ViewStyle,
+  headerTitleWrap: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    maxWidth: 240,
+  } as ViewStyle,
+  headerTitlePressed: {
+    opacity: 0.82,
+  } as ViewStyle,
+  headerTitleText: {
+    color: theme.colors.textPrimary,
+    flexShrink: 1,
+    fontFamily: theme.typography.title.fontFamily,
+    fontSize: 18,
+    textTransform: 'uppercase',
+  } as TextStyle,
   screen: {
     backgroundColor: theme.colors.background,
     flex: 1,
@@ -482,30 +537,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   } as TextStyle,
   channelHero: {
-    alignItems: 'center',
-    backgroundColor: theme.colors.headerBackground,
-    borderColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 24,
-    borderWidth: 1,
     marginBottom: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
   } as ViewStyle,
-  channelTitle: {
-    color: theme.colors.textPrimary,
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 22,
-    marginTop: 12,
-    textAlign: 'center',
-  } as TextStyle,
-  channelDescription: {
-    color: theme.colors.textSecondary,
-    fontFamily: 'NunitoSans_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-    textAlign: 'center',
-  } as TextStyle,
   confettiOverlay: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'visible',

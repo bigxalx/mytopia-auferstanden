@@ -11,6 +11,15 @@ export const V2_USERS_COLLECTION_PATH = 'v2/app/users';
 export const V2_FCM_REGISTRATIONS_COLLECTION_PATH = 'v2/app/fcmRegistrations';
 export const SANITY_API_VERSION = 'v2025-02-19';
 
+export const ACTOR_PROFILE_PROJECTION = `
+  _id,
+  name,
+  role,
+  bio,
+  "avatarUrl": avatar.asset->url,
+  "nameColor": nameColor.hex
+`;
+
 export const SANITY_BUNDLE_PROJECTION = `
   _id,
   script,

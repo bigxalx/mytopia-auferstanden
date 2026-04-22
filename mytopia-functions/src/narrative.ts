@@ -4,6 +4,7 @@ import * as logger from 'firebase-functions/logger';
 import { firestore, messaging, oidcClient, storage, tasksClient } from './firebase.js';
 
 import {
+    ACTOR_PROFILE_PROJECTION,
     MAP_CHECKPOINT_PROJECTION,
     MAP_MISSION_POINT_PROJECTION,
     MISSION_DETAIL_PROJECTION,
@@ -37,6 +38,7 @@ import {
     FirebaseResponse,
     MapPointDto,
     MessageDto,
+    NarrativeActorProfileDto,
     NarrativeMode, NarrativeReactionId, NarrativeStateEventType,
     SanityWebhookPayload
 } from './types.js';
@@ -65,6 +67,11 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
 
       if (path === '/feed/reactions') {
         await handleFeedReactions(req, res);
+        return;
+      }
+
+      if (path === '/actors') {
+        await handleActorsProxy(req, res);
         return;
       }
 
@@ -460,6 +467,40 @@ export async function handleMissionsProxy(req: Request, res: FirebaseResponse) {
     res.status(200).json({ missions });
     } catch (error) {
     logger.error('missionsProxy failed', error);
+    sendError(res, error);
+    }
+}
+
+export async function handleActorsProxy(req: Request, res: FirebaseResponse) {
+    if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+    }
+
+    try {
+    const mode = resolveMode(readQueryParam(req, 'mode'));
+    const decodedToken = await verifyFirebaseUser(req);
+
+    if (mode === 'dev' && decodedToken.dev !== true) {
+      throw new HttpError(403, 'Dev actor profiles require Firebase custom claim dev=true.');
+    }
+
+    const actorId = readQueryParam(req, 'actorId');
+    if (!actorId) {
+      throw new HttpError(400, 'Missing actorId.');
+    }
+
+    const query = `*[_type == "narrativeActor" && _id == $actorId && !(_id in path("drafts.**"))][0]{${ACTOR_PROFILE_PROJECTION}}`;
+    const actor = await sanityQuery<NarrativeActorProfileDto | null>(query, { actorId }, mode);
+
+    if (!actor) {
+      res.status(404).json({ error: 'Actor not found.' });
+      return;
+    }
+
+    res.status(200).json({ actor });
+    } catch (error) {
+    logger.error('actorsProxy failed', error);
     sendError(res, error);
     }
 }

@@ -93,6 +93,9 @@ export const threadListStyles = StyleSheet.create({
     marginLeft: 60,
     maxWidth: '100%',
   } as ViewStyle,
+  typingBubbleWrapNoAvatar: {
+    marginLeft: 0,
+  } as ViewStyle,
   typingBubbleWrapInline: {
     marginLeft: 60,
   } as ViewStyle,
@@ -100,6 +103,9 @@ export const threadListStyles = StyleSheet.create({
     marginLeft: 60,
     marginTop: 8,
     maxWidth: '100%',
+  } as ViewStyle,
+  inlineTypingWrapNoAvatar: {
+    marginLeft: 0,
   } as ViewStyle,
   typingBubbleShell: {
     position: 'relative',

@@ -122,6 +122,14 @@ export type BundleDto = {
       publishMode?: 'scheduled' | 'instant';
       releaseAt: string;
     };
+export type NarrativeActorProfileDto = {
+      _id: string;
+      avatarUrl?: string;
+      bio?: string;
+      name: string;
+      nameColor?: string;
+      role?: string;
+};
 export type FeedCursor = {
       id: string;
       releaseAt: string;

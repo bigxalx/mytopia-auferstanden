@@ -17,6 +17,7 @@ import * as SystemUI from 'expo-system-ui';
 import { Pressable } from 'react-native';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
 import { NarrativeNotificationBridge } from '@/src/features/thread/components/NarrativeNotificationBridge';
+import { BrandedLaunchScreen } from '@/src/shared/ui/BrandedLaunchScreen';
 
 // Register FCM background handler before React tree mounts
 registerBackgroundNarrativeHandler();
@@ -37,7 +38,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <AppProviders>
-        {loaded && (
+        {!loaded ? (
+          <BrandedLaunchScreen />
+        ) : (
           <ThemeProvider value={AppNavigationTheme}>
             <NarrativeNotificationBridge />
             <Stack

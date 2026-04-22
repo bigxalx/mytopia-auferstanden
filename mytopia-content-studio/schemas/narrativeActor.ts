@@ -28,6 +28,13 @@ export const narrativeActor = defineType({
       description: 'Optional: Trage eine interne Rollenbeschreibung ein.',
     }),
     defineField({
+      name: 'bio',
+      title: 'Bio',
+      type: 'text',
+      description: 'Optional: Kurzer Fließtext für die Profilansicht.',
+      rows: 5,
+    }),
+    defineField({
       name: 'nameColor',
       title: 'Name-Farbe',
       type: 'color',

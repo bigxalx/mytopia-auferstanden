@@ -6,20 +6,30 @@ import { AppImage } from '@/src/shared/ui/AppImage';
 export function ActorAvatar({
   actor,
   onPress,
+  size = 48,
 }: {
   actor: { avatarUrl?: string; name: string };
   onPress?: () => void;
+  size?: number;
 }) {
+  const avatarShape = {
+    borderRadius: size / 2,
+    height: size,
+    width: size,
+  };
+
   const content = actor.avatarUrl ? (
     <AppImage
       uri={actor.avatarUrl}
-      style={styles.avatarImage}
+      style={[styles.avatarImage, avatarShape]}
       contentFit="cover"
       showErrorState={false}
     />
   ) : (
-    <View style={styles.avatarFallback}>
-      <Text style={styles.avatarFallbackLabel}>{actor.name.slice(0, 1).toUpperCase()}</Text>
+    <View style={[styles.avatarFallback, avatarShape]}>
+      <Text style={[styles.avatarFallbackLabel, { fontSize: Math.max(14, Math.round(size * 0.38)) }]}>
+        {actor.name.slice(0, 1).toUpperCase()}
+      </Text>
     </View>
   );
 
@@ -28,30 +38,30 @@ export function ActorAvatar({
   }
 
   return (
-    <Pressable hitSlop={8} onPress={onPress} style={({ pressed }) => pressed ? styles.avatarPressed : undefined}>
+    <Pressable
+      hitSlop={8}
+      onPress={onPress}
+      onResponderTerminationRequest={() => false}
+      onStartShouldSetResponder={() => true}
+      pressRetentionOffset={12}
+      style={({ pressed }) => pressed ? styles.avatarPressed : undefined}
+    >
       {content}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  avatarImage: { 
-    borderRadius: 24, 
-    height: 48, 
-    width: 48 
+  avatarImage: {
   } as ImageStyle,
-  avatarFallback: { 
-    alignItems: 'center', 
-    backgroundColor: theme.colors.avatarFallback, 
-    borderRadius: 24, 
-    height: 48, 
-    justifyContent: 'center', 
-    width: 48 
+  avatarFallback: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.avatarFallback,
+    justifyContent: 'center',
   } as ViewStyle,
-  avatarFallbackLabel: { 
-    color: theme.colors.avatarFallbackText, 
-    fontSize: 18, 
-    fontWeight: '700' 
+  avatarFallbackLabel: {
+    color: theme.colors.avatarFallbackText,
+    fontWeight: '700',
   } as TextStyle,
   avatarPressed: {
     opacity: 0.82,

@@ -15,7 +15,7 @@ import { ActorAvatar } from './ActorAvatar';
 import { AttachmentView } from './AttachmentView';
 import { NarrativeReactionBadges } from './NarrativeReactionBadges';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
-import { buildFeedChannelHref, useChannels } from '@/src/features/channels/data/ChannelContext';
+import { buildActorProfileActionsHref } from '@/src/features/actors/navigation';
 import { type NarrativeMessageReactionState } from '@/src/features/feed/reactions/reactionCatalog';
 import { type ThreadReactionFrame } from '@/src/features/thread/data/threadReactionTarget';
 import { useRouter } from 'expo-router';
@@ -54,6 +54,7 @@ export function MessageBubble({
   isHighlighted = false,
   reactionState,
   onLongPress,
+  reserveNpcAvatarSpace = true,
   userInteraction,
   isLastInGroup,
 }: {
@@ -69,6 +70,7 @@ export function MessageBubble({
   isHighlighted?: boolean;
   reactionState?: NarrativeMessageReactionState | null;
   onLongPress?: (sourceFrame: ThreadReactionFrame | null) => void;
+  reserveNpcAvatarSpace?: boolean;
   userInteraction?: boolean;
   isLastInGroup?: boolean;
 }) {
@@ -90,7 +92,6 @@ export function MessageBubble({
     !isCentered &&
     (!isSubmission || isStretchySubmission);
   const router = useRouter();
-  const { actorChannels } = useChannels();
   
   const effectiveShowAvatar = showAvatar && !isUser && !isCentered;
   const effectiveShowName = showName && !isUser && !isCentered;
@@ -107,10 +108,14 @@ export function MessageBubble({
       (message.attachment as any).missionTitle === highlightedMissionId
     );
 
-  const linkedChannelId =
-    message.actor.actorId && actorChannels.some((channel) => channel.channelId === message.actor.actorId)
-      ? message.actor.actorId
-      : null;
+  const actorProfileActionsHref = message.actor.actorId
+    ? buildActorProfileActionsHref({
+        ...(message.actor.avatarUrl ? { actorAvatarUrl: message.actor.avatarUrl } : {}),
+        actorId: message.actor.actorId,
+        actorName: message.actor.name,
+        ...(message.actor.role ? { actorRole: message.actor.role } : {}),
+      })
+    : null;
 
   useEffect(() => {
     if (isTargetMission || isHighlighted) {
@@ -179,9 +184,9 @@ export function MessageBubble({
             <ActorAvatar
               actor={message.actor}
               onPress={
-                linkedChannelId
+                actorProfileActionsHref
                   ? () =>
-                      router.navigate(buildFeedChannelHref(linkedChannelId))
+                      router.push(actorProfileActionsHref)
                   : undefined
               }
             />
@@ -191,7 +196,13 @@ export function MessageBubble({
         <Animated.View
           style={[
             styles.bubbleContainer,
-            isCentered ? styles.bubbleContainerCentered : (isUser ? styles.bubbleContainerUser : styles.bubbleContainerNPC)
+            isCentered
+              ? styles.bubbleContainerCentered
+              : isUser
+                ? styles.bubbleContainerUser
+                : reserveNpcAvatarSpace
+                  ? styles.bubbleContainerNPC
+                  : styles.bubbleContainerNPCCompact
           ]}
         >
           <View
@@ -258,7 +269,9 @@ export function MessageBubble({
             ? styles.reactionBadgesWrapCentered
             : isUser
               ? styles.reactionBadgesWrapUser
-              : styles.reactionBadgesWrapNPC,
+              : reserveNpcAvatarSpace
+                ? styles.reactionBadgesWrapNPC
+                : styles.reactionBadgesWrapNPCCompact,
         ]}
         isUser={isUser}
         reactionState={reactionState}
@@ -291,6 +304,9 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   bubbleContainerNPC: {
     marginLeft: 60,
+  } as ViewStyle,
+  bubbleContainerNPCCompact: {
+    marginLeft: 0,
   } as ViewStyle,
   bubbleContainerCentered: {
     alignItems: 'center',
@@ -366,6 +382,9 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   reactionBadgesWrapNPC: {
     marginLeft: 60,
+  } as ViewStyle,
+  reactionBadgesWrapNPCCompact: {
+    marginLeft: 0,
   } as ViewStyle,
   reactionBadgesWrapUser: {
     marginLeft: 20,

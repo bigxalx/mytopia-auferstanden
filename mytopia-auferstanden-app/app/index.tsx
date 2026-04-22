@@ -1,17 +1,13 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useSession } from '@/src/core/session/SessionContext';
+import { BrandedLaunchScreen } from '@/src/shared/ui/BrandedLaunchScreen';
 
 export default function IndexRoute() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
 
   if (!isHydrated) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <BrandedLaunchScreen />;
   }
 
   if (!user) {
@@ -24,11 +20,3 @@ export default function IndexRoute() {
 
   return <Redirect href="/(tabs)/feed" />;
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-});

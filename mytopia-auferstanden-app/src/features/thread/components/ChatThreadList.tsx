@@ -66,6 +66,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
       onMessageLongPress,
       onMarkRead,
       scrollState,
+      showNpcAvatars = true,
       scrollToEndButtonBottom,
       threadKey,
       typingState,
@@ -159,6 +160,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
           item={item}
           onMessageLongPress={onMessageLongPress}
           onImagePress={handleImagePress}
+          showNpcAvatars={showNpcAvatars}
           seenMessageKeysRef={seenMessageKeysRef}
         />
       ),
@@ -172,6 +174,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
         highlightedMessageKey,
         imageSources,
         onMessageLongPress,
+        showNpcAvatars,
         seenMessageKeysRef,
       ]
     );
@@ -325,6 +328,7 @@ type ChatThreadListProps = {
   onMessageLongPress?: (target: ThreadReactionTarget) => void;
   onMarkRead?: () => void | Promise<void>;
   scrollState: ChannelScrollState;
+  showNpcAvatars?: boolean;
   scrollToEndButtonBottom: number;
   threadKey: string;
   typingState?: ThreadTypingState | null;

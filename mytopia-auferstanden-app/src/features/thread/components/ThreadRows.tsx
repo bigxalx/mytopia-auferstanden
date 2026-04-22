@@ -32,6 +32,7 @@ export function ThreadFeedItemRow({
   item,
   onMessageLongPress,
   onImagePress,
+  showNpcAvatars = true,
   seenMessageKeysRef,
 }: {
   allowAnimations: boolean;
@@ -45,6 +46,7 @@ export function ThreadFeedItemRow({
   item: FeedItem;
   onMessageLongPress?: (target: ThreadReactionTarget) => void;
   onImagePress: (index: number) => void;
+  showNpcAvatars?: boolean;
   seenMessageKeysRef: MutableRefObject<Set<string>>;
 }) {
   if (item.type === 'header') {
@@ -74,10 +76,12 @@ export function ThreadFeedItemRow({
 
     return (
       <View style={[styles.messageRow, styles.npcMessageRow, { marginBottom: 20 }]}>
-        <View style={styles.typingAvatarColumn}>
-          <ActorAvatar actor={item.actor} />
-        </View>
-        <View style={styles.typingBubbleWrap}>
+        {showNpcAvatars ? (
+          <View style={styles.typingAvatarColumn}>
+            <ActorAvatar actor={item.actor} />
+          </View>
+        ) : null}
+        <View style={[styles.typingBubbleWrap, !showNpcAvatars && styles.typingBubbleWrapNoAvatar]}>
           <TypingIndicatorBubble showTail />
         </View>
       </View>
@@ -116,7 +120,7 @@ export function ThreadFeedItemRow({
   const shouldAnimateRow = isResultCard ? shouldAnimateResult : shouldAnimate;
   const resultCardTopSpacing =
     isResultCard && (previousItem?.type === 'typing' || (previousMessage && !previousMessage.message.isUser)) ? 52 : 0;
-  const showAvatar = (isLastInGroup || typingContinuesGroup) && !currentIsUser;
+  const showAvatar = showNpcAvatars && (isLastInGroup || typingContinuesGroup) && !currentIsUser;
   const showName = isFirstInGroup && !currentIsUser;
   const isReactableMessage = Boolean(onMessageLongPress) && !isSystem && !isResultCard;
   const reactionState = getReactionState?.(playbackMessage) ?? null;
@@ -190,11 +194,12 @@ export function ThreadFeedItemRow({
           onImagePress={onImagePress}
           reactionState={reactionState}
           resultAnimationKey={shouldAnimateResult ? item.key : null}
+          reserveNpcAvatarSpace={showNpcAvatars}
           showAvatar={showAvatar}
           showName={showName}
         />
         {typingContinuesGroup ? (
-          <View style={styles.inlineTypingWrap}>
+          <View style={[styles.inlineTypingWrap, !showNpcAvatars && styles.inlineTypingWrapNoAvatar]}>
             <TypingIndicatorBubble showTail />
           </View>
         ) : null}

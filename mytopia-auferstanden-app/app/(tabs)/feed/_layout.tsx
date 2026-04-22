@@ -20,6 +20,22 @@ export default function FeedTabLayout() {
           largeTitle: false,
         })}
       />
+      <Stack.Screen
+        name="actors/[actorId]/index"
+        options={createNativeTabStackOptions({
+          title: 'Info',
+          largeTitle: false,
+        })}
+      />
+      <Stack.Screen
+        name="actors/[actorId]/actions"
+        options={{
+          animation: 'fade',
+          contentStyle: { backgroundColor: 'transparent' },
+          headerShown: false,
+          presentation: 'transparentModal',
+        }}
+      />
     </Stack>
   );
 }

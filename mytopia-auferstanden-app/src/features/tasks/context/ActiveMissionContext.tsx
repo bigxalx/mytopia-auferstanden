@@ -15,7 +15,10 @@ import { type NarrativeBundleDto, type NarrativeAttachmentDto, type NarrativeMes
 import { useSession } from '@/src/core/session/SessionContext';
 import { resolveMessageDelayMs } from '@/src/features/feed/utils/playback';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
-import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
+import {
+  useMissionSubmissionStates,
+  type MissionSubmissionState,
+} from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { getMissionLifecycleStatus, isMissionExpired } from '@/src/features/tasks/data/missionStatus';
 import { upsertChannelBundle } from '@/src/features/channels/data/channelStore';
 import {
@@ -66,6 +69,7 @@ type ActiveMissionContextValue = {
     payload: any;
     submissionId: string;
   }) => Promise<void>;
+  submissionStates: Record<string, MissionSubmissionState>;
   scrollToMessage: (missionId: string) => void;
   highlightedMissionId: string | null;
   highlightMission: (missionId: string) => void;
@@ -1423,6 +1427,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       startMission,
       completeMission,
       retryMissionSubmission,
+      submissionStates,
       scrollToMessage,
       highlightedMissionId,
       highlightMission,
@@ -1455,6 +1460,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       startChatQuiz,
       submitQuizStep,
       retryMissionSubmission,
+      submissionStates,
       completeMission,
       insertQuizAnswerBubble,
       scrollToMessage,
