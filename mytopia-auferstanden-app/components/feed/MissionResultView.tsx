@@ -170,8 +170,8 @@ export function MissionResultView({
 
         {rewardBreakdownRows.length > 0 ? (
           <View style={styles.breakdownList}>
-            {rewardBreakdownRows.map((row) => (
-              <Text key={row} style={styles.breakdownRow}>
+            {rewardBreakdownRows.map((row, index) => (
+              <Text key={`${index}:${row}`} style={styles.breakdownRow}>
                 {row}
               </Text>
             ))}
@@ -189,11 +189,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.06)',
     width: '100%',
+    alignSelf: 'stretch',
     paddingHorizontal: 18,
     paddingVertical: 16,
     minWidth: 220,
-    maxWidth: 340,
-    alignSelf: 'center',
+    maxWidth: 560,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,

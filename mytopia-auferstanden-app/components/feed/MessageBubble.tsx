@@ -74,8 +74,21 @@ export function MessageBubble({
 }) {
   const isUser = message.isUser;
   const isCentered = message.attachment?._type === 'missionResultAttachment';
-  const isSubmission = message.attachment?._type === 'submissionAttachment';
-  const shouldStretchBubble = Boolean(message.attachment) && !isCentered && !isSubmission;
+  const submissionAttachment =
+    message.attachment?._type === 'submissionAttachment'
+      ? message.attachment
+      : null;
+  const isSubmission = submissionAttachment !== null;
+  const isStretchySubmission =
+    submissionAttachment !== null &&
+    (
+      submissionAttachment.kind === 'photo' ||
+      submissionAttachment.kind === 'gps'
+    );
+  const shouldStretchBubble =
+    Boolean(message.attachment) &&
+    !isCentered &&
+    (!isSubmission || isStretchySubmission);
   const router = useRouter();
   const { actorChannels } = useChannels();
   
@@ -281,7 +294,7 @@ const styles = StyleSheet.create({
   } as ViewStyle,
   bubbleContainerCentered: {
     alignItems: 'center',
-    marginHorizontal: 12,
+    marginHorizontal: 16,
   } as ViewStyle,
   bubbleContainerUser: {
     marginLeft: 20,
@@ -298,7 +311,8 @@ const styles = StyleSheet.create({
     width: '100%',
   } as ViewStyle,
   bubbleShellCentered: {
-    alignSelf: 'center',
+    alignSelf: 'stretch',
+    width: '100%',
   } as ViewStyle,
   bubbleShellUser: {
     alignSelf: 'flex-end',
@@ -324,10 +338,11 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 8,
   } as ViewStyle,
   messageBubbleCentered: {
-    alignSelf: 'center',
+    alignSelf: 'stretch',
     backgroundColor: 'transparent',
     maxWidth: '100%',
     padding: 0,
+    width: '100%',
     elevation: 0,
     shadowOpacity: 0,
   } as ViewStyle,

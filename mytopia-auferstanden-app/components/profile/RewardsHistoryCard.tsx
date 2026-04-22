@@ -30,8 +30,8 @@ export function RewardsHistoryCard({
                                     <Text style={styles.points}>+{item.rewardBreakdown?.totalPoints ?? item.delta}</Text>
                                 </View>
                                 <Text style={styles.meta}>{new Date(item.createdAtMs).toLocaleString('de-DE')}</Text>
-                                {breakdownRows.map((row) => (
-                                    <Text key={row} style={styles.detail}>
+                                {breakdownRows.map((row, index) => (
+                                    <Text key={`${index}:${row}`} style={styles.detail}>
                                         {row}
                                     </Text>
                                 ))}

@@ -338,8 +338,8 @@ export default function TaskDetailScreen() {
             <View style={styles.infoBlock}>
               <Text style={styles.infoLabel}>Erhalten</Text>
               <Text style={styles.infoValue}>+{missionReward.rewardBreakdown?.totalPoints ?? missionReward.delta} Punkte</Text>
-              {earnedRewardRows.map((row) => (
-                <Text key={row} style={styles.rewardText}>
+              {earnedRewardRows.map((row, index) => (
+                <Text key={`${index}:${row}`} style={styles.rewardText}>
                   {row}
                 </Text>
               ))}

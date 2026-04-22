@@ -23,6 +23,11 @@ import {
   buildMissionSessionKey,
   buildQuizProgressKey,
 } from '@/src/core/cache/appCache';
+import {
+  getFirebaseStorageAvailability,
+  resolveRetryLocalPhotoUri,
+  uploadMissionPhoto,
+} from '@/src/features/tasks/data/photoMissionUpload';
 
 import { FEATURES } from '@/src/config/features';
 
@@ -54,6 +59,13 @@ type ActiveMissionContextValue = {
     }
   ) => Promise<void>;
   completeMission: (missionId: string, result: any) => Promise<void>;
+  retryMissionSubmission: (params: {
+    kind: MissionListItem['kind'];
+    missionId?: string;
+    missionTitle: string;
+    payload: any;
+    submissionId: string;
+  }) => Promise<void>;
   scrollToMessage: (missionId: string) => void;
   highlightedMissionId: string | null;
   highlightMission: (missionId: string) => void;
@@ -1081,8 +1093,10 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     } catch (err) {
       console.error('[ActiveMission] Submission failed:', err);
+      const errorMessage = describeMissionSubmissionError(err);
+      const errorDetails = extractMissionSubmissionErrorDetails(err);
       if (!virtualBundle) {
-        insertSystemMessage('Übertragung fehlgeschlagen', 0, 'neutral');
+        insertSystemMessage(errorMessage, 0, 'neutral');
         if (mission.kind === 'quiz') {
           removePersistedSession(cleanMissionId);
           removeMissionSession(cleanMissionId);
@@ -1105,7 +1119,11 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
             attachment: {
               ...submissionAttachment,
               status: 'error' as any,
-              payload: 'Übertragung fehlgeschlagen',
+              payload: buildSubmissionErrorPayload(
+                submissionAttachment.payload,
+                errorDetails,
+                errorMessage,
+              ),
             },
           },
         ],
@@ -1121,6 +1139,175 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       }
     }
   }, [activeMission, focusedMission, missions, persistedSessions, quizSession, selectedMode, upsertOptimisticBundle, user, insertMessageBundle, insertSystemMessage, persistBundleToActorChannel, removeMissionSession, removePersistedSession, setFocus]);
+
+  const retryMissionSubmission = useCallback(async ({
+    kind,
+    missionId,
+    missionTitle,
+    payload,
+    submissionId,
+  }: {
+    kind: MissionListItem['kind'];
+    missionId?: string;
+    missionTitle: string;
+    payload: any;
+    submissionId: string;
+  }) => {
+    if (kind !== 'photo' || !missionId || !user?.id) {
+      return;
+    }
+
+    const channel = activeChannelRef.current;
+    const channelMeta =
+      channel.channelType === 'actor' && channel.actorId
+        ? {
+            ...(channel.actorAvatarUrl ? { actorAvatarUrl: channel.actorAvatarUrl } : {}),
+            actorId: channel.actorId,
+            actorName: channel.actorName ?? 'Kanal',
+            channelId: channel.channelId,
+            channelType: channel.channelType,
+          }
+        : undefined;
+
+    const basePayload = sanitizeSubmissionPayload(payload);
+    const localPhotoUri = resolveRetryLocalPhotoUri(payload);
+    const storageAvailability = getFirebaseStorageAvailability();
+
+    const publishRetryBundle = (
+      status: 'sending' | 'pending' | 'approved' | 'rejected' | 'error',
+      nextPayload: any,
+      moderatorNote?: string,
+    ) => {
+      const bundle = buildSubmissionBundle({
+        kind,
+        missionId,
+        missionTitle,
+        moderatorNote,
+        payload: nextPayload,
+        status,
+        submissionId,
+        userName: user.displayName || 'Ich',
+      });
+      upsertOptimisticBundle(bundle);
+      void persistBundleToActorChannel(bundle);
+      return bundle;
+    };
+
+    if (!storageAvailability.available) {
+      publishRetryBundle(
+        'error',
+        buildSubmissionErrorPayload(
+          basePayload,
+          storageAvailability.message,
+          'Fehler',
+        ),
+      );
+      return;
+    }
+
+    if (!localPhotoUri) {
+      publishRetryBundle(
+        'error',
+        buildSubmissionErrorPayload(
+          basePayload,
+          'Kein lokales Foto fuer die Wiederholung verfuegbar.',
+          'Fehler',
+        ),
+      );
+      return;
+    }
+
+    publishRetryBundle('sending', {
+      ...basePayload,
+      photoUrl: localPhotoUri,
+      uploadProgress: 0,
+    });
+
+    try {
+      const resolvedPhotoPath = await uploadMissionPhoto({
+        localUri: localPhotoUri,
+        missionId,
+        onProgress: (progress) => {
+          publishRetryBundle('sending', {
+            ...basePayload,
+            photoUrl: localPhotoUri,
+            uploadProgress: progress,
+          });
+        },
+        userId: user.id,
+      });
+
+      const apiResult: any = await submitPhotoMission(
+        missionId,
+        resolvedPhotoPath,
+        selectedMode,
+        channelMeta,
+      );
+
+      const isImmediateMissionCompletion =
+        apiResult?.action === 'scored' ||
+        apiResult?.action === 'already_completed';
+      const finalStatus = isImmediateMissionCompletion ? 'approved' : 'pending';
+      const moderatorNote =
+        typeof apiResult?.moderatorNote === 'string' && apiResult.moderatorNote.trim().length > 0
+          ? apiResult.moderatorNote.trim()
+          : undefined;
+
+      publishRetryBundle(
+        finalStatus,
+        {
+          ...basePayload,
+          ...apiResult,
+          photoPath: resolvedPhotoPath,
+          photoUrl: localPhotoUri,
+        },
+        moderatorNote,
+      );
+
+      if (finalStatus === 'pending') {
+        insertSystemMessage('Dein Beitrag wird geprüft', 120, 'neutral');
+      }
+
+      const showCard =
+        isImmediateMissionCompletion ||
+        typeof apiResult?.earned === 'number';
+      const resultRevealDelayMs = moderatorNote ? 1200 : 180;
+
+      if (showCard) {
+        insertMessageBundle({
+          actor: { name: 'System' },
+          attachment: {
+            _type: 'missionResultAttachment',
+            missionId,
+            missionTitle,
+            kind,
+            payload: apiResult,
+            earnedPoints: apiResult?.earned,
+          },
+          isSystem: true,
+          releaseOffsetMs: resultRevealDelayMs,
+        });
+      }
+
+      scrollToMessageRef.current('bottom');
+    } catch (error) {
+      console.error('[ActiveMission] Retry submission failed:', error);
+      const errorMessage = describeMissionSubmissionError(error);
+      const errorDetails = extractMissionSubmissionErrorDetails(error);
+
+      publishRetryBundle(
+        'error',
+        buildSubmissionErrorPayload(
+          {
+            ...basePayload,
+            photoUrl: localPhotoUri,
+          },
+          errorDetails,
+          errorMessage,
+        ),
+      );
+    }
+  }, [insertMessageBundle, insertSystemMessage, persistBundleToActorChannel, selectedMode, upsertOptimisticBundle, user?.displayName, user?.id]);
 
   const registerScrollHandler = useCallback((handler: ((missionId: string) => void) | null) => {
     scrollHandlerRef.current = handler;
@@ -1235,6 +1422,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       setFocus,
       startMission,
       completeMission,
+      retryMissionSubmission,
       scrollToMessage,
       highlightedMissionId,
       highlightMission,
@@ -1264,8 +1452,9 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       quizSession, 
       persistedSessions,
       pauseQuiz,
-      startChatQuiz, 
+      startChatQuiz,
       submitQuizStep,
+      retryMissionSubmission,
       completeMission,
       insertQuizAnswerBubble,
       scrollToMessage,
@@ -1420,4 +1609,148 @@ function getIOSMajorVersion() {
 
   const parsed = Number.parseInt(String(version), 10);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function buildSubmissionBundle(params: {
+  kind: MissionListItem['kind'];
+  missionId?: string;
+  missionTitle: string;
+  moderatorNote?: string;
+  payload: any;
+  status: 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
+  submissionId: string;
+  userName: string;
+}): NarrativeBundleDto {
+  return {
+    _id: params.submissionId,
+    isUser: true,
+    messages: [
+      {
+        actor: { name: params.userName },
+        attachment: {
+          _type: 'submissionAttachment',
+          kind: params.kind as any,
+          missionTitle: params.missionTitle,
+          ...(params.missionId ? { missionId: params.missionId } : {}),
+          ...(params.moderatorNote ? { moderatorNote: params.moderatorNote } : {}),
+          payload: params.payload,
+          status: params.status,
+          submissionId: params.submissionId,
+        },
+        messageId: `${params.submissionId}-msg`,
+        isUser: true,
+      },
+    ],
+    releaseAt: new Date().toISOString(),
+    title: 'Meine Einsendung',
+  };
+}
+
+function sanitizeSubmissionPayload(payload: unknown) {
+  if (typeof payload === 'string') {
+    return { photoPath: payload };
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return {};
+  }
+
+  const {
+    errorDetails: _errorDetails,
+    errorMessage: _errorMessage,
+    uploadProgress: _uploadProgress,
+    ...rest
+  } = payload as Record<string, unknown>;
+
+  return rest;
+}
+
+function buildSubmissionErrorPayload(
+  payload: unknown,
+  errorDetails: string,
+  errorMessage: string,
+) {
+  return {
+    ...sanitizeSubmissionPayload(payload),
+    errorDetails,
+    errorMessage,
+  };
+}
+
+function describeMissionSubmissionError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return 'Uebertragung fehlgeschlagen.';
+  }
+
+  const rawMessage = error.message.trim();
+  if (!rawMessage) {
+    return 'Uebertragung fehlgeschlagen.';
+  }
+
+  if (/timed out/i.test(rawMessage)) {
+    return 'Zeitueberschreitung beim Senden.';
+  }
+
+  if (/network|internet|offline/i.test(rawMessage)) {
+    return 'Netzwerkfehler beim Senden.';
+  }
+
+  const failureMatch = rawMessage.match(/failed \(\d+\):\s*(.+)$/i);
+  const candidate = failureMatch ? failureMatch[1].trim() : rawMessage;
+  const parsedMessage = parseSubmissionErrorMessage(candidate);
+  if (parsedMessage) {
+    return parsedMessage;
+  }
+
+  return ensureErrorSentence(rawMessage) ?? 'Uebertragung fehlgeschlagen.';
+}
+
+function extractMissionSubmissionErrorDetails(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message.trim();
+  }
+
+  if (typeof error === 'string' && error.trim().length > 0) {
+    return error.trim();
+  }
+
+  try {
+    const serialized = JSON.stringify(error);
+    return typeof serialized === 'string' && serialized.length > 0
+      ? serialized
+      : 'Unbekannter Fehler.';
+  } catch {
+    return 'Unbekannter Fehler.';
+  }
+}
+
+function parseSubmissionErrorMessage(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith('{') || value.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value) as { error?: unknown; message?: unknown };
+      if (typeof parsed.error === 'string') {
+        return ensureErrorSentence(parsed.error);
+      }
+      if (typeof parsed.message === 'string') {
+        return ensureErrorSentence(parsed.message);
+      }
+    } catch {
+      return ensureErrorSentence(value);
+    }
+  }
+
+  return ensureErrorSentence(value);
+}
+
+function ensureErrorSentence(value: string) {
+  const cleaned = value.replace(/^Error:\s*/i, '').trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
 }

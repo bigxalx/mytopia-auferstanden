@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Image, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { getStorage, ref, putFile } from '@react-native-firebase/storage/lib/modular';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
+import {
+  getFirebaseStorageAvailability,
+  prepareMissionPhotoAsset,
+  type PreparedMissionPhoto,
+  uploadMissionPhoto,
+} from '@/src/features/tasks/data/photoMissionUpload';
 
 type PhotoRunnerProps = {
   embedded?: boolean;
@@ -18,12 +23,18 @@ type PhotoRunnerProps = {
 
 export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRunnerProps) {
   const { user } = useSession();
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<PreparedMissionPhoto | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const storageAvailability = useMemo(getFirebaseStorageAvailability, []);
 
   const handlePickLibrary = async () => {
+    if (!storageAvailability.available) {
+      setError(storageAvailability.message);
+      return;
+    }
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -32,15 +43,26 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
       });
 
       if (!result.canceled && result.assets[0]) {
-        setPhotoUri(result.assets[0].uri);
+        const preparedPhoto = await prepareMissionPhotoAsset(result.assets[0], missionId);
+        setPhoto(preparedPhoto);
         setError(null);
+        setUploadProgress(null);
       }
-    } catch {
-      setError('Fehler beim Öffnen der Mediathek.');
+    } catch (pickedError) {
+      setError(
+        pickedError instanceof Error
+          ? pickedError.message
+          : 'Fehler beim Öffnen der Mediathek.',
+      );
     }
   };
 
   const handleTakePhoto = async () => {
+    if (!storageAvailability.available) {
+      setError(storageAvailability.message);
+      return;
+    }
+
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
@@ -55,16 +77,27 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
       });
 
       if (!result.canceled && result.assets[0]) {
-        setPhotoUri(result.assets[0].uri);
+        const preparedPhoto = await prepareMissionPhotoAsset(result.assets[0], missionId);
+        setPhoto(preparedPhoto);
         setError(null);
+        setUploadProgress(null);
       }
-    } catch {
-      setError('Fehler beim Öffnen der Kamera.');
+    } catch (cameraError) {
+      setError(
+        cameraError instanceof Error
+          ? cameraError.message
+          : 'Fehler beim Öffnen der Kamera.',
+      );
     }
   };
 
   const handleSubmit = async () => {
-    if (!photoUri || !user) {
+    if (!storageAvailability.available) {
+      setError(storageAvailability.message);
+      return;
+    }
+
+    if (!photo || !user) {
       setError('Bitte wähle ein Foto aus.');
       return;
     }
@@ -75,24 +108,19 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
 
     try {
       await onComplete({
-        localUri: photoUri,
-        upload: async (onProgress) => {
-          const extension = photoUri.split('.').pop() || 'jpg';
-          const timestamp = new Date().getTime();
-          const storagePath = `submissions/${user.id}/${missionId}-${timestamp}.${extension}`;
-          const storageInstance = getStorage();
-          const reference = ref(storageInstance, storagePath);
-          const task = putFile(reference, photoUri);
-
-          task.on('state_changed', snapshot => {
-            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            setUploadProgress(progress);
-            onProgress?.(progress);
-          });
-
-          await task;
-          return `gs://${reference.bucket}/${storagePath}`;
-        },
+        localUri: photo.localUri,
+        upload: (onProgress) =>
+          uploadMissionPhoto({
+            extension: photo.extension,
+            localUri: photo.localUri,
+            mimeType: photo.mimeType,
+            missionId,
+            onProgress: (progress) => {
+              setUploadProgress(progress);
+              onProgress?.(progress);
+            },
+            userId: user.id,
+          }),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Senden oder Hochladen.');
@@ -106,9 +134,9 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
     <View style={[styles.container, embedded ? styles.containerEmbedded : null]}>
       {!embedded ? <Text style={styles.title}>Dein Foto</Text> : null}
 
-      {photoUri ? (
+      {photo ? (
         <View style={styles.previewContainer}>
-          <Image source={{ uri: photoUri }} style={styles.previewImage} />
+          <Image source={{ uri: photo.localUri }} style={styles.previewImage} />
 
           <View style={[embedded ? styles.inlineButtonRow : styles.buttonGroup, styles.previewActions]}>
             {embedded ? (
@@ -136,12 +164,12 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
             )}
             {embedded ? (
               <Pressable
-                disabled={isSubmitting || !photoUri}
+                disabled={isSubmitting || !photo}
                 onPress={handleSubmit}
                 style={[
                   styles.inlineActionButton,
                   styles.inlineSubmitButton,
-                  (isSubmitting || !photoUri) ? styles.actionButtonDisabled : null,
+                  (isSubmitting || !photo) ? styles.actionButtonDisabled : null,
                 ]}
               >
                 <Text style={styles.inlineActionButtonText}>
@@ -158,22 +186,22 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
           {embedded ? (
             <>
               <Pressable
-                disabled={isSubmitting}
+                disabled={isSubmitting || !storageAvailability.available}
                 onPress={handleTakePhoto}
                 style={[
                   styles.inlineActionButton,
-                  isSubmitting ? styles.actionButtonDisabled : null,
+                  (isSubmitting || !storageAvailability.available) ? styles.actionButtonDisabled : null,
                 ]}
               >
                 <Feather name="camera" size={18} color="white" />
                 <Text style={styles.inlineActionButtonText}>KAMERA</Text>
               </Pressable>
               <Pressable
-                disabled={isSubmitting}
+                disabled={isSubmitting || !storageAvailability.available}
                 onPress={handlePickLibrary}
                 style={[
                   styles.inlineActionButton,
-                  isSubmitting ? styles.actionButtonDisabled : null,
+                  (isSubmitting || !storageAvailability.available) ? styles.actionButtonDisabled : null,
                 ]}
               >
                 <Feather name="image" size={18} color="white" />
@@ -183,7 +211,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
           ) : (
             <>
               <AppButton
-                disabled={isSubmitting}
+                disabled={isSubmitting || !storageAvailability.available}
                 fullWidth
                 label="Foto aufnehmen"
                 onPress={() => {
@@ -192,7 +220,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
                 variant="primary"
               />
               <AppButton
-                disabled={isSubmitting}
+                disabled={isSubmitting || !storageAvailability.available}
                 fullWidth
                 label="Aus Mediathek"
                 onPress={() => {
@@ -206,10 +234,13 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
       )}
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {!storageAvailability.available && !error ? (
+        <Text style={styles.errorText}>{storageAvailability.message}</Text>
+      ) : null}
 
       {!embedded ? (
         <AppButton
-          disabled={isSubmitting || !photoUri}
+          disabled={isSubmitting || !photo || !storageAvailability.available}
           fullWidth
           label={
             isSubmitting && uploadProgress !== null

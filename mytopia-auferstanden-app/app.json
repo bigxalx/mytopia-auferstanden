@@ -12,7 +12,7 @@
         "expo-channel-name": "production"
       }
     },
-    "backgroundColor": "#252b30",
+    "backgroundColor": "#ff7a1a",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mytopiaauferstandenapp",
@@ -36,10 +36,8 @@
     "android": {
       "versionCode": 24,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#ff7a1a",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "de.theateraltenburggera.mytopia",
@@ -74,6 +72,13 @@
           }
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#ff7a1a"
+        }
+      ],
       "expo-updates",
       "expo-video",
       "expo-font",
@@ -97,10 +102,15 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "image": "./assets/images/splash-screen.png",
+          "backgroundColor": "#ff7a1a",
+          "ios": {
+            "enableFullScreenImage_legacy": true,
+            "resizeMode": "cover"
+          },
+          "android": {
+            "resizeMode": "cover"
+          }
         }
       ]
     ],
