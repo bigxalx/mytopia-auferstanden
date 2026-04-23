@@ -186,6 +186,9 @@ export function MissionInteractionZone({
           title: resolvedMissionTitle,
         });
       }
+    } catch (err) {
+      console.warn('[MissionInteractionZone] Failed to start mission:', err);
+      Alert.alert('Fehler', 'Mission konnte nicht gestartet werden.');
     } finally {
       setIsSubmitting(false);
     }

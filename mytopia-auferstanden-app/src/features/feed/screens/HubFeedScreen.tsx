@@ -82,10 +82,14 @@ export default function HubFeedScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: 'Notfallkanal',
+      gestureEnabled: true,
+      headerBackVisible: true,
+      headerLeft: undefined,
       headerRight: () =>
         selectedMode === 'dev' ? (
           <Text style={modeBadgeStyle}>Dev Mode</Text>
         ) : null,
+      headerTitle: undefined,
     });
   }, [navigation, selectedMode]);
 

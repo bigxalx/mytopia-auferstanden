@@ -1,15 +1,14 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { ActorChannelScreen } from '@/src/features/channels/screens/ActorChannelScreen';
-import HubFeedScreen from '@/src/features/feed/screens/HubFeedScreen';
 
 export default function ChannelThreadRoute() {
   const params = useLocalSearchParams<{ channelId?: string | string[] }>();
   const channelId = Array.isArray(params.channelId) ? params.channelId[0] : params.channelId;
 
-  if (channelId === 'hub') {
-    return <HubFeedScreen />;
+  if (!channelId || channelId === 'hub') {
+    return <Redirect href="/(tabs)/feed/hub" />;
   }
 
-  return <ActorChannelScreen channelId={channelId ?? 'hub'} />;
+  return <ActorChannelScreen channelId={channelId} />;
 }

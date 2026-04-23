@@ -249,6 +249,14 @@ service cloud.firestore {
         && request.resource.data.title is string;
     }
 
+    function isOwnedChannelThreadDocId(threadId) {
+      return isSignedIn()
+        && (
+          threadId.matches('^production__' + request.auth.uid + '__[^/]+$')
+          || threadId.matches('^dev__' + request.auth.uid + '__[^/]+$')
+        );
+    }
+
     match /v2/app/users/{uid} {
       allow read: if isOwner(uid) || isModerator();
       allow create: if isOwner(uid)
@@ -329,7 +337,10 @@ service cloud.firestore {
     }
 
     match /v2/app/channelThreads/{threadId} {
-      allow read: if isModerator() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow get: if isModerator()
+        || isOwnedChannelThreadDocId(threadId)
+        || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow list: if isModerator() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
       allow create, update: if isSignedIn() && isAllowedChannelThreadWrite();
       allow delete: if false;
 

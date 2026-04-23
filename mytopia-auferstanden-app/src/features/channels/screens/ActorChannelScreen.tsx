@@ -287,6 +287,10 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
       channelId,
       missionId: missionThreadEntry.missionId,
     });
+    if (missionThreadEntry.returnTarget === 'hub' && router.canGoBack()) {
+      router.back();
+      return;
+    }
     router.dismissTo(buildMissionReturnHref(missionThreadEntry.returnTarget));
   }, [channelId, clearMissionThreadEntry, missionThreadEntry, router, shouldUseMissionReturnTarget]);
 
