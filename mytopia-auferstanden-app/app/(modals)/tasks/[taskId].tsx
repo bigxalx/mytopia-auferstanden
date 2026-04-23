@@ -32,7 +32,7 @@ import {
 import { formatTimeBonusText, getRewardBreakdownRows } from '@/src/features/tasks/data/rewardFormatting';
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
-import { useMissionRewardEvent } from '@/src/features/tasks/data/useUserRewards';
+import { useMissionSubmissions } from '@/src/features/tasks/data/useMissionSubmissions';
 
 export default function TaskDetailScreen() {
   const router = useRouter();
@@ -41,8 +41,9 @@ export default function TaskDetailScreen() {
   const { user, selectedMode } = useSession();
   const { ensureActorMissionChannel, queueMissionNavigationIntent } = useChannels();
   const { activeChannel, focusedMissionChannel, focusedMissionId, missionSessions, persistedSessions } = useActiveMission();
-  const completedMissions = useCompletedMissions(user?.id);
-  const submissionStates = useMissionSubmissionStates(user?.id);
+  const completedMissions = useCompletedMissions(user?.id, selectedMode);
+  const submissionStates = useMissionSubmissionStates(user?.id, selectedMode);
+  const missionSubmissions = useMissionSubmissions(user?.id, selectedMode);
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +101,15 @@ export default function TaskDetailScreen() {
   const missionStatus = mission
     ? getMissionLifecycleStatus(mission, completedMissions, submissionStates)
     : null;
-  const missionReward = useMissionRewardEvent(user?.id, mission?._id);
+  const missionReward = useMemo(
+    () =>
+      mission?._id
+        ? missionSubmissions.find(
+            (submission) => submission.sourceId === mission._id && submission.status === 'approved',
+          ) ?? null
+        : null,
+    [mission?._id, missionSubmissions],
+  );
   const isMissionInProgress = focusedMissionId === taskId;
   const isQuizInProgress = mission?.kind === 'quiz' && Boolean(taskId && persistedSessions[taskId]);
   const missionSession = taskId ? missionSessions[taskId] : undefined;
@@ -180,6 +189,7 @@ export default function TaskDetailScreen() {
     missionReward?.rewardBreakdown,
     missionReward?.streakSummary,
   );
+  const earnedBadges = missionReward?.rewardBreakdown?.customAchievements ?? [];
 
   const handleOpenMission = async () => {
     setLaunchError(null);
@@ -296,7 +306,12 @@ export default function TaskDetailScreen() {
         </SectionCard>
 
         <View style={styles.infoCard}>
-          <Text style={styles.pointsValue}>{mission.points} Punkte</Text>
+          <Text style={styles.pointsValue}>
+            {(missionStatus === 'completed'
+              ? missionReward?.earnedPoints ?? missionReward?.rewardBreakdown?.totalPoints
+              : mission.points) ?? mission.points}{' '}
+            Punkte
+          </Text>
 
           {timeBonuses.length > 0 ? (
             <View style={styles.infoBlock}>
@@ -309,7 +324,22 @@ export default function TaskDetailScreen() {
             </View>
           ) : null}
 
-          {customAchievementCount > 0 ? (
+          {missionStatus === 'completed' ? (
+            earnedBadges.length > 0 ? (
+              <View style={styles.infoBlock}>
+                <Text style={styles.infoLabel}>Erhaltene Abzeichen</Text>
+                {earnedBadges.map((achievement) => (
+                  <View key={achievement.id} style={styles.rewardRow}>
+                    <CustomBadgeIcon />
+                    <Text style={styles.rewardText}>
+                      {achievement.title}
+                      {achievement.bonusPoints > 0 ? ` · +${achievement.bonusPoints}` : ''}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null
+          ) : customAchievementCount > 0 ? (
             <View style={styles.infoBlock}>
               <View style={styles.rewardRow}>
                 <CustomBadgeIcon />
@@ -337,7 +367,9 @@ export default function TaskDetailScreen() {
           {missionStatus === 'completed' && missionReward ? (
             <View style={styles.infoBlock}>
               <Text style={styles.infoLabel}>Erhalten</Text>
-              <Text style={styles.infoValue}>+{missionReward.rewardBreakdown?.totalPoints ?? missionReward.delta} Punkte</Text>
+              <Text style={styles.infoValue}>
+                +{missionReward.earnedPoints ?? missionReward.rewardBreakdown?.totalPoints ?? 0} Punkte
+              </Text>
               {earnedRewardRows.map((row, index) => (
                 <Text key={`${index}:${row}`} style={styles.rewardText}>
                   {row}

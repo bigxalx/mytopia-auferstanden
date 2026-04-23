@@ -166,8 +166,8 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     channelType: 'hub',
   });
 
-  const completedMissions = useCompletedMissions(user?.id);
-  const submissionStates = useMissionSubmissionStates(user?.id);
+  const completedMissions = useCompletedMissions(user?.id, selectedMode);
+  const submissionStates = useMissionSubmissionStates(user?.id, selectedMode);
 
   // Conversation Flow State
   const [quizSession, setQuizSession] = useState<QuizSession | null>(null);

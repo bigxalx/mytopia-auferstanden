@@ -4,6 +4,8 @@ import { theme } from './theme';
 
 type SectionCardProps = PropsWithChildren<{
   backgroundColor?: string;
+  bodyStyle?: StyleProp<ViewStyle>;
+  cardStyle?: StyleProp<ViewStyle>;
   description?: string;
   descriptionStyle?: StyleProp<TextStyle>;
   title: string;
@@ -11,6 +13,8 @@ type SectionCardProps = PropsWithChildren<{
 }>;
 
 export function SectionCard({
+  bodyStyle,
+  cardStyle,
   children,
   description,
   descriptionStyle,
@@ -19,10 +23,10 @@ export function SectionCard({
   backgroundColor,
 }: SectionCardProps) {
   return (
-    <View style={StyleSheet.flatten([styles.card, backgroundColor && { backgroundColor }])}>
+    <View style={StyleSheet.flatten([styles.card, backgroundColor && { backgroundColor }, cardStyle])}>
       <Text style={[styles.title, titleStyle]}>{title}</Text>
       {description ? <Text style={[styles.description, descriptionStyle]}>{description}</Text> : null}
-      <View style={styles.body}>{children}</View>
+      <View style={[styles.body, bodyStyle]}>{children}</View>
     </View>
   );
 }

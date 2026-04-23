@@ -32,8 +32,8 @@ const KIND_LABEL: Record<string, string> = {
 export default function TasksScreen() {
   const { user, selectedMode } = useSession();
   const insets = useSafeAreaInsets();
-  const completedMissions = useCompletedMissions(user?.id);
-  const submissionStates = useMissionSubmissionStates(user?.id);
+  const completedMissions = useCompletedMissions(user?.id, selectedMode);
+  const submissionStates = useMissionSubmissionStates(user?.id, selectedMode);
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [error, setError] = useState<string | null>(null);

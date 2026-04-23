@@ -25,9 +25,9 @@ export function MissionAttachmentView({
   actor: NarrativeMessageDto['actor'];
 }) {
   const { activeChannel, focusedMissionChannel, focusedMissionId, setFocus } = useActiveMission();
-  const { user } = useSession();
-  const completedMissions = useCompletedMissions(user?.id);
-  const submissionStates = useMissionSubmissionStates(user?.id);
+  const { selectedMode, user } = useSession();
+  const completedMissions = useCompletedMissions(user?.id, selectedMode);
+  const submissionStates = useMissionSubmissionStates(user?.id, selectedMode);
 
   const isMissionInProgress = focusedMissionId === attachment.missionId;
   const isFocused =

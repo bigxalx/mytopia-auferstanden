@@ -9,6 +9,7 @@ import {
 } from '@react-native-firebase/firestore';
 
 import { type SubmissionStatus, V2_COLLECTION } from '@/src/core/firestore/schema';
+import { normalizeAppMode, type AppMode } from '@/src/core/session/appMode';
 
 export type MissionSubmissionState = {
   moderatorNote?: string;
@@ -20,6 +21,7 @@ export type MissionSubmissionState = {
  */
 export function useMissionSubmissionStates(
   uid: string | undefined,
+  mode: AppMode = 'production',
   refreshTrigger?: number,
 ): Record<string, MissionSubmissionState> {
   const [submissionStates, setSubmissionStates] = useState<Record<string, MissionSubmissionState>>({});
@@ -43,7 +45,11 @@ export function useMissionSubmissionStates(
 
         snapshot.forEach((submissionDoc: FirebaseFirestoreTypes.QueryDocumentSnapshot) => {
           const data = submissionDoc.data();
-          if (typeof data.sourceId !== 'string' || !isSubmissionStatus(data.status)) {
+          if (
+            normalizeAppMode(data.mode) !== mode ||
+            typeof data.sourceId !== 'string' ||
+            !isSubmissionStatus(data.status)
+          ) {
             return;
           }
 
@@ -64,7 +70,7 @@ export function useMissionSubmissionStates(
     );
 
     return () => unsubscribe();
-  }, [refreshTrigger, uid]);
+  }, [mode, refreshTrigger, uid]);
 
   return submissionStates;
 }

@@ -109,7 +109,7 @@
             "resizeMode": "cover"
           },
           "android": {
-            "image": "./assets/images/icon.png",
+            "image": "./assets/images/android-splash-icon.png",
             "imageWidth": 180,
             "resizeMode": "contain"
           }

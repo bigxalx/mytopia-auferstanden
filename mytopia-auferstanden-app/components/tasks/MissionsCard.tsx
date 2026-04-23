@@ -23,8 +23,8 @@ type MissionsCardProps = {
 };
 
 export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }: MissionsCardProps) {
-  const completedMissions = useCompletedMissions(userId, refreshTrigger);
-  const submissionStates = useMissionSubmissionStates(userId, refreshTrigger);
+  const completedMissions = useCompletedMissions(userId, mode, refreshTrigger);
+  const submissionStates = useMissionSubmissionStates(userId, mode, refreshTrigger);
   const { pulse } = useNarrativeSignal();
   
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(mode) ?? []);

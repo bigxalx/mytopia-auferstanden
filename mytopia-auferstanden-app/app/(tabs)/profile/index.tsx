@@ -1,14 +1,16 @@
-import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, Stack } from 'expo-router';
 
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
-import { MissionsCard } from '@/components/tasks/MissionsCard';
+import { BadgesSummaryCard } from '@/components/profile/BadgesSummaryCard';
+import { LatestMissionsCard } from '@/components/profile/LatestMissionsCard';
+import { ProgressCard } from '@/components/profile/ProgressCard';
 import { RankingSummaryCard } from '@/components/profile/RankingSummaryCard';
-import { RewardsHistoryCard } from '@/components/profile/RewardsHistoryCard';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { useProfileMissionData } from '@/src/features/tasks/data/useProfileMissionData';
 import { SettingsBold } from '@/components/ui/SolarTabIcons';
 
 export default function ProfileScreen() {
@@ -16,15 +18,18 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const insets = useSafeAreaInsets();
+  const profileData = useProfileMissionData(user?.id, selectedMode, refreshTrigger);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setRefreshTrigger((prev) => prev + 1);
   }, []);
 
-  const handleMissionsRefreshComplete = useCallback(() => {
-    setRefreshing(false);
-  }, []);
+  useEffect(() => {
+    if (!profileData.isLoading) {
+      setRefreshing(false);
+    }
+  }, [profileData.isLoading]);
 
   const bottomPadding = Math.max(insets.bottom, 20);
 
@@ -37,7 +42,7 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Stack.Screen options={{ headerRight: () => null }} />
-        <SectionCard title="Keine aktive Sitzung">
+        <SectionCard bodyStyle={styles.sectionBody} cardStyle={styles.sectionCard} title="Keine aktive Sitzung">
           <Text style={styles.body}>
             Melde dich an, um auf das Profil und die Rangliste zuzugreifen.
           </Text>
@@ -73,15 +78,30 @@ export default function ProfileScreen() {
         }}
       />
 
-      <MissionsCard
-        userId={user.id}
-        mode={selectedMode}
-        refreshTrigger={refreshTrigger}
-        onRefreshComplete={handleMissionsRefreshComplete}
-      />
-
-      <RankingSummaryCard user={user} refreshTrigger={refreshTrigger} />
-      <RewardsHistoryCard userId={user.id} refreshTrigger={refreshTrigger} />
+      {profileData.error ? (
+        <SectionCard bodyStyle={styles.sectionBody} cardStyle={styles.sectionCard} title="Missionen">
+          <Text style={styles.body}>{profileData.error}</Text>
+        </SectionCard>
+      ) : (
+        <>
+          <View style={styles.topCards}>
+            <RankingSummaryCard
+              totalPoints={profileData.totalPoints}
+            />
+            <ProgressCard
+              missions={profileData.overviewItems}
+              streakCount={profileData.streakCount}
+              streakThreshold={profileData.streakThreshold}
+            />
+          </View>
+          <BadgesSummaryCard badges={profileData.badges} />
+          <LatestMissionsCard
+            activeMissions={profileData.activeMissions}
+            completedMissions={profileData.completedMissions}
+            pendingMissions={profileData.pendingMissions}
+          />
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -93,6 +113,17 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: 16,
+    padding: 20,
+  },
+  topCards: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sectionBody: {
+    gap: 12,
+  },
+  sectionCard: {
+    gap: 12,
     padding: 20,
   },
   body: {

@@ -1,100 +1,54 @@
 import { StyleSheet, Text, View } from 'react-native';
+
 import { theme } from '@/src/shared/ui/theme';
 
-import { useSession, type SessionUser } from '@/src/core/session/SessionContext';
-import { useUserRewardSummary } from '@/src/features/tasks/data/useUserRewards';
-import { SectionCard } from '@/src/shared/ui/SectionCard';
-
 type RankingSummaryCardProps = {
-  user: SessionUser;
-  refreshTrigger?: number;
+  totalPoints: number;
 };
 
-export function RankingSummaryCard({ user, refreshTrigger }: RankingSummaryCardProps) {
-  const { selectedMode } = useSession();
-  const summary = useUserRewardSummary(user.id, refreshTrigger);
-
+export function RankingSummaryCard({
+  totalPoints,
+}: RankingSummaryCardProps) {
   return (
-    <SectionCard title="Ranking">
-      <View style={styles.row}>
-        <Text style={styles.label}>Aktuelle Punkte</Text>
-        <Text style={styles.value}>
-          {summary.points !== null ? summary.points : '—'}
-        </Text>
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Punkte</Text>
+      <View style={styles.metricWrap}>
+        <Text style={styles.value}>{totalPoints}</Text>
       </View>
-
-      <View style={styles.row}>
-        <Text style={styles.label}>Aktueller Streak</Text>
-        <Text style={styles.value}>
-          {summary.streakCount}
-        </Text>
-      </View>
-
-      <View style={styles.row}>
-        <Text style={styles.label}>Streak-Multiplikator</Text>
-        <Text style={styles.value}>
-          x{summary.streakMultiplier.toFixed(1)}
-        </Text>
-      </View>
-
-      {selectedMode === 'dev' && user.legacySummary ? (
-        <>
-          <View style={styles.divider} />
-          <View style={styles.row}>
-            <Text style={styles.labelSmall}>Aktuelle Saison</Text>
-            <Text style={styles.valueSmall}>
-              {summary.points !== null ? summary.points : '—'}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.labelSmall}>Legacy Rang</Text>
-            <Text style={styles.valueSmall}>
-              {user.legacySummary.rankSnapshot ? `#${user.legacySummary.rankSnapshot}` : 'n/a'}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={styles.labelSmall}>Legacy Punkte</Text>
-            <Text style={styles.valueSmall}>
-              {user.legacySummary.totalPoints ?? 'n/a'}
-            </Text>
-          </View>
-        </>
-      ) : null}
-    </SectionCard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  divider: {
-    backgroundColor: theme.colors.cardBorder,
-    height: 1,
-    marginVertical: 6,
-  },
-  label: {
-    color: theme.colors.cardTextSecondary,
+  card: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.beige,
+    borderRadius: 20,
+    aspectRatio: 1,
     flex: 1,
-    fontSize: 13,
+    gap: 12,
+    justifyContent: 'space-between',
+    padding: 20,
   },
-  labelSmall: {
-    color: theme.colors.cardTextSecondary,
+  cardTitle: {
+    ...theme.typography.h1,
+    color: theme.colors.cardTextHeading,
+    fontSize: 18,
+    marginBottom: 0,
+    textTransform: 'uppercase',
+    width: '100%',
+  },
+  metricWrap: {
+    alignItems: 'center',
     flex: 1,
-    fontSize: 12,
-  },
-  row: {
-    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
   },
   value: {
     color: theme.colors.cardTextPrimary,
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
-  valueSmall: {
-    color: theme.colors.cardTextPrimary,
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'right',
+    fontFamily: 'Nunito_700Bold',
+    fontSize: 44,
+    lineHeight: 52,
+    textAlign: 'center',
   },
 });

@@ -81,6 +81,87 @@ export default function RootLayout() {
                   title: 'Mission',
                 })}
               />
+              <Stack.Screen
+                name="(modals)/profile/missions"
+                options={({ navigation }) => ({
+                  ...createNativeTabStackOptions({
+                    title: 'Alle Missionen',
+                    largeTitle: false,
+                  }),
+                  headerShown: true,
+                  headerBackVisible: false,
+                  headerLeft: () => (
+                    <Pressable
+                      accessibilityLabel="Missionen schließen"
+                      hitSlop={8}
+                      onPress={() => navigation.goBack()}
+                      style={{
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                      }}
+                    >
+                      <MaterialIcons color={AppNavigationTheme.colors.text} name="close" size={24} />
+                    </Pressable>
+                  ),
+                  presentation: 'modal',
+                  title: 'Alle Missionen',
+                })}
+              />
+              <Stack.Screen
+                name="(modals)/profile/logbook"
+                options={({ navigation }) => ({
+                  ...createNativeTabStackOptions({
+                    title: 'Logbuch',
+                    largeTitle: false,
+                  }),
+                  headerShown: true,
+                  headerBackVisible: false,
+                  headerLeft: () => (
+                    <Pressable
+                      accessibilityLabel="Logbuch schließen"
+                      hitSlop={8}
+                      onPress={() => navigation.goBack()}
+                      style={{
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                      }}
+                    >
+                      <MaterialIcons color={AppNavigationTheme.colors.text} name="close" size={24} />
+                    </Pressable>
+                  ),
+                  presentation: 'modal',
+                  title: 'Logbuch',
+                })}
+              />
+              <Stack.Screen
+                name="(modals)/profile/badges/[badgeId]"
+                options={({ navigation }) => ({
+                  ...createNativeTabStackOptions({
+                    title: 'Abzeichen',
+                    largeTitle: false,
+                  }),
+                  headerShown: true,
+                  headerBackVisible: false,
+                  headerLeft: () => (
+                    <Pressable
+                      accessibilityLabel="Abzeichen schließen"
+                      hitSlop={8}
+                      onPress={() => navigation.goBack()}
+                      style={{
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                      }}
+                    >
+                      <MaterialIcons color={AppNavigationTheme.colors.text} name="close" size={24} />
+                    </Pressable>
+                  ),
+                  presentation: 'modal',
+                  title: 'Abzeichen',
+                })}
+              />
             </Stack>
           </ThemeProvider>
         )}

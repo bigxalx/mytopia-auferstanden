@@ -66,8 +66,8 @@ export default function MapScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { selectedMode, user } = useSession();
-    const completedMissions = useCompletedMissions(user?.id);
-    const submissionStates = useMissionSubmissionStates(user?.id);
+    const completedMissions = useCompletedMissions(user?.id, selectedMode);
+    const submissionStates = useMissionSubmissionStates(user?.id, selectedMode);
     const mapRef = useRef<MapView | null>(null);
     const isMountedRef = useRef(false);
     const detailCardAnimation = useRef(new Animated.Value(0)).current;

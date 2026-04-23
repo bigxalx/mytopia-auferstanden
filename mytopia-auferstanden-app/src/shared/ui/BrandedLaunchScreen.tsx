@@ -4,7 +4,10 @@ export function BrandedLaunchScreen() {
   if (Platform.OS !== 'ios') {
     return (
       <View style={styles.androidContainer}>
-        <Image source={require('../../../assets/images/icon.png')} style={styles.androidIcon} />
+        <Image
+          source={require('../../../assets/images/android-splash-icon.png')}
+          style={styles.androidIcon}
+        />
       </View>
     );
   }
