@@ -56,7 +56,10 @@ export default function HubFeedScreen() {
   const isMissionActiveHere =
     focusedMissionChannel?.channelId === 'hub' &&
     focusedMissionChannel?.channelType === 'hub';
-  const isQuizMissionActiveHere = isMissionActiveHere && Boolean(quizSession);
+  const isQuizMissionActiveHere =
+    isMissionActiveHere &&
+    focusedMission?.kind === 'quiz' &&
+    quizSession?.missionId === focusedMissionId;
   const isTextMissionActive = isMissionActiveHere && focusedMission?.kind === 'text';
   const keyboardInset = isTextMissionActive && isKeyboardVisible ? Math.max(0, keyboardHeight - insets.bottom) : 0;
 
@@ -283,7 +286,7 @@ export default function HubFeedScreen() {
         threadKey={`hub:${selectedMode}`}
         typingState={typingState}
       />
-      {quizSession ? (
+      {isQuizMissionActiveHere ? (
         <MissionChoicePicker onClose={() => router.dismissTo('/(tabs)/feed')} />
       ) : (
         <MissionChatInput

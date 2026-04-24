@@ -14,7 +14,7 @@ import * as Haptics from 'expo-haptics';
  */
 export const MissionChoicePicker: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const router = useRouter();
-  const { activeChannel, focusedMissionChannel, quizSession, submitQuizStep } = useActiveMission();
+  const { activeChannel, focusedMissionChannel, focusedMissionId, quizSession, submitQuizStep } = useActiveMission();
   const insets = useSafeAreaInsets();
   const [lockedIndex, setLockedIndex] = useState<number | null>(null);
 
@@ -22,11 +22,14 @@ export const MissionChoicePicker: React.FC<{ onClose?: () => void }> = ({ onClos
     setLockedIndex(null);
   }, [quizSession?.currentIndex, quizSession?.showPicker]);
 
+  if (!quizSession) return null;
+
   const isFocusedInCurrentChannel =
+    focusedMissionId === quizSession.missionId &&
     focusedMissionChannel?.channelId === activeChannel.channelId &&
     focusedMissionChannel?.channelType === activeChannel.channelType;
 
-  if (!quizSession || !quizSession.showPicker || !isFocusedInCurrentChannel) return null;
+  if (!quizSession.showPicker || !isFocusedInCurrentChannel) return null;
 
   const currentQuestion = quizSession.questions[quizSession.currentIndex];
   if (!currentQuestion) return null;

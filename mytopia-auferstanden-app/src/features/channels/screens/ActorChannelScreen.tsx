@@ -89,7 +89,10 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
   const isMissionActiveHere =
     focusedMissionChannel?.channelId === channelId &&
     focusedMissionChannel?.channelType === 'actor';
-  const isQuizMissionActiveHere = isMissionActiveHere && Boolean(quizSession);
+  const isQuizMissionActiveHere =
+    isMissionActiveHere &&
+    focusedMission?.kind === 'quiz' &&
+    quizSession?.missionId === focusedMissionId;
   const isTextMissionActive = isMissionActiveHere && focusedMission?.kind === 'text';
   const keyboardInset = isTextMissionActive && isKeyboardVisible ? Math.max(0, keyboardHeight - insets.bottom) : 0;
 
@@ -482,7 +485,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           threadKey={`actor:${channelId}:${selectedMode}`}
           typingState={typingState}
         />
-        {quizSession ? (
+        {isQuizMissionActiveHere ? (
           <MissionChoicePicker onClose={leaveMissionThread} />
         ) : (
           <MissionChatInput
