@@ -10,6 +10,7 @@ const {
   getInitialNotification,
   onMessage,
   onNotificationOpenedApp,
+  onTokenRefresh: firebaseOnTokenRefresh,
   hasPermission: firebaseHasPermission,
   subscribeToTopic: firebaseSubscribeToTopic, 
   unsubscribeFromTopic: firebaseUnsubscribeFromTopic,
@@ -22,6 +23,7 @@ const {
   getInitialNotification: async () => null,
   onMessage: () => () => {},
   onNotificationOpenedApp: () => () => {},
+  onTokenRefresh: () => () => {},
   hasPermission: async () => 0,
   subscribeToTopic: async () => {},
   unsubscribeFromTopic: async () => {},
@@ -62,6 +64,18 @@ export async function getFCMToken(): Promise<string | null> {
       return null;
     }
     throw error;
+  }
+}
+
+export function subscribeToFcmTokenRefresh(callback: (token: string) => void) {
+  try {
+    const instance = getMessaging();
+    return firebaseOnTokenRefresh(instance, callback);
+  } catch (error) {
+    if (!isNoDefaultFirebaseAppError(error)) {
+      console.warn('[messaging] Failed to subscribe to FCM token refresh.', error);
+    }
+    return () => undefined;
   }
 }
 
