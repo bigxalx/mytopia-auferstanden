@@ -30,6 +30,9 @@ export function GpsMap({
     radiusMeters,
 }: GpsMapProps) {
     const targetCoord = { latitude: targetLatitude, longitude: targetLongitude };
+    const userCoord = userLatitude != null && userLongitude != null
+        ? { latitude: userLatitude, longitude: userLongitude }
+        : null;
 
     // Dynamically compute the map region to show both user and target,
     // or just the target if user location is unavailable.
@@ -65,6 +68,14 @@ export function GpsMap({
                     strokeColor={theme.colors.orangeStroke}
                     strokeWidth={1.5}
                 />
+
+                {userCoord ? (
+                    <Marker
+                        coordinate={userCoord}
+                        pinColor={theme.colors.blue}
+                        title="Dein Standort"
+                    />
+                ) : null}
             </MapView>
         </View>
     );
