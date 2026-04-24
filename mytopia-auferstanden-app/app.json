@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mytopia Messenger",
     "slug": "mytopia-auferstanden-app",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -20,7 +20,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "40",
+      "buildNumber": "41",
       "appleTeamId": "2YM33HYFWJ",
       "bundleIdentifier": "de.theateraltenburggera.mytopia",
       "infoPlist": {
@@ -34,7 +34,7 @@
       }
     },
     "android": {
-      "versionCode": 25,
+      "versionCode": 26,
       "adaptiveIcon": {
         "backgroundColor": "#ff7a1a",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
