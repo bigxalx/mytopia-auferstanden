@@ -12,6 +12,7 @@ import {
   fetchSettings
 } from '@/src/features/tasks/data/missionRepository';
 import { type NarrativeBundleDto, type NarrativeAttachmentDto, type NarrativeMessageDto } from '@/src/features/feed/data/narrativeFeedClient';
+import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import { useSession } from '@/src/core/session/SessionContext';
 import { resolveMessageDelayMs } from '@/src/features/feed/utils/playback';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
@@ -149,6 +150,7 @@ const ActiveMissionContext = createContext<ActiveMissionContextValue | null>(nul
 
 export function ActiveMissionProvider({ children }: { children: React.ReactNode }) {
   const { selectedMode, user } = useSession();
+  const { pulse, refreshKey } = useNarrativeSignal();
   const [missions, setMissions] = useState<MissionListItem[]>(() => getCachedMissions(selectedMode) ?? []);
   const [isLoading, setIsLoading] = useState(() => !getCachedMissions(selectedMode));
   const [focusedMissionId, setFocusedMissionId] = useState<string | null>(null);
@@ -350,7 +352,10 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
 
     async function load() {
       try {
-        const result = await fetchMissions({ mode: selectedMode });
+        const result = await fetchMissions({
+          forceRefresh: Boolean(pulse?.token) || refreshKey > 0,
+          mode: selectedMode,
+        });
         if (active) setMissions(result);
       } catch (err) {
         console.warn('Failed to load missions for ActiveMissionContext:', err);
@@ -360,7 +365,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     }
     load();
     return () => { active = false; };
-  }, [selectedMode, user]);
+  }, [pulse?.token, refreshKey, selectedMode, user]);
 
   const availableMissions = useMemo(() => {
     return missions.filter(
