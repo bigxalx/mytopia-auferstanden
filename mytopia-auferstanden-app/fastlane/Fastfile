@@ -178,6 +178,22 @@ def set_release_version!(version)
   normalized
 end
 
+def reset_ota_version!
+  app_json = load_app_json
+  expo = app_json.fetch("expo")
+  extra = expo["extra"].is_a?(Hash) ? expo["extra"] : {}
+  expo["extra"] = extra
+
+  if extra.key?("otaVersion") && extra["otaVersion"].to_s.empty?
+    UI.message("Keeping app.json expo.extra.otaVersion empty")
+    return
+  end
+
+  extra["otaVersion"] = ""
+  write_app_json(app_json)
+  UI.message("Reset app.json expo.extra.otaVersion to empty for native release")
+end
+
 def next_release_version(current_version)
   segments = normalize_release_version!(current_version).split(".")
   segments << "0" if segments.length == 2
@@ -187,7 +203,10 @@ end
 
 def prepare_release_version!
   prepared_version = ENV["FASTLANE_RELEASE_VERSION_VALUE"].to_s.strip
-  return prepared_version unless prepared_version.empty?
+  unless prepared_version.empty?
+    reset_ota_version!
+    return prepared_version
+  end
 
   current_version = normalize_release_version!(load_app_json.fetch("expo", {}).fetch("version", ""))
   requested_version = ENV["RELEASE_APP_VERSION"].to_s.strip
@@ -204,6 +223,7 @@ def prepare_release_version!
     set_release_version!(release_version)
   end
 
+  reset_ota_version!
   ENV["FASTLANE_RELEASE_VERSION_VALUE"] = release_version
   release_version
 end
