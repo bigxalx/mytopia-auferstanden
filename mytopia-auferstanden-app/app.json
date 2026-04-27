@@ -33,8 +33,7 @@
         "NSLocationAlwaysUsageDescription": "Wir benötigen deinen Standort, um GPS-Missionen durchzuführen und deine Entfernung zum Ziel anzuzeigen.",
         "NSCameraUsageDescription": "Wir benötigen Zugriff auf deine Kamera, damit du Fotos für Missionen aufnehmen kannst.",
         "NSPhotoLibraryUsageDescription": "Wir benötigen Zugriff auf deine Mediathek, damit du Fotos für Missionen auswählen kannst.",
-        "NSMicrophoneUsageDescription": "Wir benötigen Zugriff auf dein Mikrofon, damit du Sprachnachrichten aufnehmen kannst.",
-        "NSLocalNetworkUsageDescription": "Der Entwicklungsmodus benötigt das lokale Netzwerk, um Entwicklungsserver zu finden."
+        "NSLocalNetworkUsageDescription": "Dev Mode benötigt das lokale Netzwerk, um Entwicklungsserver zu finden."
       }
     },
     "android": {
@@ -49,6 +48,9 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -97,6 +99,7 @@
         "expo-image-picker",
         {
           "cameraPermission": "Wir benötigen Zugriff auf deine Kamera, damit du Fotos für Missionen aufnehmen kannst.",
+          "microphonePermission": false,
           "photosPermission": "Wir benötigen Zugriff auf deine Mediathek, damit du Fotos für Missionen auswählen kannst."
         }
       ],

@@ -20,7 +20,7 @@ export function ChannelListScreen() {
     navigation.setOptions({
       headerRight: () =>
         selectedMode === 'dev' ? (
-          <Text style={styles.modeBadge}>Entwicklungsmodus</Text>
+          <Text style={styles.modeBadge}>Dev Mode</Text>
         ) : null,
       title: 'Kanäle',
     });

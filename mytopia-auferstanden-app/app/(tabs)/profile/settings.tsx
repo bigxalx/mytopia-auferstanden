@@ -89,8 +89,8 @@ export default function SettingsScreen() {
 
   function handleClearCache() {
     Alert.alert(
-      'Zwischenspeicher leeren',
-      'Lokale Missions-, Nachrichten- und Kanal-Zwischenspeicher werden entfernt. Temporäre Sitzungen müssen danach neu geöffnet werden.',
+      'Cache leeren',
+      'Lokale Missions-, Feed- und Kanal-Caches werden entfernt. Temporäre Sitzungen müssen danach neu geöffnet werden.',
       [
         { style: 'cancel', text: 'Abbrechen' },
         {
@@ -113,11 +113,11 @@ export default function SettingsScreen() {
     try {
       await clearUserAppCache(currentUserId, { clearModePreference: false });
       resetMissionState();
-      Alert.alert('Zwischenspeicher geleert', 'Lokale Missions- und Nachrichten-Zwischenspeicher wurden entfernt.');
+      Alert.alert('Cache geleert', 'Lokale Missions- und Feed-Caches wurden entfernt.');
     } catch (error) {
       Alert.alert(
         'Fehler',
-        getVisibleErrorMessage(error, 'Zwischenspeicher konnte nicht geleert werden.')
+        getVisibleErrorMessage(error, 'Cache konnte nicht geleert werden.')
       );
     } finally {
       setIsClearingCache(false);
@@ -183,19 +183,19 @@ export default function SettingsScreen() {
 
       {canUseDevMode ? (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Entwicklerwerkzeuge</Text>
+          <Text style={styles.sectionLabel}>Dev Tools</Text>
           <SurfaceCard>
             <View style={styles.modeRow}>
               <AppButton
                 fullWidth
-                label="Produktion"
+                label="Production"
                 onPress={() => setSelectedMode('production')}
                 style={styles.modeButton}
                 variant={selectedMode === 'production' ? 'primary' : 'secondary'}
               />
               <AppButton
                 fullWidth
-                label="Entwicklung"
+                label="Dev"
                 onPress={() => setSelectedMode('dev')}
                 style={styles.modeButton}
                 variant={selectedMode === 'dev' ? 'primary' : 'secondary'}
@@ -204,7 +204,7 @@ export default function SettingsScreen() {
             <View style={styles.separator} />
             <ActionRow
               disabled={isClearingCache}
-              label={isClearingCache ? 'Zwischenspeicher wird geleert…' : 'Zwischenspeicher leeren'}
+              label={isClearingCache ? 'Cache wird geleert…' : 'Cache leeren'}
               onPress={handleClearCache}
             />
           </SurfaceCard>
@@ -212,7 +212,7 @@ export default function SettingsScreen() {
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Hilfe und Kontakt</Text>
+        <Text style={styles.sectionLabel}>Hilfe und Support</Text>
         <SurfaceCard style={styles.supportCard}>
           <SupportRow label="Datenschutz" onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')} />
           <View style={styles.separator} />
@@ -226,7 +226,7 @@ export default function SettingsScreen() {
           {runtimeVersion ?? 'Nicht verfügbar'} | {otaVersion}
         </Text>
         <Text style={styles.footerText}>
-          Gestaltet und entwickelt von{' '}
+          Designed und entwickelt von{' '}
           <Text style={styles.footerLink} onPress={() => Linking.openURL('https://arminluschin.com')}>
             Armin Luschin
           </Text>{' '}

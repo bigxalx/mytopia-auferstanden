@@ -90,7 +90,7 @@ export default function HubFeedScreen() {
       headerLeft: undefined,
       headerRight: () =>
         selectedMode === 'dev' ? (
-          <Text style={modeBadgeStyle}>Entwicklungsmodus</Text>
+          <Text style={modeBadgeStyle}>Dev Mode</Text>
         ) : null,
       headerTitle: undefined,
     });
