@@ -6,6 +6,7 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
 import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
+import { GpsProximityPrompt } from '@/components/tasks/GpsProximityPrompt';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { useChannels } from '@/src/features/channels/data/ChannelContext';
 
@@ -127,6 +128,7 @@ function TabLayoutInner() {
       </NativeTabs>
 
       {FEATURES.SHOW_ACTIVE_MISSION_BAR && !supportsNativeBottomAccessory && !focusedMissionId && <FallbackActiveMissionBar />}
+      <GpsProximityPrompt />
     </View>
   );
 }

@@ -24,6 +24,7 @@ import { SettingsBold } from '@/components/ui/SolarTabIcons';
 import { darkMapStyle } from '@/src/shared/ui/darkMapStyle';
 import { getLocationUnavailableMessage } from '@/src/core/location/locationErrors';
 import { openDirections } from '@/src/features/tasks/utils/openDirections';
+import { useNarrativeSignal } from '@/src/features/feed/data/NarrativeSignalContext';
 import {
     CheckIcon,
     hasValidGpsConfig,
@@ -66,6 +67,7 @@ export default function MapScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { selectedMode, user } = useSession();
+    const { pulse, refreshKey } = useNarrativeSignal();
     const completedMissions = useCompletedMissions(user?.id, selectedMode);
     const submissionStates = useMissionSubmissionStates(user?.id, selectedMode);
     const mapRef = useRef<MapView | null>(null);
@@ -146,7 +148,10 @@ export default function MapScreen() {
 
         async function load() {
             try {
-                const allMissions = await fetchMissions({ mode: selectedMode });
+                const allMissions = await fetchMissions({
+                    forceRefresh: Boolean(pulse?.token) || refreshKey > 0,
+                    mode: selectedMode,
+                });
                 if (isActive) {
                     setMissions(allMissions.filter(hasValidGpsConfig));
                 }
@@ -162,14 +167,17 @@ export default function MapScreen() {
         return () => {
             isActive = false;
         };
-    }, [selectedMode]);
+    }, [pulse?.token, refreshKey, selectedMode]);
 
     useEffect(() => {
         let isActive = true;
 
         async function load() {
             try {
-                const nextPoints = await fetchMapPoints({ mode: selectedMode });
+                const nextPoints = await fetchMapPoints({
+                    forceRefresh: Boolean(pulse?.token) || refreshKey > 0,
+                    mode: selectedMode,
+                });
                 if (isActive) {
                     setCheckpoints(nextPoints.filter((point): point is CheckpointMapPoint => point.type === 'checkpoint'));
                 }
@@ -185,7 +193,7 @@ export default function MapScreen() {
         return () => {
             isActive = false;
         };
-    }, [selectedMode]);
+    }, [pulse?.token, refreshKey, selectedMode]);
 
     const displayMissionPoints: DisplayMissionMapPoint[] = missions.flatMap((mission) => {
         const gpsConfig = mission.gpsConfig;

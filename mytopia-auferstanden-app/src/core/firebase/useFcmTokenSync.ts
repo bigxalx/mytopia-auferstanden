@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { getFCMToken } from '@/src/core/firebase/messagingClient';
+import { AppState } from 'react-native';
+import { getFCMToken, subscribeToFcmTokenRefresh } from '@/src/core/firebase/messagingClient';
 import { V2_COLLECTION } from '@/src/core/firestore/schema';
 import * as firestore from '@react-native-firebase/firestore';
 
@@ -37,9 +38,25 @@ export function useFcmTokenSync(uid: string | undefined) {
     }
 
     void syncToken();
+    const unsubscribeTokenRefresh = subscribeToFcmTokenRefresh((token) => {
+      if (isCancelled || !token) {
+        return;
+      }
+
+      void persistFcmToken(userId, token).catch((error) => {
+        console.warn('[useFcmTokenSync] Failed to persist refreshed FCM token:', error);
+      });
+    });
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void syncToken();
+      }
+    });
 
     return () => {
       isCancelled = true;
+      unsubscribeTokenRefresh();
+      appStateSubscription.remove();
     };
   }, [uid]);
 }

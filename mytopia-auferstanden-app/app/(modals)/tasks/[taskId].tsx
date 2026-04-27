@@ -1,18 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import Svg, { Path } from 'react-native-svg';
 
 import {
   buildFeedChannelHref,
   useChannels,
 } from '@/src/features/channels/data/ChannelContext';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { useSession } from '@/src/core/session/SessionContext';
 import { AppImage } from '@/src/shared/ui/AppImage';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
+import { getLocationUnavailableMessage } from '@/src/core/location/locationErrors';
+import {
+  getForegroundLocationPermissionStatus,
+  requestForegroundLocationPermission,
+} from '@/src/core/location/locationPermissionClient';
 import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMissions';
 import {
   fetchSettings,
@@ -33,6 +40,7 @@ import { formatTimeBonusText, getRewardBreakdownRows } from '@/src/features/task
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { useMissionSubmissions } from '@/src/features/tasks/data/useMissionSubmissions';
+import { GpsMap } from '@/src/features/tasks/components/GpsMap';
 
 export default function TaskDetailScreen() {
   const router = useRouter();
@@ -305,6 +313,10 @@ export default function TaskDetailScreen() {
           </Text>
         </SectionCard>
 
+        {mission.kind === 'gps' && mission.gpsConfig ? (
+          <GpsMissionPreviewCard target={mission.gpsConfig} />
+        ) : null}
+
         <View style={styles.infoCard}>
           <Text style={styles.pointsValue}>
             {(missionStatus === 'completed'
@@ -445,6 +457,156 @@ export default function TaskDetailScreen() {
   );
 }
 
+function GpsMissionPreviewCard({
+  target,
+}: {
+  target: NonNullable<MissionListItem['gpsConfig']>;
+}) {
+  const [permissionStatus, setPermissionStatus] = useState<'denied' | 'granted' | 'undetermined'>('undetermined');
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void getForegroundLocationPermissionStatus().then((status) => {
+      if (isActive) {
+        setPermissionStatus(status);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (permissionStatus !== 'granted') {
+      setCoords(null);
+      return;
+    }
+
+    let isActive = true;
+    let subscription: Location.LocationSubscription | null = null;
+
+    const applyLocation = (location: Location.LocationObject) => {
+      if (!isActive) {
+        return;
+      }
+
+      setCoords({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      setLocationError(null);
+    };
+
+    async function startWatching() {
+      try {
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        applyLocation(currentLocation);
+      } catch (error) {
+        if (isActive) {
+          setLocationError(getLocationUnavailableMessage(error));
+        }
+      }
+
+      try {
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            distanceInterval: 5,
+            timeInterval: 5000,
+          },
+          applyLocation
+        );
+      } catch (error) {
+        if (isActive) {
+          setLocationError(getLocationUnavailableMessage(error));
+        }
+      }
+    }
+
+    void startWatching();
+
+    return () => {
+      isActive = false;
+      subscription?.remove();
+    };
+  }, [permissionStatus, target.latitude, target.longitude]);
+
+  const distance = coords
+    ? Math.round(getDistanceMeters(
+        coords.latitude,
+        coords.longitude,
+        target.latitude,
+        target.longitude
+      ))
+    : null;
+  const isInRange = distance !== null && distance <= target.radiusMeters;
+  const permissionCopy =
+    permissionStatus === 'undetermined'
+      ? {
+          body: 'Gib deinen Standort frei, um Entfernung und Zielgebiet vor dem Starten der Mission zu prüfen.',
+          button: 'Standort freigeben',
+        }
+      : {
+          body: 'Diese Vorschau benötigt Zugriff auf deinen Standort.',
+          button: 'Einstellungen öffnen',
+        };
+
+  return (
+    <SectionCard title="Standort prüfen" titleStyle={styles.cardTitle}>
+      <View style={styles.gpsPreview}>
+        <GpsMap
+          radiusMeters={target.radiusMeters}
+          targetLatitude={target.latitude}
+          targetLongitude={target.longitude}
+          userLatitude={coords?.latitude}
+          userLongitude={coords?.longitude}
+        />
+
+        {permissionStatus === 'granted' ? (
+          <View style={styles.gpsStatusBlock}>
+            <Text style={styles.gpsDistanceValue}>
+              {distance !== null ? formatDistance(distance) : 'Standort wird ermittelt...'}
+            </Text>
+            <Text style={styles.gpsDistanceLabel}>Entfernung zum Ziel</Text>
+            {distance !== null ? (
+              <View style={isInRange ? styles.gpsInRangeBadge : styles.gpsOutOfRangeBadge}>
+                <Text style={isInRange ? styles.gpsInRangeText : styles.gpsOutOfRangeText}>
+                  {isInRange ? 'Im Zielgebiet' : `Zielgebiet: ${formatDistance(target.radiusMeters)}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.gpsStatusBlock}>
+            <Text style={styles.body}>{permissionCopy.body}</Text>
+            <AppButton
+              fullWidth
+              label={permissionCopy.button}
+              onPress={() => {
+                if (permissionStatus === 'undetermined') {
+                  void requestForegroundLocationPermission().then(setPermissionStatus);
+                  return;
+                }
+
+                void Linking.openSettings();
+              }}
+              variant={permissionStatus === 'undetermined' ? 'primary' : 'secondary'}
+            />
+          </View>
+        )}
+
+        {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}
+      </View>
+    </SectionCard>
+  );
+}
+
 function getStatusText(status: MissionLifecycleStatus) {
   if (status === 'completed') {
     return 'Du hast diese Aufgabe erfolgreich abgeschlossen.';
@@ -479,6 +641,37 @@ function getMissionTypeLabel(kind: MissionKind) {
   }
 
   return 'Quiz-Aufgabe';
+}
+
+function formatDistance(meters: number) {
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+
+  return `${meters} m`;
+}
+
+function getDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const radius = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return radius * c;
+}
+
+function toRad(deg: number) {
+  return (deg * Math.PI) / 180;
 }
 
 function resolveGroupMissionStatus(
@@ -616,6 +809,47 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     height: 200,
     width: '100%',
+  },
+  gpsDistanceLabel: {
+    color: theme.colors.cardTextSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  gpsDistanceValue: {
+    color: theme.colors.cardTextPrimary,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  gpsInRangeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(22, 101, 52, 0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  gpsInRangeText: {
+    color: theme.colors.successText,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13,
+  },
+  gpsOutOfRangeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.orangeSoft,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  gpsOutOfRangeText: {
+    color: theme.colors.cardTextPrimary,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13,
+  },
+  gpsPreview: {
+    gap: 14,
+  },
+  gpsStatusBlock: {
+    gap: 8,
   },
   infoBlock: {
     gap: 8,

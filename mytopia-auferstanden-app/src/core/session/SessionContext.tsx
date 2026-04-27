@@ -1,4 +1,5 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 
 import {
   AuthActionResult,
@@ -79,6 +80,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
 
     void ensureNarrativeTopicSubscription(selectedMode);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void ensureNarrativeTopicSubscription(selectedMode);
+      }
+    });
+
+    return () => subscription.remove();
   }, [selectedMode, user]);
 
   const value = useMemo<SessionContextValue>(

@@ -12,6 +12,12 @@ import {
 import { syncUserToLeaderboard } from './leaderboard.js';
 import { computeRewardOutcome } from './rewards.js';
 import type { RewardBreakdownDto, StreakSummaryDto } from './types.js';
+
+const PERMANENT_FCM_TOKEN_ERROR_CODES = new Set([
+  'messaging/invalid-registration-token',
+  'messaging/registration-token-not-registered',
+]);
+
 export const submissionModerated = onDocumentUpdated(
       {
         document: `${V2_SUBMISSIONS_COLLECTION_PATH}/{submissionId}`,
@@ -196,6 +202,29 @@ export async function sendTargetedNotification(uid: string, notification: { titl
       successCount: response.successCount,
       failureCount: response.failureCount,
     });
+
+    const invalidTokens = response.responses.flatMap((result, index) => {
+      const token = validTokens[index];
+      if (result.success || !token) {
+        return [];
+      }
+
+      return PERMANENT_FCM_TOKEN_ERROR_CODES.has(result.error?.code ?? '')
+        ? [token]
+        : [];
+    });
+
+    if (invalidTokens.length > 0) {
+      await regRef.set({
+        fcmTokens: FieldValue.arrayRemove(...invalidTokens),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      logger.info('Pruned invalid FCM tokens', {
+        uid,
+        removedCount: invalidTokens.length,
+      });
+    }
     } catch (err) {
     logger.error('Failed to send targeted notification', { uid, error: err });
     }
