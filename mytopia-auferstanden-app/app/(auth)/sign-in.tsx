@@ -10,7 +10,7 @@ import { theme } from '@/src/shared/ui/theme';
 export default function SignInScreen() {
   const router = useRouter();
   const { sendPasswordReset, signInWithEmail, user } = useSession();
-  const [email, setEmail] = useState('survivor@mytopia.app');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [feedback, setFeedback] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
@@ -110,7 +110,7 @@ export default function SignInScreen() {
         <AppButton
           disabled={isResetting || email.trim().length === 0}
           fullWidth
-          label={isSubmitting ? 'Anmeldung...' : 'Anmelden'}
+          label={isSubmitting ? 'Anmeldung…' : 'Anmelden'}
           loading={isSubmitting}
           onPress={() => {
             void handleSignIn();
@@ -120,7 +120,7 @@ export default function SignInScreen() {
         <AppButton
           disabled={isSubmitting}
           fullWidth
-          label={isResetting ? 'Link wird gesendet...' : 'Passwort vergessen?'}
+          label={isResetting ? 'Link wird gesendet…' : 'Passwort vergessen?'}
           loading={isResetting}
           onPress={() => {
             void handleResetPassword();
@@ -129,8 +129,8 @@ export default function SignInScreen() {
         />
       </SectionCard>
 
-      <SectionCard title="Neu bei Mytopia?" backgroundColor={theme.colors.accent}>
-        <AppButton fullWidth label="Account erstellen" onPress={() => router.push('/(auth)/sign-up')} variant="secondary" />
+      <SectionCard title="Neu bei √My Messenger?" backgroundColor={theme.colors.accent}>
+        <AppButton fullWidth label="Konto erstellen" onPress={() => router.push('/(auth)/sign-up')} variant="secondary" />
       </SectionCard>
     </ScrollView>
   );

@@ -27,7 +27,7 @@ export async function prepareMissionPhotoAsset(
 ): Promise<PreparedMissionPhoto> {
   const sourceUri = asset.uri?.trim();
   if (!sourceUri) {
-    throw new Error('Ausgewaehltes Foto konnte nicht gelesen werden.');
+    throw new Error('Ausgewähltes Foto konnte nicht gelesen werden.');
   }
 
   const extension = resolvePhotoExtension({
@@ -72,7 +72,7 @@ export async function prepareMissionPhotoAsset(
     throw new Error(
       copyError instanceof Error && copyError.message.trim().length > 0
         ? copyError.message
-        : 'Foto konnte nicht fuer den Upload vorbereitet werden.',
+        : 'Foto konnte nicht für den Upload vorbereitet werden.',
     );
   }
 }
@@ -116,13 +116,13 @@ export function getFirebaseStorageAvailability() {
     if (isMissingFirebaseStorageModuleError(error)) {
       return {
         available: false as const,
-        message: 'Diese App-Version unterstuetzt Foto-Missionen noch nicht. Bitte installiere den neuesten Build.',
+        message: 'Diese App-Version unterstützt Foto-Missionen noch nicht. Bitte installiere den neuesten Build.',
       };
     }
 
     return {
       available: false as const,
-      message: 'Foto-Upload ist in diesem Build derzeit nicht verfuegbar.',
+      message: 'Foto-Upload ist in diesem Build derzeit nicht verfügbar.',
     };
   }
 }

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 import { QuizResultCard } from './QuizResultCard';
 
 type QuizQuestion = {
@@ -56,7 +57,7 @@ export function QuizRunner({ embedded = false, missionId: _missionId, missionTit
             const submitResult = await onComplete(selectedAnswers);
             setResult(submitResult);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Submission failed.');
+            setError(getVisibleErrorMessage(err, 'Einreichung konnte nicht gesendet werden.'));
         } finally {
             setIsSubmitting(false);
         }

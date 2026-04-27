@@ -1,5 +1,5 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useRef, useState } from 'react';
 
@@ -11,11 +11,13 @@ export default function AuthLayout() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const segments = useSegments();
+  const { width } = useWindowDimensions();
   const [hasPendingOnboarding, setHasPendingOnboarding] = useState(false);
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
   const hasStartedOnboardingPresentation = useRef(false);
 
   const isOnboardingRoute = String(segments[1]) === 'onboarding';
+  const isAndroidTabletWidth = Platform.OS === 'android' && width >= 600;
 
   useEffect(() => {
     let isMounted = true;
@@ -87,9 +89,11 @@ export default function AuthLayout() {
             },
           ]}
         >
-          <View style={styles.content}>
+          <View style={[styles.content, isAndroidTabletWidth ? styles.contentTablet : null]}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logoTitle}>Mytopia</Text>
+              <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={2} style={styles.logoTitle}>
+                √My Messenger
+              </Text>
               <Text style={styles.logoSubtitle}>Auferstanden aus Rache</Text>
             </View>
             <View style={styles.stackContainer}>
@@ -135,6 +139,9 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     width: '100%',
   },
+  contentTablet: {
+    maxWidth: 560,
+  },
   inner: {
     flex: 1,
     paddingHorizontal: 20,
@@ -153,10 +160,10 @@ const styles = StyleSheet.create({
   logoTitle: {
     color: theme.colors.textPrimary,
     fontFamily: 'Nunito_700Bold',
-    fontSize: 36,
-    lineHeight: 40,
+    fontSize: 34,
+    lineHeight: 38,
     marginBottom: 8,
-    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   logoSubtitle: {
     color: theme.colors.textSecondary,

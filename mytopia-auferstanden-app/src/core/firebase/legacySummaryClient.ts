@@ -220,7 +220,7 @@ function resolveDisplayName(currentDisplayName: unknown, firebaseUser: FirebaseI
     return fallbackEmail.split('@')[0];
   }
 
-  return 'Mytopia Survivor';
+  return 'Mytopia Nutzer';
 }
 
 function resolveEmail(currentEmail: unknown, firebaseUser: FirebaseIdentity) {

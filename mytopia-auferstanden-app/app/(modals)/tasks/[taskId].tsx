@@ -15,6 +15,7 @@ import { AppImage } from '@/src/shared/ui/AppImage';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 import { getLocationUnavailableMessage } from '@/src/core/location/locationErrors';
 import {
   getForegroundLocationPermissionStatus,
@@ -91,7 +92,7 @@ export default function TaskDetailScreen() {
         if (!active || cached) {
           return;
         }
-        setError(err instanceof Error ? err.message : 'Failed to load mission.');
+        setError(getVisibleErrorMessage(err, 'Mission konnte nicht geladen werden.'));
       } finally {
         if (active) {
           setIsLoading(false);
@@ -283,7 +284,7 @@ export default function TaskDetailScreen() {
 
       router.dismissTo(buildFeedChannelHref(channelId));
     } catch (err) {
-      setLaunchError(err instanceof Error ? err.message : 'Mission konnte nicht geöffnet werden.');
+      setLaunchError(getVisibleErrorMessage(err, 'Mission konnte nicht geöffnet werden.'));
     } finally {
       setIsLaunching(false);
     }
@@ -571,7 +572,7 @@ function GpsMissionPreviewCard({
         {permissionStatus === 'granted' ? (
           <View style={styles.gpsStatusBlock}>
             <Text style={styles.gpsDistanceValue}>
-              {distance !== null ? formatDistance(distance) : 'Standort wird ermittelt...'}
+              {distance !== null ? formatDistance(distance) : 'Standort wird ermittelt…'}
             </Text>
             <Text style={styles.gpsDistanceLabel}>Entfernung zum Ziel</Text>
             {distance !== null ? (

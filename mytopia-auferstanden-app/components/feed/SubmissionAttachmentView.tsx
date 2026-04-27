@@ -16,6 +16,7 @@ import { AppImage } from '@/src/shared/ui/AppImage';
 import { type MissionKind } from '@/src/features/tasks/data/missionRepository';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { resolveRetryLocalPhotoUri } from '@/src/features/tasks/data/photoMissionUpload';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 export type SubmissionStatus = 'sending' | 'pending' | 'approved' | 'rejected' | 'error';
 
@@ -58,6 +59,9 @@ export function SubmissionAttachmentView({
   const isMediaLike = kind === 'photo' || kind === 'gps';
   const photoUri = kind === 'photo' ? resolveRenderablePhotoUri(payload) : null;
   const errorDetails = effectiveStatus === 'error' ? resolveErrorDetails(payload) : null;
+  const visibleErrorMessage = effectiveStatus === 'error'
+    ? getVisibleErrorMessage(payload, 'Die Einreichung konnte nicht gesendet werden. Bitte versuche es erneut.')
+    : null;
   const canRetry = kind === 'photo' && Boolean(missionId) && Boolean(resolveRetryLocalPhotoUri(payload));
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -155,13 +159,13 @@ export function SubmissionAttachmentView({
         <Pressable style={styles.modalBackdrop} onPress={() => setIsErrorModalVisible(false)}>
           <Pressable style={styles.modalCard} onPress={() => undefined}>
             <Text style={styles.modalTitle}>Fehlerdetails</Text>
-            <Text style={styles.modalBody}>{errorDetails ?? 'Unbekannter Fehler.'}</Text>
+            <Text style={styles.modalBody}>{visibleErrorMessage ?? 'Unbekannter Fehler.'}</Text>
             <View style={styles.modalActions}>
               <Pressable
                 onPress={() => setIsErrorModalVisible(false)}
                 style={[styles.modalButton, styles.modalButtonSecondary]}
               >
-                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+                <Text style={styles.modalButtonSecondaryText}>Abbrechen</Text>
               </Pressable>
               <Pressable
                 disabled={!canRetry || isRetrying}
@@ -175,7 +179,7 @@ export function SubmissionAttachmentView({
                 ]}
               >
                 <Text style={styles.modalButtonPrimaryText}>
-                  {isRetrying ? 'Retry...' : 'Retry'}
+                  {isRetrying ? 'Wird erneut versucht…' : 'Erneut versuchen'}
                 </Text>
               </Pressable>
             </View>
@@ -202,7 +206,7 @@ function GpsPinSection({ status }: { status: SubmissionStatus }) {
       </View>
       <View>
         <Text style={styles.gpsPinMain}>Standort {isDone ? 'bestätigt' : isError ? 'Fehler' : 'In Prüfung'}</Text>
-        <Text style={styles.gpsPinSub}>{isDone ? 'Erfolgreich eingereicht' : 'GPS-Check an diesem Ort'}</Text>
+        <Text style={styles.gpsPinSub}>{isDone ? 'Erfolgreich eingereicht' : 'GPS-Prüfung an diesem Ort'}</Text>
       </View>
     </View>
   );
@@ -223,8 +227,8 @@ function StatusIndicator({
         <View style={styles.statusRow}>
           <Text style={styles.statusText}>
             {typeof payload?.uploadProgress === 'number'
-              ? `Sende... ${payload.uploadProgress}%`
-              : 'Sende...'}
+              ? `Sende… ${payload.uploadProgress}%`
+              : 'Sende…'}
           </Text>
           <ActivityIndicator size="small" color="#666" style={{ transform: [{ scale: 0.6 }] }} />
         </View>

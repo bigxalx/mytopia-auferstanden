@@ -15,7 +15,7 @@ export default function WelcomeBackScreen() {
     return null;
   }
 
-  const rankText = user.legacySummary.rankSnapshot > 0 ? `#${user.legacySummary.rankSnapshot}` : 'n/a';
+  const rankText = user.legacySummary.rankSnapshot > 0 ? `#${user.legacySummary.rankSnapshot}` : 'keine Angabe';
 
   function continueToFeed() {
     dismissWelcomeBack();
@@ -23,7 +23,7 @@ export default function WelcomeBackScreen() {
   }
 
   return (
-    <Screen title="Willkommen zurück bei Mytopia">
+    <Screen title="Willkommen zurück bei √My Messenger">
       <SectionCard
         title="Frühere Zusammenfassung"
         description="Diese Übersicht dient der Kontinuität und hat keinen Einfluss auf die Rangliste der neuen Saison."
@@ -42,7 +42,7 @@ export default function WelcomeBackScreen() {
         <Text style={styles.body}>
           Deine alte Punktzahl wird nur als Referenz gespeichert. Alle Wettbewerbe in dieser App basieren auf den neuen v2-Saisondaten.
         </Text>
-        <AppButton fullWidth label="Weiter zum Feed" onPress={continueToFeed} variant="primary" />
+        <AppButton fullWidth label="Weiter zu den Kanälen" onPress={continueToFeed} variant="primary" />
       </SectionCard>
     </Screen>
   );

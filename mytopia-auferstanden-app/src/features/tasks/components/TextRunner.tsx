@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 type TextRunnerProps = {
   embedded?: boolean;
@@ -25,7 +26,7 @@ export function TextRunner({ onComplete, embedded = false }: TextRunnerProps) {
     try {
       await onComplete(text);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Senden.');
+      setError(getVisibleErrorMessage(err, 'Fehler beim Senden.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -39,7 +40,7 @@ export function TextRunner({ onComplete, embedded = false }: TextRunnerProps) {
         style={styles.input}
         multiline
         numberOfLines={6}
-        placeholder="Schreibe hier deinen Text..."
+        placeholder="Schreibe hier deinen Text…"
         placeholderTextColor="rgba(17, 24, 39, 0.55)"
         value={text}
         onChangeText={setText}
@@ -51,7 +52,7 @@ export function TextRunner({ onComplete, embedded = false }: TextRunnerProps) {
       <AppButton
         disabled={isSubmitting || !text.trim()}
         fullWidth
-        label={isSubmitting ? 'Wird gesendet...' : 'Einreichen'}
+        label={isSubmitting ? 'Wird gesendet…' : 'Einreichen'}
         loading={isSubmitting}
         onPress={() => {
           void handleSubmit();

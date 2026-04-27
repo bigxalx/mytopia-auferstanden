@@ -226,7 +226,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
               ? (loadingState ?? (
                   <View style={styles.stateBox}>
                     <ActivityIndicator color={theme.colors.orange} size="large" />
-                    <Text style={styles.stateText}>Feed wird geladen...</Text>
+                    <Text style={styles.stateText}>Nachrichten werden geladen…</Text>
                   </View>
                 ))
               : (emptyState ?? (
@@ -253,7 +253,7 @@ export const ChatThreadList = forwardRef<ChatThreadListHandle, ChatThreadListPro
             {loadingState ?? (
               <View style={styles.stateBox}>
                 <ActivityIndicator color={theme.colors.orange} size="large" />
-                <Text style={styles.stateText}>Feed wird geladen...</Text>
+                <Text style={styles.stateText}>Nachrichten werden geladen…</Text>
               </View>
             )}
           </View>

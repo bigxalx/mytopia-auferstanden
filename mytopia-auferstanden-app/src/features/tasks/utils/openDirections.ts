@@ -20,7 +20,7 @@ export async function openDirections(target: DirectionsTarget) {
   const isSupported = await Linking.canOpenURL(url);
 
   if (!isSupported) {
-    throw new Error('Directions URL is not supported on this device.');
+    throw new Error('Wegbeschreibung wird auf diesem Gerät nicht unterstützt.');
   }
 
   await Linking.openURL(url);

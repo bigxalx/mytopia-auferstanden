@@ -14,6 +14,7 @@ import { useCompletedMissions } from '@/src/features/tasks/data/useCompletedMiss
 import { useMissionSubmissionStates } from '@/src/features/tasks/data/useMissionSubmissionStates';
 import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStatus';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 type MissionsCardProps = {
   userId?: string;
@@ -53,7 +54,7 @@ export function MissionsCard({ userId, mode, refreshTrigger, onRefreshComplete }
         }
       } catch (err) {
         if (active && !cached) {
-          setError(err instanceof Error ? err.message : 'Failed to load missions.');
+          setError(getVisibleErrorMessage(err, 'Missionen konnten nicht geladen werden.'));
         }
       } finally {
         if (active) {

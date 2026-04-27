@@ -15,6 +15,7 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; tone: 'error' | 'success' } | null>(null);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   async function handleSignUp() {
     const normalizedEmail = email.trim();
@@ -42,10 +43,8 @@ export default function SignUpScreen() {
         return;
       }
 
-      setFeedback({
-        text: result.message ?? 'Konto erstellt. Bitte bestätige deine E-Mail vor der Anmeldung.',
-        tone: 'success',
-      });
+      setVerificationEmail(normalizedEmail);
+      setFeedback(null);
       setPassword('');
       setConfirmPassword('');
     } finally {
@@ -59,67 +58,92 @@ export default function SignUpScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <SectionCard title="Registrieren">
-        {feedback ? (
-          <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
-            <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
-              {feedback.text}
+      <SectionCard title={verificationEmail ? 'E-Mail bestätigen' : 'Registrieren'}>
+        {verificationEmail ? (
+          <View style={styles.verificationState}>
+            <View style={[styles.feedback, styles.feedbackSuccess]}>
+              <Text style={styles.feedbackSuccessText}>
+                Konto erstellt. Bitte bestätige deine E-Mail-Adresse.
+              </Text>
+            </View>
+            <Text style={styles.verificationBody}>
+              Wir haben eine Bestätigungs-E-Mail an{' '}
+              <Text style={styles.verificationEmail}>{verificationEmail}</Text>{' '}
+              gesendet. Öffne den Link in dieser E-Mail, danach kannst du dich anmelden.
             </Text>
+            <AppButton
+              fullWidth
+              label="Zur Anmeldung"
+              onPress={() => router.replace('/(auth)/sign-in')}
+              variant="primary"
+            />
           </View>
-        ) : null}
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          onChangeText={setEmail}
-          placeholder="E-Mail"
-          placeholderTextColor={theme.colors.cardTextMuted}
-          style={styles.input}
-          value={email}
-        />
-        <TextInput
-          onChangeText={setPassword}
-          placeholder="Passwort (mind. 6 Zeichen)"
-          placeholderTextColor={theme.colors.cardTextMuted}
-          secureTextEntry
-          style={styles.input}
-          value={password}
-        />
-        <TextInput
-          onChangeText={setConfirmPassword}
-          placeholder="Passwort bestätigen"
-          placeholderTextColor={theme.colors.cardTextMuted}
-          secureTextEntry
-          style={styles.input}
-          value={confirmPassword}
-        />
-        <AppButton
-          disabled={email.trim().length === 0}
-          fullWidth
-          label={isSubmitting ? 'Konto wird erstellt...' : 'Konto erstellen'}
-          loading={isSubmitting}
-          onPress={() => {
-            void handleSignUp();
-          }}
-          variant="primary"
-        />
-        <View style={styles.privacyCardContainer}>
-          <Text style={styles.privacyText}>
-            Durch das Anmelden akzeptierst du unsere{' '}
-            <Text
-              style={styles.privacyLink}
-              onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')}
-            >
-              Datenschutzbestimmungen
-            </Text>
-            .
-          </Text>
-        </View>
+        ) : (
+          <>
+            {feedback ? (
+              <View style={[styles.feedback, feedback.tone === 'error' ? styles.feedbackError : styles.feedbackSuccess]}>
+                <Text style={feedback.tone === 'error' ? styles.feedbackErrorText : styles.feedbackSuccessText}>
+                  {feedback.text}
+                </Text>
+              </View>
+            ) : null}
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              onChangeText={setEmail}
+              placeholder="E-Mail"
+              placeholderTextColor={theme.colors.cardTextMuted}
+              style={styles.input}
+              value={email}
+            />
+            <TextInput
+              onChangeText={setPassword}
+              placeholder="Passwort (mind. 6 Zeichen)"
+              placeholderTextColor={theme.colors.cardTextMuted}
+              secureTextEntry
+              style={styles.input}
+              value={password}
+            />
+            <TextInput
+              onChangeText={setConfirmPassword}
+              placeholder="Passwort bestätigen"
+              placeholderTextColor={theme.colors.cardTextMuted}
+              secureTextEntry
+              style={styles.input}
+              value={confirmPassword}
+            />
+            <AppButton
+              disabled={email.trim().length === 0}
+              fullWidth
+              label={isSubmitting ? 'Konto wird erstellt…' : 'Konto erstellen'}
+              loading={isSubmitting}
+              onPress={() => {
+                void handleSignUp();
+              }}
+              variant="primary"
+            />
+            <View style={styles.privacyCardContainer}>
+              <Text style={styles.privacyText}>
+                Durch das Anmelden akzeptierst du unsere{' '}
+                <Text
+                  style={styles.privacyLink}
+                  onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')}
+                >
+                  Datenschutzbestimmungen
+                </Text>
+                .
+              </Text>
+            </View>
+          </>
+        )}
       </SectionCard>
 
-      <SectionCard title="Bereits ein Konto?" backgroundColor={theme.colors.accent}>
-        <AppButton fullWidth label="Zurück zur Anmeldung" onPress={() => router.back()} variant="secondary" />
-      </SectionCard>
+      {!verificationEmail ? (
+        <SectionCard title="Bereits ein Konto?" backgroundColor={theme.colors.accent}>
+          <AppButton fullWidth label="Zurück zur Anmeldung" onPress={() => router.back()} variant="secondary" />
+        </SectionCard>
+      ) : null}
     </ScrollView>
   );
 }
@@ -175,6 +199,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 11,
+  },
+  verificationBody: {
+    color: theme.colors.cardTextSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  verificationEmail: {
+    color: theme.colors.cardTextPrimary,
+    fontWeight: '700',
+  },
+  verificationState: {
+    gap: 14,
   },
 });
 

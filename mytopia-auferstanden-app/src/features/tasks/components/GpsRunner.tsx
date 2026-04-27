@@ -7,6 +7,7 @@ import { getLocationUnavailableMessage } from '@/src/core/location/locationError
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { theme } from '@/src/shared/ui/theme';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 import { GpsMap } from '@/src/features/tasks/components/GpsMap';
 import { openDirections } from '@/src/features/tasks/utils/openDirections';
 
@@ -145,7 +146,7 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
 
         return embedded
             ? <View style={compact ? styles.compactResult : null}>{content}</View>
-            : <SectionCard title="Check-in erfolgreich">{content}</SectionCard>;
+            : <SectionCard title="Einchecken erfolgreich">{content}</SectionCard>;
     }
 
     if (permissionStatus === 'denied' || permissionStatus === 'undetermined') {
@@ -154,7 +155,7 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
             <View style={styles.permissionContainer}>
                 <Text style={styles.body}>
                     {isUndetermined
-                        ? 'Diese Mission benötigt Standortzugriff, bevor du die Entfernung und den Check-in sehen kannst.'
+                        ? 'Diese Mission benötigt Standortzugriff, bevor du die Entfernung und das Einchecken sehen kannst.'
                         : 'Diese Mission benötigt Zugriff auf deinen Standort.'}
                 </Text>
                 <Text style={styles.hintText}>
@@ -194,7 +195,7 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
             const submitResult = await onComplete();
             setResult(submitResult);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Check-in failed.');
+            setError(getVisibleErrorMessage(err, 'Einchecken fehlgeschlagen.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -303,7 +304,7 @@ export function GpsRunner({ embedded = false, compact = false, missionId: _missi
                 <AppButton
                     disabled={isSubmitting}
                     fullWidth
-                    label={isSubmitting ? 'Check-in läuft…' : 'Einchecken'}
+                    label={isSubmitting ? 'Einchecken läuft…' : 'Einchecken'}
                     loading={isSubmitting}
                     onPress={() => {
                         void handleCheckIn();

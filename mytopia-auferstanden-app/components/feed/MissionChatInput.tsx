@@ -108,7 +108,7 @@ export const MissionChatInput: React.FC<{
             <View style={styles.textRow}>
               <TextInput
                 style={styles.textInput}
-                placeholder="Deine Antwort..."
+                placeholder="Deine Antwort…"
                 placeholderTextColor="#9ca3af"
                 value={textInput}
                 onChangeText={setTextInput}

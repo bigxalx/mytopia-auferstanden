@@ -44,41 +44,49 @@ type AuthErrorDescriptor = {
 const ERROR_MAP: Record<string, AuthErrorDescriptor> = {
   'auth/email-already-in-use': {
     code: 'email-already-in-use',
-    message: 'An account with this email already exists.',
+    message: 'Für diese E-Mail-Adresse existiert bereits ein Konto.',
   },
   'auth/invalid-credential': {
     code: 'wrong-password',
-    message: 'Email or password is incorrect.',
+    message: 'E-Mail oder Passwort ist nicht korrekt.',
+  },
+  'auth/invalid-login-credentials': {
+    code: 'wrong-password',
+    message: 'E-Mail oder Passwort ist nicht korrekt.',
   },
   'auth/invalid-email': {
     code: 'invalid-email',
-    message: 'Please enter a valid email address.',
+    message: 'Bitte gib eine gültige E-Mail-Adresse ein.',
   },
   'auth/network-request-failed': {
     code: 'network-request-failed',
-    message: 'Network error. Check your connection and try again.',
+    message: 'Netzwerkfehler. Bitte prüfe deine Verbindung und versuche es erneut.',
   },
   'auth/too-many-requests': {
     code: 'too-many-requests',
-    message: 'Too many attempts. Try again later.',
+    message: 'Zu viele Versuche. Bitte probiere es später erneut.',
+  },
+  'auth/user-disabled': {
+    code: 'unknown',
+    message: 'Dieses Konto wurde deaktiviert. Bitte nimm Kontakt mit uns auf.',
   },
   'auth/user-not-found': {
     code: 'user-not-found',
-    message: 'No account found for this email address.',
+    message: 'Für diese E-Mail-Adresse wurde kein Konto gefunden.',
   },
   'auth/weak-password': {
     code: 'weak-password',
-    message: 'Password must be at least 6 characters.',
+    message: 'Das Passwort muss mindestens 6 Zeichen lang sein.',
   },
   'auth/wrong-password': {
     code: 'wrong-password',
-    message: 'Email or password is incorrect.',
+    message: 'E-Mail oder Passwort ist nicht korrekt.',
   },
 };
 
 const UNKNOWN_ERROR: AuthErrorDescriptor = {
   code: 'unknown',
-  message: 'Something went wrong. Please try again.',
+  message: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
 };
 
 export function subscribeAuthState(listener: (user: FirebaseAuthTypes.User | null) => void) {
@@ -126,7 +134,7 @@ export function createEmailNotVerifiedResult(): AuthActionResult {
   return {
     ok: false,
     code: 'email-not-verified',
-    message: 'Please verify your email before signing in. A verification email has been sent.',
+    message: 'Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest. Wir haben dir eine Bestätigungs-E-Mail gesendet.',
   };
 }
 
@@ -143,7 +151,7 @@ function describeAuthError(error: unknown): AuthErrorDescriptor {
   if (isNoDefaultFirebaseAppError(error)) {
     return {
       code: 'unknown',
-      message: 'Firebase is not configured in this installed build. Rebuild and reinstall with `bun android` or `bun ios`.',
+      message: 'Firebase ist in diesem installierten Build nicht konfiguriert. Bitte installiere einen aktuellen Build.',
     };
   }
 

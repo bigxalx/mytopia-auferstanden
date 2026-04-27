@@ -13,6 +13,7 @@ import { AppButton } from '@/src/shared/ui/AppButton';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { theme } from '@/src/shared/ui/theme';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 export default function SettingsScreen() {
   const { canUseDevMode, selectedMode, setSelectedMode, signOut, user } = useSession();
@@ -22,7 +23,7 @@ export default function SettingsScreen() {
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const runtimeVersion = getExpoRuntimeVersion();
-  const otaVersion = Constants.expoConfig?.extra?.otaVersion ?? Constants.expoConfig?.version ?? 'Unavailable';
+  const otaVersion = Constants.expoConfig?.extra?.otaVersion ?? Constants.expoConfig?.version ?? 'Nicht verfügbar';
 
   useEffect(() => {
     void PrivacyManager.getConsent().then(setTelemetryEnabled);
@@ -78,7 +79,7 @@ export default function SettingsScreen() {
       await signOut();
     } catch (error) {
       setAccountFeedback({
-        message: error instanceof Error ? error.message : 'Konto konnte nicht gelöscht werden.',
+        message: getVisibleErrorMessage(error, 'Konto konnte nicht gelöscht werden.'),
         tone: 'error',
       });
     } finally {
@@ -88,8 +89,8 @@ export default function SettingsScreen() {
 
   function handleClearCache() {
     Alert.alert(
-      'Cache leeren',
-      'Lokale Missions-, Feed- und Kanal-Caches werden entfernt. Temporäre Sitzungen müssen danach neu geöffnet werden.',
+      'Zwischenspeicher leeren',
+      'Lokale Missions-, Nachrichten- und Kanal-Zwischenspeicher werden entfernt. Temporäre Sitzungen müssen danach neu geöffnet werden.',
       [
         { style: 'cancel', text: 'Abbrechen' },
         {
@@ -112,11 +113,11 @@ export default function SettingsScreen() {
     try {
       await clearUserAppCache(currentUserId, { clearModePreference: false });
       resetMissionState();
-      Alert.alert('Cache geleert', 'Lokale Missions- und Feed-Caches wurden entfernt.');
+      Alert.alert('Zwischenspeicher geleert', 'Lokale Missions- und Nachrichten-Zwischenspeicher wurden entfernt.');
     } catch (error) {
       Alert.alert(
         'Fehler',
-        error instanceof Error ? error.message : 'Cache konnte nicht geleert werden.'
+        getVisibleErrorMessage(error, 'Zwischenspeicher konnte nicht geleert werden.')
       );
     } finally {
       setIsClearingCache(false);
@@ -126,7 +127,7 @@ export default function SettingsScreen() {
   return (
     <Screen title="Einstellungen" headerShown={false}>
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Account</Text>
+        <Text style={styles.sectionLabel}>Konto</Text>
         <SurfaceCard style={styles.accountCard}>
           <View style={styles.accountContent}>
             <View style={styles.row}>
@@ -154,7 +155,7 @@ export default function SettingsScreen() {
           <ActionRow
             danger
             disabled={isDeletingAccount}
-            label={isDeletingAccount ? 'Konto wird gelöscht...' : 'Konto löschen'}
+            label={isDeletingAccount ? 'Konto wird gelöscht…' : 'Konto löschen'}
             onPress={handleDeleteAccount}
           />
         </SurfaceCard>
@@ -182,19 +183,19 @@ export default function SettingsScreen() {
 
       {canUseDevMode ? (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Dev Tools</Text>
+          <Text style={styles.sectionLabel}>Entwicklerwerkzeuge</Text>
           <SurfaceCard>
             <View style={styles.modeRow}>
               <AppButton
                 fullWidth
-                label="Production"
+                label="Produktion"
                 onPress={() => setSelectedMode('production')}
                 style={styles.modeButton}
                 variant={selectedMode === 'production' ? 'primary' : 'secondary'}
               />
               <AppButton
                 fullWidth
-                label="Dev"
+                label="Entwicklung"
                 onPress={() => setSelectedMode('dev')}
                 style={styles.modeButton}
                 variant={selectedMode === 'dev' ? 'primary' : 'secondary'}
@@ -203,7 +204,7 @@ export default function SettingsScreen() {
             <View style={styles.separator} />
             <ActionRow
               disabled={isClearingCache}
-              label={isClearingCache ? 'Cache wird geleert...' : 'Cache leeren'}
+              label={isClearingCache ? 'Zwischenspeicher wird geleert…' : 'Zwischenspeicher leeren'}
               onPress={handleClearCache}
             />
           </SurfaceCard>
@@ -211,7 +212,7 @@ export default function SettingsScreen() {
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Hilfe und Support</Text>
+        <Text style={styles.sectionLabel}>Hilfe und Kontakt</Text>
         <SurfaceCard style={styles.supportCard}>
           <SupportRow label="Datenschutz" onPress={() => Linking.openURL('https://www.mytopia.world/datenschutz')} />
           <View style={styles.separator} />
@@ -222,10 +223,10 @@ export default function SettingsScreen() {
       <View style={styles.footer}>
         <Text style={styles.footerLabel}>Über</Text>
         <Text style={styles.footerMeta}>
-          {runtimeVersion ?? 'Unavailable'} | {otaVersion}
+          {runtimeVersion ?? 'Nicht verfügbar'} | {otaVersion}
         </Text>
         <Text style={styles.footerText}>
-          Designed und entwickelt von{' '}
+          Gestaltet und entwickelt von{' '}
           <Text style={styles.footerLink} onPress={() => Linking.openURL('https://arminluschin.com')}>
             Armin Luschin
           </Text>{' '}

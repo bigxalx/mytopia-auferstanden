@@ -12,6 +12,7 @@ import { AppButton } from '@/src/shared/ui/AppButton';
 import { Screen } from '@/src/shared/ui/Screen';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { theme } from '@/src/shared/ui/theme';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 export function ActorProfileScreen() {
   const params = useLocalSearchParams<{
@@ -90,7 +91,7 @@ export function ActorProfileScreen() {
         }
 
         if (!initialActor) {
-          setErrorMessage(error instanceof Error ? error.message : 'Profil konnte nicht geladen werden.');
+          setErrorMessage(getVisibleErrorMessage(error, 'Profil konnte nicht geladen werden.'));
         }
       })
       .finally(() => {
@@ -145,7 +146,7 @@ export function ActorProfileScreen() {
           {isLoading ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={theme.colors.orange} size="small" />
-              <Text style={styles.loadingLabel}>Profil wird geladen...</Text>
+              <Text style={styles.loadingLabel}>Profil wird geladen…</Text>
             </View>
           ) : null}
         </View>

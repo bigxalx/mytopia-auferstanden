@@ -191,7 +191,7 @@ async function hasDevClaim(user: FirebaseAuthTypes.User): Promise<boolean> {
 }
 
 function mapSessionUser(user: { uid: string; email: string | null; displayName: string | null }): SessionUser {
-  const fallbackName = user.email ? user.email.split('@')[0] : 'Mytopia Survivor';
+  const fallbackName = user.email ? user.email.split('@')[0] : 'Mytopia Nutzer';
   return {
     displayName: user.displayName?.trim() || fallbackName,
     email: user.email ?? '',

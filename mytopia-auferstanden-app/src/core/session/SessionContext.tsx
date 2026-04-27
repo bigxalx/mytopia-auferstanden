@@ -98,7 +98,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       sendPasswordReset: async (email: string) => {
         try {
           await sendPasswordResetEmail(email);
-          return createSuccessResult('Password reset email sent. Check your inbox.');
+          return createSuccessResult('E-Mail zum Zurücksetzen des Passworts gesendet. Bitte prüfe dein Postfach.');
         } catch (error) {
           return createAuthErrorResult(error);
         }
@@ -156,7 +156,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           await sendEmailVerification(credential.user);
           await signOutFromFirebase();
           return createSuccessResult(
-            'Account created. Please verify your email before signing in.'
+            'Konto erstellt. Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest.'
           );
         } catch (error) {
           return createAuthErrorResult(error);

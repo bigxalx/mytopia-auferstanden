@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { theme } from '@/src/shared/ui/theme';
 import { useSession } from '@/src/core/session/SessionContext';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 import {
   getFirebaseStorageAvailability,
   prepareMissionPhotoAsset,
@@ -50,9 +51,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
       }
     } catch (pickedError) {
       setError(
-        pickedError instanceof Error
-          ? pickedError.message
-          : 'Fehler beim Öffnen der Mediathek.',
+        getVisibleErrorMessage(pickedError, 'Fehler beim Öffnen der Mediathek.'),
       );
     }
   };
@@ -84,9 +83,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
       }
     } catch (cameraError) {
       setError(
-        cameraError instanceof Error
-          ? cameraError.message
-          : 'Fehler beim Öffnen der Kamera.',
+        getVisibleErrorMessage(cameraError, 'Fehler beim Öffnen der Kamera.'),
       );
     }
   };
@@ -123,7 +120,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
           }),
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Fehler beim Senden oder Hochladen.');
+      setError(getVisibleErrorMessage(err, 'Fehler beim Senden oder Hochladen.'));
       setUploadProgress(null);
     } finally {
       setIsSubmitting(false);
@@ -174,7 +171,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
               >
                 <Text style={styles.inlineActionButtonText}>
                   {isSubmitting
-                      ? 'Senden...'
+                      ? 'Senden…'
                       : 'Einreichen'}
                 </Text>
               </Pressable>
@@ -194,7 +191,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
                 ]}
               >
                 <Feather name="camera" size={18} color="white" />
-                <Text style={styles.inlineActionButtonText}>KAMERA</Text>
+                <Text style={styles.inlineActionButtonText}>Kamera</Text>
               </Pressable>
               <Pressable
                 disabled={isSubmitting || !storageAvailability.available}
@@ -205,7 +202,7 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
                 ]}
               >
                 <Feather name="image" size={18} color="white" />
-                <Text style={styles.inlineActionButtonText}>GALERIE</Text>
+                <Text style={styles.inlineActionButtonText}>Galerie</Text>
               </Pressable>
             </>
           ) : (
@@ -244,9 +241,9 @@ export function PhotoRunner({ missionId, onComplete, embedded = false }: PhotoRu
           fullWidth
           label={
             isSubmitting && uploadProgress !== null
-              ? `Wird hochgeladen... (${uploadProgress}%)`
+              ? `Wird hochgeladen… (${uploadProgress}%)`
               : isSubmitting
-                ? 'Wird gesendet...'
+                ? 'Wird gesendet…'
                 : 'Einreichen'
           }
           loading={isSubmitting}

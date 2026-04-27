@@ -18,6 +18,7 @@ import {
   useMissionSubmissions,
   type MissionSubmissionRecord,
 } from '@/src/features/tasks/data/useMissionSubmissions';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 export type ProfileMissionOverviewItem = {
   earnedPoints: number | null;
@@ -83,7 +84,7 @@ export function useProfileMissionData(
         setMissions(nextMissions);
       } catch (err) {
         if (active && !cached) {
-          setError(err instanceof Error ? err.message : 'Missionen konnten nicht geladen werden.');
+          setError(getVisibleErrorMessage(err, 'Missionen konnten nicht geladen werden.'));
         }
       } finally {
         if (active) {

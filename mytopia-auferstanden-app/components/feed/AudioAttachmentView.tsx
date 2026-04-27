@@ -216,7 +216,7 @@ export function AudioAttachmentView({
         <View style={styles.waveformRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause audio' : 'Play audio'}
+            accessibilityLabel={isPlaying ? 'Audio pausieren' : 'Audio abspielen'}
             accessibilityState={{ disabled: isLoading }}
             style={[styles.playIconCircle, isLoading && styles.disabledButton]}
             onPress={onTogglePlayback}

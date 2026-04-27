@@ -250,7 +250,7 @@ export function MissionInteractionZone({
       onSuccess?.();
     } catch (err) {
       console.warn('In-feed GPS check-in failed:', err);
-      Alert.alert('Fehler', 'Check-In fehlgeschlagen.');
+      Alert.alert('Fehler', 'Einchecken fehlgeschlagen.');
     } finally {
       setIsSubmitting(false);
     }
@@ -263,7 +263,7 @@ export function MissionInteractionZone({
       <View style={styles.interactionArea}>
         {kind === 'quiz' && (
           <View style={styles.chatFlowInfo}>
-            <Text style={styles.chatFlowText}>Quiz läuft im Chat...</Text>
+            <Text style={styles.chatFlowText}>Quiz läuft im Chat…</Text>
           </View>
         )}
 
@@ -271,7 +271,7 @@ export function MissionInteractionZone({
           <View style={styles.textRow}>
             <TextInput
               style={styles.textInput}
-              placeholder="Deine Antwort..."
+              placeholder="Deine Antwort…"
               placeholderTextColor={theme.colors.cardTextMuted}
               value={textInput}
               onChangeText={setTextInput}

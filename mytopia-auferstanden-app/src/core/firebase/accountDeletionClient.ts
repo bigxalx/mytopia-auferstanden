@@ -2,11 +2,12 @@ import { getIdToken } from '@react-native-firebase/auth';
 
 import { env } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 export async function deleteCurrentUserAccount() {
   const firebaseUser = getCurrentFirebaseUser();
   if (!firebaseUser) {
-    throw new Error('No authenticated Firebase user available for account deletion.');
+    throw new Error('Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.');
   }
 
   const requestUrl = resolveDeleteAccountUrl();
@@ -31,7 +32,7 @@ function resolveDeleteAccountUrl() {
       : '';
 
   if (!baseUrl) {
-    throw new Error('Delete account endpoint is not configured.');
+    throw new Error('Die Kontolöschung ist in diesem Build nicht konfiguriert.');
   }
 
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -41,12 +42,8 @@ function resolveDeleteAccountUrl() {
 async function readDeleteError(response: Response) {
   try {
     const payload = (await response.json()) as { error?: unknown };
-    if (typeof payload.error === 'string' && payload.error.length > 0) {
-      return payload.error;
-    }
+    return getVisibleErrorMessage(payload, `Konto konnte nicht gelöscht werden (${response.status}).`);
   } catch {
-    return `Account deletion failed with ${response.status}.`;
+    return `Konto konnte nicht gelöscht werden (${response.status}).`;
   }
-
-  return `Account deletion failed with ${response.status}.`;
 }

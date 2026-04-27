@@ -474,7 +474,7 @@ export function ActorChannelScreen({ channelId }: { channelId: string }) {
           loadingState={
             <View style={styles.stateBox}>
               <ActivityIndicator color={theme.colors.orange} size="large" />
-              <Text style={styles.stateText}>Kanal wird geladen...</Text>
+              <Text style={styles.stateText}>Kanal wird geladen…</Text>
             </View>
           }
           newMessagesBottom={newMessagesBottom}

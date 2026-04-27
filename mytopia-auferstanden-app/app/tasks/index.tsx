@@ -15,6 +15,7 @@ import { getMissionLifecycleStatus } from '@/src/features/tasks/data/missionStat
 import { SectionCard } from '@/src/shared/ui/SectionCard';
 import { useSession } from '@/src/core/session/SessionContext';
 import { createNativeTabStackOptions } from '@/src/shared/navigation/nativeTabStackOptions';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 const KIND_EMOJI: Record<string, string> = {
   quiz: '🧠',
@@ -62,7 +63,7 @@ export default function TasksScreen() {
         }
       } catch (err) {
         if (active && !cached) {
-          setError(err instanceof Error ? err.message : 'Failed to load missions.');
+          setError(getVisibleErrorMessage(err, 'Missionen konnten nicht geladen werden.'));
         }
       } finally {
         if (active) setIsLoading(false);

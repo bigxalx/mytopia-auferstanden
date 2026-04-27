@@ -121,7 +121,7 @@ export function GpsProximityPrompt() {
       router.navigate(buildFeedChannelHref(targetChannelId));
     } catch (error) {
       console.warn('[GpsProximityPrompt] Failed to open GPS mission:', error);
-      Alert.alert('Fehler', 'Check-in konnte nicht geöffnet werden.');
+      Alert.alert('Fehler', 'Einchecken konnte nicht geöffnet werden.');
     } finally {
       setIsNavigating(false);
     }
@@ -168,7 +168,7 @@ export function GpsProximityPrompt() {
             <ActivityIndicator color={theme.colors.cardTextPrimary} size="small" />
           ) : (
             <>
-              <Text style={styles.ctaText}>Zum Check-in</Text>
+              <Text style={styles.ctaText}>Zum Einchecken</Text>
               <MaterialIcons color={theme.colors.cardTextPrimary} name="arrow-forward" size={18} />
             </>
           )}

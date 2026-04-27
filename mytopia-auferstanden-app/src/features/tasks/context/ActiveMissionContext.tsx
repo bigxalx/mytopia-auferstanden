@@ -32,6 +32,7 @@ import {
   resolveRetryLocalPhotoUri,
   uploadMissionPhoto,
 } from '@/src/features/tasks/data/photoMissionUpload';
+import { getVisibleErrorMessage } from '@/src/shared/utils/visibleErrorMessage';
 
 import { FEATURES } from '@/src/config/features';
 
@@ -1239,7 +1240,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         'error',
         buildSubmissionErrorPayload(
           basePayload,
-          'Kein lokales Foto fuer die Wiederholung verfuegbar.',
+          'Kein lokales Foto für die Wiederholung verfügbar.',
           'Fehler',
         ),
       );
@@ -1715,16 +1716,16 @@ function buildSubmissionErrorPayload(
 
 function describeMissionSubmissionError(error: unknown) {
   if (!(error instanceof Error)) {
-    return 'Uebertragung fehlgeschlagen.';
+    return 'Übertragung fehlgeschlagen.';
   }
 
   const rawMessage = error.message.trim();
   if (!rawMessage) {
-    return 'Uebertragung fehlgeschlagen.';
+    return 'Übertragung fehlgeschlagen.';
   }
 
   if (/timed out/i.test(rawMessage)) {
-    return 'Zeitueberschreitung beim Senden.';
+    return 'Zeitüberschreitung beim Senden.';
   }
 
   if (/network|internet|offline/i.test(rawMessage)) {
@@ -1735,10 +1736,10 @@ function describeMissionSubmissionError(error: unknown) {
   const candidate = failureMatch ? failureMatch[1].trim() : rawMessage;
   const parsedMessage = parseSubmissionErrorMessage(candidate);
   if (parsedMessage) {
-    return parsedMessage;
+    return getVisibleErrorMessage(parsedMessage, 'Übertragung fehlgeschlagen.');
   }
 
-  return ensureErrorSentence(rawMessage) ?? 'Uebertragung fehlgeschlagen.';
+  return getVisibleErrorMessage(rawMessage, 'Übertragung fehlgeschlagen.');
 }
 
 function extractMissionSubmissionErrorDetails(error: unknown) {
