@@ -6,14 +6,16 @@
   </a>
 </p>
 
-Mytopia Auferstanden is a Bun monorepo for a participatory mobile theatre
-experience. It combines an Expo/React Native app, Firebase Functions, a Sanity
-content studio, and a small Next.js web companion site.
+Mytopia Auferstanden is a Bun monorepo by [Armin Luschin](https://arminluschin.com)
+for a participatory mobile theatre experience. It combines an Expo/React Native
+app, Firebase Functions, a Sanity content studio, and a small Next.js web
+companion site.
 
 Project website: [mytopia.world](https://mytopia.world).
 
-The project is connected to [Theater Altenburg Gera](https://theater-altenburg-gera.de/)
-and Sophie Oldenstein, Chefdramaturgin.
+It was developed for the Mytopia theatre production `√Mytopia - Auferstanden aus Ruinen`,
+created by Sophie Oldenstein, Chefdramaturgin at
+[Theater Altenburg Gera](https://theater-altenburg-gera.de/).
 
 The project is published as a reference implementation. You need your own
 Firebase, Sanity, Expo/EAS, app store, and signing configuration before running
