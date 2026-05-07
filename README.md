@@ -1,8 +1,19 @@
 # Mytopia Auferstanden
 
+<p>
+  <a href="https://mytopia.world">
+    <img src="mytopia-auferstanden-app/assets/images/icon.png" alt="Mytopia Auferstanden app logo" width="96" />
+  </a>
+</p>
+
 Mytopia Auferstanden is a Bun monorepo for a participatory mobile theatre
 experience. It combines an Expo/React Native app, Firebase Functions, a Sanity
 content studio, and a small Next.js web companion site.
+
+Project website: [mytopia.world](https://mytopia.world).
+
+The project is connected to [Theater Altenburg Gera](https://theater-altenburg-gera.de/)
+and Sophie Oldenstein, Chefdramaturgin.
 
 The project is published as a reference implementation. You need your own
 Firebase, Sanity, Expo/EAS, app store, and signing configuration before running
