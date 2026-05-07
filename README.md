@@ -1,19 +1,16 @@
-# Mytopia Auferstanden
-
-<p>
-  <a href="https://mytopia.world">
+<a href="https://mytopia.world">
     <img src="mytopia-auferstanden-app/assets/images/icon.png" alt="Mytopia Auferstanden app logo" width="96" />
-  </a>
-</p>
+</a>
 
-Mytopia Auferstanden is a Bun monorepo by [Armin Luschin](https://arminluschin.com)
-for a participatory mobile theatre experience. It combines an Expo/React Native
-app, Firebase Functions, a Sanity content studio, and a small Next.js web
+# √My Messenger
+
+Mytopia Auferstanden is a Bun monorepo for a participatory mobile theatre experience. It combines an Expo/React Native
+app, Firebase Functions, a Sanity content studio, and a Next.js web
 companion site.
 
-Project website: [mytopia.world](https://mytopia.world).
+Find out more here: [mytopia.world](https://mytopia.world).
 
-It was developed for the Mytopia theatre production `√Mytopia - Auferstanden aus Ruinen`,
+It was designed and developed by [Armin Luschin](https://arminluschin.com) for the Mytopia theatre production `√Mytopia - Auferstanden aus Ruinen`,
 created by Sophie Oldenstein, Chefdramaturgin at
 [Theater Altenburg Gera](https://theater-altenburg-gera.de/).
 
