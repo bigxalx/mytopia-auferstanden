@@ -1,5 +1,5 @@
-app_identifier(ENV.fetch("FASTLANE_APP_IDENTIFIER", "de.theateraltenburggera.mytopia"))
-package_name(ENV.fetch("FASTLANE_ANDROID_PACKAGE", "de.theateraltenburggera.mytopia"))
+app_identifier(ENV["FASTLANE_APP_IDENTIFIER"] || ENV["IOS_BUNDLE_IDENTIFIER"] || "com.example.mytopia")
+package_name(ENV["FASTLANE_ANDROID_PACKAGE"] || ENV["ANDROID_PACKAGE"] || "com.example.mytopia")
 
 apple_id(ENV["FASTLANE_APPLE_ID"]) if ENV["FASTLANE_APPLE_ID"]
 team_id(ENV["FASTLANE_TEAM_ID"]) if ENV["FASTLANE_TEAM_ID"]

@@ -1,28 +1,26 @@
 {
   "expo": {
-    "name": "√My Messenger",
+    "name": "Mytopia App",
     "slug": "mytopia-auferstanden-app",
     "version": "1.0.19",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/bb713621-f181-417e-84f4-c11b855769c9",
       "requestHeaders": {
-        "expo-channel-name": "production"
+        "expo-channel-name": "development"
       }
     },
     "backgroundColor": "#ff7a1a",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mytopiaauferstandenapp",
+    "scheme": "mytopiaapp",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "buildNumber": "42",
-      "appleTeamId": "2YM33HYFWJ",
-      "bundleIdentifier": "de.theateraltenburggera.mytopia",
+      "bundleIdentifier": "com.example.mytopia",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -43,7 +41,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "de.theateraltenburggera.mytopia",
+      "package": "com.example.mytopia",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -129,9 +127,7 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "bb713621-f181-417e-84f4-c11b855769c9"
-      },
+      "eas": {},
       "otaVersion": ""
     }
   }

@@ -32,7 +32,6 @@ const {
   AuthorizationStatus: { AUTHORIZED: 1, PROVISIONAL: 2, DENIED: 0, NOT_DETERMINED: -1 }
 };
 
-const DEFAULT_NARRATIVE_TOPIC = 'narrative-global-v1';
 const NOTIFICATION_PERMISSION_REQUESTED_KEY = 'mytopia:notifications:requested:v1';
 
 let subscribedTopic: string | null = null;
@@ -46,7 +45,7 @@ export function resolveNarrativeTopic(mode: AppMode = 'production') {
       return configuredDev;
     }
 
-    return `${productionTopic}-dev`;
+    return productionTopic ? `${productionTopic}-dev` : '';
   }
 
   return productionTopic;
@@ -81,6 +80,10 @@ export function subscribeToFcmTokenRefresh(callback: (token: string) => void) {
 
 export async function ensureNarrativeTopicSubscription(mode: AppMode = 'production') {
   const topic = resolveNarrativeTopic(mode);
+  if (!topic) {
+    console.warn('[messaging] Narrative FCM topic is not configured. Topic subscription skipped.');
+    return false;
+  }
 
   if (inFlightSubscription) {
     await inFlightSubscription;
@@ -116,8 +119,7 @@ export async function ensureNarrativeTopicSubscription(mode: AppMode = 'producti
 }
 
 function resolveProductionTopic() {
-  const configured = env.narrativeTopic.trim();
-  return configured.length > 0 ? configured : DEFAULT_NARRATIVE_TOPIC;
+  return env.narrativeTopic.trim();
 }
 
 async function switchTopic(topic: string) {

@@ -1,93 +1,42 @@
-# Architecture Decisions (Draft)
+# Architecture Decisions
 
-This file captures working decisions and unresolved choices.
+## Monorepo
 
-## Confirmed Decisions
-
-1. New app listing in stores.
-2. Greenfield app implementation.
-3. Old code is reference material, not migration baseline.
-4. Returning users should be recognized and welcomed in the new app.
-5. User-generated submissions can be used publicly during show context, with explicit user permission via email and retention until end of 2026.
-6. Phase 2 live integration is a commitment unless PoC clearly fails.
-7. Returning users can reuse old login credentials and will receive a dedicated welcome-back screen.
-8. Welcome-back continuity should include both legacy points summary and legacy rank snapshot.
-9. Migration communication from old app to new app should be multi-wave (teaser, beta invite, launch push).
-10. Moderation ownership is Anton plus a theatre moderation team.
-11. Ranking should be season-specific, with season control managed through CMS configuration.
-12. Phase 1 MVP scope is locked as Lean MVP (auth continuity, feed/push baseline, quiz/GPS loops, scoring, private ranking/profile).
-13. Firebase continuity strategy is locked as same project + clean new namespace + legacy summary import.
-
-## Tentative Decisions
-
-1. Keep carry-over from old app lightweight, as summarized legacy status rather than full detail migration.
-
-## Proposed Technical Direction
+- Bun workspaces manage the mobile app, Firebase Functions, Sanity Studio, and
+  Next.js website.
+- The root `dev` script uses Turbo to run interactive packages together.
 
 ## Mobile App
 
-- React Native + Expo (current baseline stack).
-- Clean navigation and feature modules (auth, feed, tasks, profile, rankings).
-- Feature flags for risky/non-critical modules (badges/streaks/wordcloud).
+- Expo Router provides file-based navigation.
+- Native Firebase modules are used for Auth, Firestore, Storage, Messaging, and
+  Crashlytics, so the app expects a development build rather than Expo Go.
+- Runtime configuration is centralized in `src/config/env.ts` and fed by
+  `EXPO_PUBLIC_*` values plus Expo config `extra` fallbacks.
+- Production app identity and OTA values are resolved in `app.config.ts` from
+  ignored local env files.
 
 ## Backend
 
-- Firebase Auth reused for account continuity.
-- Firestore for user state, scoring, submissions, moderation states.
-- Cloud Functions for ranking calculation, carry-over import logic, and moderation actions.
-- Firebase Storage for photo evidence uploads.
-- Current default is same Firebase project with a clean new data namespace, pending final decision.
+- Firebase Auth is the user identity provider.
+- Firestore stores user state, channel threads, narrative release state,
+  submissions, rewards, and moderation data.
+- Firebase Functions expose authenticated APIs for feed access, mission data,
+  submissions, moderation support, scheduled releases, and account deletion.
+- Cloud Tasks schedules timed narrative releases.
+- FCM topics deliver narrative push notifications.
 
-## Content System
+## Content
 
-Decision pending between Contentful and Sanity.
+- Sanity stores narrative actors, narrative bundles, missions, checkpoints,
+  settings, and achievements.
+- The mobile app reads content through authenticated Firebase Functions rather
+  than directly from Sanity.
 
-Recommendation under current timeline pressure:
+## Release Safety
 
-- Use the platform that gives Anton the fastest reliable content operations with the least integration overhead.
-- If undecided by deadline, default to Contentful for Phase 1 and revisit post-launch.
-
-## Admin Moderation
-
-Build a dedicated lightweight web interface (not the current static `mytopia-web` pages).
-
-MVP requirements:
-
-- queue of pending submissions,
-- filters (task/date/user/state),
-- detail view (text/photo),
-- approve/reject,
-- manual point assignment,
-- audit log.
-
-Moderators:
-
-- Anton,
-- theatre moderation team accounts with scoped access.
-
-## Data Migration and Continuity
-
-Recommended continuity model:
-
-1. New app login recognizes returning Firebase user.
-2. Legacy data import runs once on first login or on-demand function.
-3. New app stores:
-   - `legacySummary.totalPoints`
-   - `legacySummary.rankSnapshot`
-   - `legacySummary.citizenship`
-   - `legacySummary.properties`
-   - `legacySummary.importedAt`
-4. Welcome message can reference this summary and optionally grant one-time bonus.
-
-This keeps new data model clean while preserving continuity.
-
-Ranking rule:
-
-- legacy summary is display/context only,
-- active season ranking is computed only from new season activity.
-
-## Open Source Considerations
-
-- Secret hygiene and key rotation required before any public push.
-- License must be confirmed with theatre/legal stakeholders.
-- If non-commercial license blocks adoption goals, consider permissive or copyleft alternative.
+- Production identifiers are not committed.
+- Local production OTA updates must pass `mytopia-auferstanden-app` release
+  preflight before publishing.
+- Native release lanes read app identity and signing configuration from env at
+  lane runtime.

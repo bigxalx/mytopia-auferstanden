@@ -2,6 +2,7 @@
   "name": "mytopia-content-studio",
   "private": true,
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "sanity dev",
     "dev:dev": "SANITY_STUDIO_DATASET=development sanity dev",

@@ -3,9 +3,9 @@ require "json"
 require "pathname"
 require "shellwords"
 
-APP_IDENTIFIER = "de.theateraltenburggera.mytopia"
-IOS_SCHEME = "mytopiaauferstandenapp"
-IOS_WORKSPACE = "ios/mytopiaauferstandenapp.xcworkspace"
+DEFAULT_APP_IDENTIFIER = "com.example.mytopia"
+DEFAULT_ANDROID_PACKAGE = "com.example.mytopia"
+DEFAULT_IOS_SCHEME = "mytopiaapp"
 IOS_ARCHIVE_PATH = "build/ios/mytopia-auferstanden.xcarchive"
 IOS_IPA_NAME = "mytopia-auferstanden.ipa"
 ANDROID_AAB_PATH = "android/app/build/outputs/bundle/release/app-release.aab"
@@ -42,6 +42,35 @@ def write_app_json(contents)
   File.write(app_json_path, JSON.pretty_generate(contents) + "\n")
 end
 
+def non_empty(value)
+  normalized = value.to_s.strip
+  normalized.empty? ? nil : normalized
+end
+
+def app_identifier
+  env_value = (ENV["FASTLANE_APP_IDENTIFIER"] || ENV["IOS_BUNDLE_IDENTIFIER"]).to_s.strip
+  return env_value unless env_value.empty?
+
+  non_empty(load_app_json.fetch("expo", {}).dig("ios", "bundleIdentifier")) || DEFAULT_APP_IDENTIFIER
+end
+
+def android_package
+  env_value = (ENV["FASTLANE_ANDROID_PACKAGE"] || ENV["ANDROID_PACKAGE"]).to_s.strip
+  return env_value unless env_value.empty?
+
+  non_empty(load_app_json.fetch("expo", {}).dig("android", "package")) || DEFAULT_ANDROID_PACKAGE
+end
+
+def ios_scheme
+  env_value = (ENV["IOS_SCHEME"] || ENV["EXPO_IOS_SCHEME"] || ENV["EXPO_APP_SCHEME"]).to_s.strip
+  env_value.empty? ? DEFAULT_IOS_SCHEME : env_value
+end
+
+def ios_workspace
+  env_value = ENV["IOS_WORKSPACE"].to_s.strip
+  env_value.empty? ? "ios/#{ios_scheme}.xcworkspace" : env_value
+end
+
 def fetch_default_path(relative_path)
   absolute_path = absolute_from_project(relative_path)
   File.exist?(absolute_path) ? absolute_path : nil
@@ -58,16 +87,13 @@ def require_file_path!(label:, env_key:, default_path: nil)
   path
 end
 
-def load_env_local!
-  env_file = absolute_from_project(".env.local")
+def load_env_file!(env_file, override: false)
   return unless File.exist?(env_file)
 
-  # Check if dotenv is available (Fastlane includes it)
   begin
     require "dotenv"
-    Dotenv.load(env_file)
+    override ? Dotenv.overload(env_file) : Dotenv.load(env_file)
   rescue LoadError
-    # Fallback if dotenv gem isn't available
     File.readlines(env_file).each do |line|
       line = line.strip
       next if line.empty? || line.start_with?("#")
@@ -76,9 +102,14 @@ def load_env_local!
       next unless key && value
       
       value = value.strip.gsub(/\A['"]|['"]\Z/, '')
-      ENV[key.strip] ||= value
+      ENV[key.strip] = value if override || ENV[key.strip].to_s.empty?
     end
   end
+end
+
+def load_release_env!
+  load_env_file!(absolute_from_project(".env"), override: false)
+  load_env_file!(absolute_from_project(".env.local"), override: true)
 end
 
 def ensure_bun!
@@ -98,8 +129,8 @@ def ensure_node_binary!
 end
 
 def ensure_ios_team_id!
-  team_id = load_app_json.fetch("expo", {}).dig("ios", "appleTeamId").to_s.strip
-  UI.user_error!("expo.ios.appleTeamId must be set in app.json for reproducible iOS prebuilds.") if team_id.empty?
+  team_id = (ENV["IOS_APPLE_TEAM_ID"] || load_app_json.fetch("expo", {}).dig("ios", "appleTeamId")).to_s.strip
+  UI.user_error!("IOS_APPLE_TEAM_ID must be set in .env.local for reproducible iOS prebuilds.") if team_id.empty?
 
   team_id
 end
@@ -132,6 +163,10 @@ def run_prebuild!(platform)
     # as Expo expects `pod install` to run in a fresh ruby context
     sh("cd #{shellescape(project_root)}/ios && env -u BUNDLE_BIN_PATH -u BUNDLE_GEMFILE -u RUBYOPT pod install --repo-update")
   end
+end
+
+def verify_release_config!(platform)
+  sh("cd #{shellescape(project_root)} && bun ./scripts/verify-release-config.mjs production --native --platform #{platform}")
 end
 
 def increment_ios_build_number!
@@ -283,7 +318,7 @@ end
 before_all do
   ENV["LANG"] ||= "en_US.UTF-8"
   ENV["LC_ALL"] ||= "en_US.UTF-8"
-  load_env_local!
+  load_release_env!
 end
 
 desc "Build and upload the iOS beta to TestFlight"
@@ -297,6 +332,7 @@ lane :ios_beta do
   team_id = ensure_ios_team_id!
   apple_id = require_apple_id!
   build_number = increment_ios_build_number!
+  verify_release_config!("ios")
 
   run_prebuild!(:ios)
 
@@ -314,14 +350,14 @@ lane :ios_beta do
 
   unless prov_profile.empty?
     export_options[:provisioningProfiles] = {
-      APP_IDENTIFIER => prov_profile
+      app_identifier => prov_profile
     }
     export_options[:signingStyle] = "manual"
   end
 
   gym(
-    workspace: absolute_from_project(IOS_WORKSPACE),
-    scheme: IOS_SCHEME,
+    workspace: absolute_from_project(ios_workspace),
+    scheme: ios_scheme,
     configuration: "Release",
     clean: true,
     archive_path: archive_path,
@@ -351,6 +387,7 @@ lane :android_beta do
   signing = android_signing!
   play_json = play_json_key_path
   version_code = increment_android_version_code!
+  verify_release_config!("android")
 
   run_prebuild!(:android)
 
@@ -379,7 +416,7 @@ lane :android_beta do
   if play_json
     supply(
       aab: destination_path,
-      package_name: APP_IDENTIFIER,
+      package_name: android_package,
       track: "internal",
       json_key: play_json,
       skip_upload_metadata: true,

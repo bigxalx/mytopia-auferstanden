@@ -3,3 +3,34 @@ tmp/*
 tmp_resized/
 node_modules/
 .DS_Store
+
+# local environment and credentials
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+secrets/
+**/secrets/
+credentials/
+**/credentials/
+credentials.json
+**/credentials.json
+google-services.json
+GoogleService-Info.plist
+*.mobileprovision
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.key
+*.cer
+
+# generated logs and scratch media
+*.log
+lint_output.txt
+*.bak
+temp_*
+test_video.*

@@ -39,7 +39,7 @@ export function env(): EnvConfig {
     cloudTasksQueue: requiredEnv('CLOUD_TASKS_QUEUE'),
     fcmTopicNarrative: requiredEnv('FCM_TOPIC_NARRATIVE'),
     ...(fcmTopicNarrativeDev ? { fcmTopicNarrativeDev } : {}),
-    projectId: requiredEnv('GCLOUD_PROJECT', 'GCP_PROJECT'),
+    projectId: requiredEnv('FIREBASE_PROJECT_ID', 'GCLOUD_PROJECT', 'GCP_PROJECT'),
     releaseFunctionUrl: requiredEnv('RELEASE_FUNCTION_URL'),
     sanityApiToken: requiredEnv('SANITY_API_TOKEN'),
     sanityDataset: requiredEnv('SANITY_DATASET'),

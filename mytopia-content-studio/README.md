@@ -1,42 +1,34 @@
 # Mytopia Content Studio
 
-Sanity Studio package for narrative feed authoring.
+Sanity Studio for editing narrative actors, narrative bundles, missions,
+checkpoints, site settings, and custom achievements.
 
-Release/debug runbook:
-- `../docs/narrative-feed-ops.md`
+## Setup
 
-## Content Model
+```bash
+cp .env.example .env
+bun install
+```
 
-1. `narrativeActor`
-   - `name`, `avatar`, `role`
-2. `narrativeBundle`
-   - Seite 1 (Story): `script`, `scriptActor`, `releaseAt`
-   - Seite 2 (Push): `pushTitle`, `pushBody`, optional `messages` override
-3. `narrativeMessage` object
-   - `messageId`, `actor`, `text`, `attachment`
-4. Attachment polymorphic object (max 1 per message)
-   - `imageAttachment`
-   - `audioAttachment`
-   - `videoAttachment`
-   - `missionAttachment`
-
-## Environment
-
-Copy `.env.example` to `.env` and set:
-
-- `SANITY_STUDIO_PROJECT_ID`
-- `SANITY_STUDIO_DATASET`
+Set your Sanity project ID, dataset, and optional Google Maps API key in `.env`.
 
 ## Run
 
 ```bash
-bun install
 bun run dev
 ```
 
-## Editorial Shortcut (Simple Mode)
+Run against a development dataset:
 
-- Write in `Nachrichten-Skript`.
-- One blank line = one new message bubble in the app.
-- `Standard-Absender` is used for all script messages.
-- Use `Nachrichten-Override` only when you need structured messages (for example attachments).
+```bash
+bun run dev:dev
+```
+
+## Build And Deploy
+
+```bash
+bun run build
+bun run deploy
+```
+
+Deployment uses your Sanity CLI authentication and the project values from env.

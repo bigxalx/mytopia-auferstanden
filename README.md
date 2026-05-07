@@ -1,65 +1,120 @@
 # Mytopia Auferstanden
 
-Greenfield React Native app for a theatre production sequel in the Mytopia universe.
+Mytopia Auferstanden is a Bun monorepo for a participatory mobile theatre
+experience. It combines an Expo/React Native app, Firebase Functions, a Sanity
+content studio, and a small Next.js web companion site.
 
-Current focus is pre-production planning and implementation setup.
+The project is published as a reference implementation. You need your own
+Firebase, Sanity, Expo/EAS, app store, and signing configuration before running
+production deployments.
 
-## Quick Links
+## Packages
 
-- [Action Brief](docs/README.md)
-- [Linear Team Board (Source of Truth)](https://linear.app/mytopia)
-- [Task Board Snapshot (Legacy)](docs/tasks.md)
-- [Project Brief](docs/project-brief.md)
-- [Project Context (DE): Erweiterung Projekt √My](docs/project-context-sqrtmy-de.md)
-- [Roadmap](docs/roadmap.md)
-- [Architecture Decisions](docs/architecture-decisions.md)
-- [Open Questions](docs/open-questions.md)
-- [Decision Guides](docs/decision-guides.md)
-- [Narrative Feed Ops Runbook](docs/narrative-feed-ops.md)
-- [Mobile Distribution Playbook](docs/mobile-distribution-playbook.md)
+| Path | Purpose |
+| --- | --- |
+| `mytopia-auferstanden-app` | Expo Router mobile app for narrative feeds, missions, map interactions, profile state, push notifications, and OTA updates. |
+| `mytopia-functions` | Firebase Functions API for authenticated feed access, mission submission, moderation support, account deletion, and scheduled narrative releases. |
+| `mytopia-content-studio` | Sanity Studio schema and editor UI for narrative bundles, actors, missions, checkpoints, and achievements. |
+| `mytopia-website` | Next.js support/marketing/moderation/account-deletion site. |
 
-## Project Scope
+## Requirements
 
-- New app listing (old app remains separate).
-- Selective backend continuity (returning login + legacy summary).
-- Phase 1 city-space interactions before festival launch.
-- Phase 2 live integration before premiere.
+- Bun 1.3+
+- Node.js 22 for Firebase Functions
+- Expo development build tooling for the mobile app
+- Firebase project with Authentication, Firestore, Storage, Cloud Functions,
+  FCM, and Cloud Tasks as needed
+- Sanity project for content authoring
+- Optional native release tooling: Ruby/Bundler, Fastlane, Xcode, Android Studio
 
-## Timeline Highlights
+Use Bun for all package work in this repository. Do not use npm, yarn, pnpm, or
+npx.
 
-- February 13, 2026: CMS decision deadline.
-- March 15, 2026: testing start.
-- April 30, 2026: latest store submission date.
-- May 20, 2026: launch target.
-- September 18, 2026: premiere.
+## Setup
 
-## Calendar Imports
+Install dependencies from the repository root:
 
-- [critical-milestones.ics](calendar/critical-milestones.ics)
-- [team-deadlines.ics](calendar/team-deadlines.ics)
-- [calendar notes](calendar/README.md)
+```bash
+bun install
+```
 
-## Repository Notes
+Create local environment files from the examples:
 
-This README is kept suitable for open-source repository usage.
+```bash
+cp mytopia-auferstanden-app/.env.example mytopia-auferstanden-app/.env.local
+cp mytopia-functions/.env.example mytopia-functions/.env
+cp mytopia-content-studio/.env.example mytopia-content-studio/.env
+cp mytopia-website/.env.example mytopia-website/.env.local
+```
 
-Internal execution context is maintained in:
+Fill those files with values from your own infrastructure. The committed
+examples contain only placeholders. Local `.env` files, Firebase native config,
+service account files, app store keys, keystores, and provisioning profiles are
+ignored by git.
 
-- Linear (`https://linear.app/mytopia`, Team `MYT`) for active task tracking
-- [docs/README.md](docs/README.md)
-- [docs/tasks.md](docs/tasks.md) as a non-canonical snapshot
+## Development
 
-## Workspace Packages
+Run the app and studio together:
 
-This repository is a Bun workspace monorepo:
+```bash
+bun run dev
+```
 
-1. `mytopia-auferstanden-app` (Expo React Native app)
-2. `mytopia-content-studio` (Sanity Studio for narrative content)
-3. `mytopia-functions` (Firebase Functions: Sanity webhook, release handler, feed proxy)
+Run packages individually:
 
-Root scripts:
+```bash
+bun run dev:app
+bun run dev:studio
+bun run --cwd mytopia-functions build
+bun run --cwd mytopia-website dev
+```
 
-- `bun run dev` (Turbo: starts app + studio together)
-- `bun run dev:app`
-- `bun run dev:studio`
-- `bun run deploy:functions`
+The Expo app uses a development client because it depends on native Firebase
+modules. After native dependency or native config changes, rebuild the dev
+client with Expo prebuild/run commands from `mytopia-auferstanden-app`.
+
+## Configuration Model
+
+Public runtime values use `EXPO_PUBLIC_*` and `NEXT_PUBLIC_*` names. They are
+bundled into the app or website, so they are not secrets, but production values
+should still live in ignored local env files instead of committed source.
+
+Private release values include Expo project IDs, EAS update URLs, bundle IDs,
+Apple team IDs, signing credentials, service account files, and app store keys.
+Keep those in ignored local files or secret managers.
+
+Before publishing a production OTA update from the mobile package, run:
+
+```bash
+bun run --cwd mytopia-auferstanden-app release:preflight
+```
+
+If the preflight passes, publish a JS-only update locally:
+
+```bash
+bun run update:js:production -- "Describe the update"
+```
+
+The repository intentionally does not ship an active GitHub Actions production
+deployment workflow. Production releases are local by default.
+
+## Verification
+
+Run the full check set before publishing changes:
+
+```bash
+bun run --cwd mytopia-auferstanden-app lint
+bun run --cwd mytopia-auferstanden-app tsc --noEmit
+bun run --cwd mytopia-functions build
+bun run --cwd mytopia-website build
+bun run build
+```
+
+## License
+
+Source code is licensed under the Apache License, Version 2.0. See
+[`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+The license does not grant trademark rights or rights to project names, logos,
+story material, theatre branding, production material, or other non-code assets
+unless a file explicitly says otherwise.

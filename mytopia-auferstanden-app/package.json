@@ -2,6 +2,7 @@
   "name": "mytopia-auferstanden-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "expo start --dev-client",
     "start": "expo start --dev-client",
@@ -15,6 +16,7 @@
     "release:android-beta": "./scripts/run-bundle.sh exec fastlane android_beta",
     "release": "./scripts/run-bundle.sh exec fastlane beta_all",
     "release:lanes": "./scripts/run-bundle.sh exec fastlane lanes",
+    "release:preflight": "./scripts/run-eas-update.sh production --preflight-only",
     "update:js:production": "./scripts/run-eas-update.sh production",
     "update:js:dev": "./scripts/run-eas-update.sh dev",
     "ios:repro": "sh -c 'mkdir -p .logs && LOG=.logs/ios-run-$(date +%Y%m%d-%H%M%S).log && echo Capturing iOS build log to $LOG && EXPO_DEBUG=1 expo run:ios 2>&1 | tee \"$LOG\"'",

@@ -2,6 +2,7 @@
   "name": "mytopia-functions",
   "private": true,
   "version": "1.0.0",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "lib/index.js",
   "engines": {
@@ -9,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "deploy": "firebase deploy --config firebase.json --only functions --project mytopia-6c440",
+    "deploy": "bun ./scripts/deploy.mjs",
     "repair-channel-threads": "bun ./scripts/repair-channel-threads.mjs",
     "set-claim": "bun ./scripts/set-claim.mjs",
     "webhook:probe": "bun --env-file=.env ./scripts/probe-webhook-signature.mjs"
