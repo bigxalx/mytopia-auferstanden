@@ -112,6 +112,8 @@ bun run build
 
 ## License
 
+Copyright 2026 [Armin Luschin](https://arminluschin.com).
+
 Source code is licensed under the Apache License, Version 2.0. See
 [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
