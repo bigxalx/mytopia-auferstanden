@@ -3,3 +3,6 @@ lib/
 .env
 .env.*
 !.env.example
+firebase-debug.log
+firebase-debug.*.log
+firepit-log.txt

@@ -10,7 +10,7 @@ cp .env.example .env
 bun install
 ```
 
-Set `FIREBASE_PROJECT_ID` and the Sanity, Cloud Tasks, FCM, and service account
+Set `MYTOPIA_FIREBASE_PROJECT_ID` and the Sanity, Cloud Tasks, FCM, and service account
 values in `.env`. Use credentials from your own Firebase and Sanity projects.
 
 ## Endpoints
@@ -39,8 +39,17 @@ bun run set-claim -- <email> <claim>
 bun run repair-channel-threads -- --uid <uid> --mode production
 ```
 
-Deploy reads `FIREBASE_PROJECT_ID`, `GCLOUD_PROJECT`, or `GCP_PROJECT`. No
+Deploy reads `MYTOPIA_FIREBASE_PROJECT_ID`, `GCLOUD_PROJECT`, or `GCP_PROJECT`. No
 production project ID is hardcoded in the public source.
+`bun run deploy` loads `.env` and `.env.local` automatically, then deploys the
+full Firebase config in `firebase.json`: functions, Firestore rules/indexes,
+and Storage rules.
+Firebase deploy flags are passed through, for example:
+
+```bash
+bun run deploy -- --only functions
+bun run deploy -- --only firestore:rules,firestore:indexes,storage
+```
 
 ## Verification
 

@@ -17,7 +17,7 @@ import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
+const PROJECT_ID = process.env.MYTOPIA_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT;
 const CHANNEL_THREADS_PATH = 'v2/app/channelThreads';
 const CHANNEL_MESSAGES_SUBCOLLECTION = 'messages';
 const LEGACY_TRANSIENT_TEXTS = new Set([
@@ -34,7 +34,7 @@ const email = readFlagValue('--email') ?? null;
 const uidArg = readFlagValue('--uid') ?? null;
 
 if (!PROJECT_ID) {
-  console.error('Set FIREBASE_PROJECT_ID, GCLOUD_PROJECT, or GCP_PROJECT before running this script.');
+  console.error('Set MYTOPIA_FIREBASE_PROJECT_ID, GCLOUD_PROJECT, or GCP_PROJECT before running this script.');
   process.exit(1);
 }
 
