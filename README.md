@@ -105,6 +105,10 @@ If the preflight passes, publish a JS-only update locally:
 bun run update:js:production -- "Describe the update"
 ```
 
+The OTA publish script increments the mobile app's `expo.extra.otaVersion` in
+`app.json` before uploading the update, so the value shown in app settings can
+confirm which JS update is running.
+
 The repository intentionally does not ship an active GitHub Actions production
 deployment workflow. Production releases are local by default.
 

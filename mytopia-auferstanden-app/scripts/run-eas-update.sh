@@ -43,6 +43,8 @@ if [[ "${PREFLIGHT_ONLY}" -eq 1 ]]; then
   exit 0
 fi
 
+bun ./scripts/increment-ota-version.mjs
+
 echo "Publishing iOS update..."
 CI=1 bunx eas-cli update \
   --channel "${CHANNEL}" \

@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onRequest, Request } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { firestore, messaging, oidcClient, storage, tasksClient } from './firebase.js';
+import { syncActorMetadataToChannelThreads } from './channelThreads.js';
 
 import {
     ACTOR_PROFILE_PROJECTION,
@@ -30,7 +31,7 @@ import {
     toTimestamp
 } from './utils.js';
 
-import { applySanityImageTransforms, sanityQuery, verifySanitySignature } from './sanity.js';
+import { applySanityImageTransforms, applySanityImageTransformToUrl, sanityQuery, verifySanitySignature } from './sanity.js';
 import { handleDeleteAccount, verifyFirebaseUser } from './auth.js';
 import { emptyReactionCounts, isNarrativeReactionId } from './reactions.js';
 import {
@@ -112,6 +113,46 @@ export async function handleSanityWebhook(req: Request, res: FirebaseResponse) {
       mode,
       sanityWebhookId: readHeader(req, 'x-sanity-webhook-id'),
     });
+
+    if (docType === 'narrativeActor') {
+      const actor = await getActorById(docId, mode);
+      const actorSignalId = buildActorSignalId(docId);
+
+      if (!actor) {
+        await touchNarrativeState({
+          bundleId: actorSignalId,
+          eventType: 'content_update',
+          mode,
+        });
+        logger.info('sanityWebhook actor_deleted_or_unpublished', { actorId: docId, mode });
+        res.status(200).json({ ok: true, action: 'actor_deleted_or_unpublished', actorId: docId, mode });
+        return;
+      }
+
+      const actorId = normalizeBundleId(actor._id || docId);
+      const syncResult = await syncActorMetadataToChannelThreads({
+        ...(actor.avatarUrl ? { actorAvatarUrl: applySanityImageTransformToUrl(actor.avatarUrl) } : {}),
+        actorId,
+        actorName: actor.name,
+        ...(actor.nameColor ? { actorNameColor: actor.nameColor } : {}),
+        ...(actor.role ? { actorRole: actor.role } : {}),
+        mode,
+      });
+
+      await touchNarrativeState({
+        bundleId: buildActorSignalId(actorId),
+        eventType: 'content_update',
+        mode,
+      });
+      logger.info('sanityWebhook actor_metadata_synced', {
+        actorId,
+        mode,
+        messageCount: syncResult.messageCount,
+        threadCount: syncResult.threadCount,
+      });
+      res.status(200).json({ ok: true, action: 'actor_metadata_synced', actorId, mode, ...syncResult });
+      return;
+    }
 
     const bundle = await getBundleById(docId, mode);
 
@@ -541,6 +582,11 @@ export async function getBundleById(bundleId: string, mode: NarrativeMode): Prom
     return sanityQuery<BundleDto | null>(query, { bundleId }, mode);
 }
 
+export async function getActorById(actorId: string, mode: NarrativeMode): Promise<NarrativeActorProfileDto | null> {
+    const query = `*[_type == "narrativeActor" && _id == $actorId && !(_id in path("drafts.**"))][0]{${ACTOR_PROFILE_PROJECTION}}`;
+    return sanityQuery<NarrativeActorProfileDto | null>(query, { actorId }, mode);
+}
+
 export async function getReleasedFeedBundles({
       cursor,
       limit,
@@ -637,6 +683,10 @@ export function extractBundleId(payload: SanityWebhookPayload | null | undefined
 
 export function normalizeBundleId(bundleId: string) {
     return bundleId.startsWith('drafts.') ? bundleId.slice('drafts.'.length) : bundleId;
+}
+
+function buildActorSignalId(actorId: string) {
+    return `actor_${actorId.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 }
 
 export async function upsertReleaseTask(bundle: BundleDto, mode: NarrativeMode) {

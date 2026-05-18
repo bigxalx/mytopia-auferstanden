@@ -2,6 +2,8 @@ import { encodeSignatureHeader, SIGNATURE_HEADER_NAME } from '@sanity/webhook';
 
 const secret = process.env.SANITY_WEBHOOK_SECRET;
 const releaseUrl = process.env.RELEASE_FUNCTION_URL;
+const args = process.argv.slice(2);
+const webhookType = readFlagValue('--type') ?? 'narrativeActor';
 
 if (!secret || secret.trim().length === 0) {
   console.error('[webhook-probe] Missing SANITY_WEBHOOK_SECRET.');
@@ -14,11 +16,12 @@ if (!releaseUrl || releaseUrl.trim().length === 0) {
 }
 
 const webhookUrl = releaseUrl
-  .replace(/\/internal\/release-bundle\/?$/, '/sanity/webhook/bundle-upsert')
+  .replace(/\/internal\/release-bundle\/?$/, '/sanity/webhook')
   .trim();
 
 const payload = JSON.stringify({
   _id: 'webhook-signature-probe',
+  _type: webhookType,
 });
 
 const signature = await encodeSignatureHeader(payload, Date.now(), secret);
@@ -51,3 +54,12 @@ if (response.status === 401) {
 
 console.error('[webhook-probe] Unexpected status. Endpoint reachable, but check function logs.');
 process.exit(1);
+
+function readFlagValue(flag) {
+  const index = args.indexOf(flag);
+  if (index === -1) {
+    return null;
+  }
+
+  return args[index + 1] ?? null;
+}

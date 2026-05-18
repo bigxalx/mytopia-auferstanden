@@ -19,7 +19,7 @@ import {
   setHubThreadSnapshot,
 } from '@/src/features/thread/data/hubThreadSnapshotStore';
 
-const FEED_CACHE_VERSION = 1;
+const FEED_CACHE_VERSION = 2;
 const FEED_CACHE_LIMIT = 80;
 
 type FeedCachePayload = {
@@ -250,9 +250,7 @@ export function useHubThread() {
 function mergeOlderBundles(current: NarrativeBundleDto[], incoming: NarrativeBundleDto[]) {
   const map = new Map(current.map((bundle) => [bundle._id, bundle]));
   for (const bundle of incoming) {
-    if (!map.has(bundle._id)) {
-      map.set(bundle._id, bundle);
-    }
+    map.set(bundle._id, bundle);
   }
   return Array.from(map.values()).sort((a, b) => Date.parse(a.releaseAt) - Date.parse(b.releaseAt));
 }

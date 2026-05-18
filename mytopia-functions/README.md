@@ -15,9 +15,10 @@ values in `.env`. Use credentials from your own Firebase and Sanity projects.
 
 ## Endpoints
 
-- `POST /sanity/webhook/bundle-upsert`
+- `POST /sanity/webhook`
   - Verifies Sanity webhook signatures
   - Schedules or replaces Cloud Tasks for timed narrative releases
+  - Propagates narrative actor profile changes into existing actor channels
 - `POST /internal/release-bundle`
   - Cloud Tasks-only release endpoint
   - Publishes released narrative state and sends one FCM topic push
@@ -30,6 +31,19 @@ values in `.env`. Use credentials from your own Firebase and Sanity projects.
   - Requires a Firebase ID token
   - Deletes the current user and related app data
 
+## Sanity Webhook
+
+Configure the Sanity webhook to send create, update, and delete events for all
+document types that affect released app content:
+
+```groq
+_type in ["narrativeBundle", "mission", "narrativeActor"]
+```
+
+`narrativeActor` must be included so sender name, avatar, role, and name color
+changes are propagated into existing Firestore actor channel documents.
+The webhook payload must include at least `_id` and `_type`.
+
 ## Scripts
 
 ```bash
@@ -37,6 +51,7 @@ bun run build
 bun run deploy
 bun run set-claim -- <email> <claim>
 bun run repair-channel-threads -- --uid <uid> --mode production
+bun run webhook:probe -- --type narrativeActor
 ```
 
 Deploy reads `MYTOPIA_FIREBASE_PROJECT_ID`, `GCLOUD_PROJECT`, or `GCP_PROJECT`. No

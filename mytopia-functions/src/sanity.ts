@@ -74,24 +74,24 @@ export async function sanityQuery<T>(query: string, params: Record<string, unkno
  * Resizes images to max 800px width, 75% quality, auto-format.
  * Only touches `cdn.sanity.io` URLs; leaves others unchanged.
  */
-export function applySanityImageTransforms(msg: MessageDto): MessageDto {
-  const transform = (url: string | undefined): string | undefined => {
-    if (!url || !url.includes('cdn.sanity.io')) return url;
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}w=800&q=75&auto=format`;
-  };
+export function applySanityImageTransformToUrl(url: string | undefined): string | undefined {
+  if (!url || !url.includes('cdn.sanity.io')) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}w=800&q=75&auto=format`;
+}
 
+export function applySanityImageTransforms(msg: MessageDto): MessageDto {
   const actor = {
     ...msg.actor,
-    avatarUrl: transform(msg.actor.avatarUrl),
+    avatarUrl: applySanityImageTransformToUrl(msg.actor.avatarUrl),
   };
 
   let attachment = msg.attachment;
   if (attachment) {
     if (attachment._type === 'imageAttachment') {
-      attachment = { ...attachment, url: transform(attachment.url)! };
+      attachment = { ...attachment, url: applySanityImageTransformToUrl(attachment.url)! };
     } else if (attachment._type === 'missionAttachment' && attachment.imageUrl) {
-      attachment = { ...attachment, imageUrl: transform(attachment.imageUrl)! };
+      attachment = { ...attachment, imageUrl: applySanityImageTransformToUrl(attachment.imageUrl)! };
     }
   }
 

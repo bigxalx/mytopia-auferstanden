@@ -1,15 +1,18 @@
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type DocumentReference, type WriteBatch } from 'firebase-admin/firestore';
 
 import { firestore } from './firebase.js';
 import { V2_CHANNEL_THREADS_COLLECTION_PATH } from './constants.js';
 import { AttachmentDto, MessageDto, NarrativeMode } from './types.js';
 
 const CHANNEL_MESSAGES_SUBCOLLECTION = 'messages';
+const MAX_BATCH_WRITES = 450;
 
 type ChannelActorMeta = {
   actorAvatarUrl?: string;
   actorId?: string;
   actorName?: string;
+  actorNameColor?: string;
+  actorRole?: string;
 };
 
 type UpsertChannelMessageParams = {
@@ -95,6 +98,86 @@ export async function ensureActorChannelThread({
   return threadDocId;
 }
 
+export async function syncActorMetadataToChannelThreads({
+  actorAvatarUrl,
+  actorId,
+  actorName,
+  actorNameColor,
+  actorRole,
+  mode,
+}: {
+  actorAvatarUrl?: string;
+  actorId: string;
+  actorName: string;
+  actorNameColor?: string;
+  actorRole?: string;
+  mode: NarrativeMode;
+}) {
+  const threadSnapshots = await firestore.collection(V2_CHANNEL_THREADS_COLLECTION_PATH)
+    .where('mode', '==', mode)
+    .where('channelType', '==', 'actor')
+    .where('actorId', '==', actorId)
+    .get();
+
+  const actorPatch = buildStoredActorPatch({
+    actorAvatarUrl,
+    actorId,
+    actorName,
+    actorNameColor,
+    actorRole,
+  });
+  const summaryPatch = buildThreadActorSummaryPatch({
+    actorAvatarUrl,
+    actorId,
+    actorName,
+    actorRole,
+  });
+
+  let batch: WriteBatch = firestore.batch();
+  let pendingWrites = 0;
+  let messageCount = 0;
+
+  const flush = async () => {
+    if (pendingWrites === 0) {
+      return;
+    }
+
+    await batch.commit();
+    batch = firestore.batch();
+    pendingWrites = 0;
+  };
+
+  const queueUpdate = async (ref: DocumentReference, patch: Record<string, unknown>) => {
+    batch.update(ref, patch);
+    pendingWrites += 1;
+
+    if (pendingWrites >= MAX_BATCH_WRITES) {
+      await flush();
+    }
+  };
+
+  for (const threadDoc of threadSnapshots.docs) {
+    await queueUpdate(threadDoc.ref, summaryPatch);
+
+    const messageSnapshots = await threadDoc.ref
+      .collection(CHANNEL_MESSAGES_SUBCOLLECTION)
+      .where('message.actor.actorId', '==', actorId)
+      .get();
+
+    for (const messageDoc of messageSnapshots.docs) {
+      await queueUpdate(messageDoc.ref, actorPatch);
+      messageCount += 1;
+    }
+  }
+
+  await flush();
+
+  return {
+    messageCount,
+    threadCount: threadSnapshots.size,
+  };
+}
+
 export async function upsertChannelMessage(params: UpsertChannelMessageParams) {
   const threadDocId = buildChannelThreadDocId({
     channelId: params.channelId,
@@ -152,7 +235,50 @@ function buildActor(params: ChannelActorMeta): MessageDto['actor'] {
   return {
     ...(params.actorAvatarUrl ? { avatarUrl: params.actorAvatarUrl } : {}),
     ...(params.actorId ? { actorId: params.actorId } : {}),
+    ...(params.actorNameColor ? { nameColor: params.actorNameColor } : {}),
+    ...(params.actorRole ? { role: params.actorRole } : {}),
     name: params.actorName ?? 'System',
+  };
+}
+
+function buildStoredActorPatch({
+  actorAvatarUrl,
+  actorId,
+  actorName,
+  actorNameColor,
+  actorRole,
+}: {
+  actorAvatarUrl?: string;
+  actorId: string;
+  actorName: string;
+  actorNameColor?: string;
+  actorRole?: string;
+}) {
+  return {
+    'message.actor.actorId': actorId,
+    'message.actor.avatarUrl': actorAvatarUrl ?? FieldValue.delete(),
+    'message.actor.name': actorName,
+    'message.actor.nameColor': actorNameColor ?? FieldValue.delete(),
+    'message.actor.role': actorRole ?? FieldValue.delete(),
+  };
+}
+
+function buildThreadActorSummaryPatch({
+  actorAvatarUrl,
+  actorId,
+  actorName,
+  actorRole,
+}: {
+  actorAvatarUrl?: string;
+  actorId: string;
+  actorName: string;
+  actorRole?: string;
+}) {
+  return {
+    actorId,
+    avatarUrl: actorAvatarUrl ?? FieldValue.delete(),
+    role: actorRole ?? FieldValue.delete(),
+    title: actorName,
   };
 }
 

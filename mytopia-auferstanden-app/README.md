@@ -75,6 +75,9 @@ bun run update:js:dev -- "Describe the dev update"
 
 The update script loads `.env` first and `.env.local` second, so local
 production values override public placeholders.
+Publishing an OTA update automatically increments `expo.extra.otaVersion` in
+`app.json` before the iOS and Android updates are uploaded. Native release lanes
+reset that value, so the counter is scoped to the current `expo.version`.
 
 ## Native Releases
 
