@@ -28,7 +28,7 @@ export function ActorProfileScreen() {
   const { selectedMode } = useSession();
   const navigation = useNavigation<any>();
   const router = useRouter();
-  const { ensureActorMissionChannel } = useChannels();
+  const { ensureActorMissionChannel, actorChannels } = useChannels();
   const initialActor = useMemo<NarrativeActorProfileDto | null>(
     () =>
       actorId || actorName
@@ -108,6 +108,11 @@ export function ActorProfileScreen() {
   const roleLabel = actor?.role?.trim() ? actor.role : null;
   const bioLabel = actor?.bio?.trim() ? actor.bio : null;
   const canOpenChannel = Boolean(actorId && (actor?.name ?? actorName));
+  const hasChannel = useMemo(() => {
+    return actorChannels.some(
+      (c) => c.channelType === 'actor' && (c.actorId === actorId || c.channelId === actorId)
+    );
+  }, [actorChannels, actorId]);
 
   const handleOpenChannel = useCallback(async () => {
     const resolvedName = actor?.name ?? actorName;
@@ -165,7 +170,7 @@ export function ActorProfileScreen() {
         </SurfaceCard>
       ) : null}
 
-      {canOpenChannel ? (
+      {canOpenChannel && hasChannel ? (
         <AppButton
           fullWidth
           label="Kanal"

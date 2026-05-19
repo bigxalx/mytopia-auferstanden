@@ -19,8 +19,14 @@ export function ActorProfileActionsScreen() {
   const actorAvatarUrl = readActorRouteParam(params.actorAvatarUrl);
   const actorRole = readActorRouteParam(params.actorRole);
   const router = useRouter();
-  const { ensureActorMissionChannel } = useChannels();
+  const { ensureActorMissionChannel, actorChannels } = useChannels();
   const [isOpeningChannel, setIsOpeningChannel] = useState(false);
+
+  const hasChannel = useMemo(() => {
+    return actorChannels.some(
+      (c) => c.channelType === 'actor' && (c.actorId === actorId || c.channelId === actorId)
+    );
+  }, [actorChannels, actorId]);
 
   const actor = useMemo(
     () => ({
@@ -83,6 +89,7 @@ export function ActorProfileActionsScreen() {
           channelLoading={isOpeningChannel}
           onChannelPress={actorId ? handleOpenChannel : undefined}
           onInfoPress={actorId ? handleOpenInfo : undefined}
+          showChannelButton={hasChannel}
         />
       </View>
     </View>

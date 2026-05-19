@@ -128,7 +128,7 @@
     "extra": {
       "router": {},
       "eas": {},
-      "otaVersion": "2"
+      "otaVersion": "3"
     }
   }
 }
