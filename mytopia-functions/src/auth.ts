@@ -1,12 +1,16 @@
 import { DecodedIdToken } from 'firebase-admin/auth';
-import { DocumentData, Query } from 'firebase-admin/firestore';
+import { DocumentData, Query, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { Request } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { auth, firestore, storage } from './firebase.js';
 
 import {
     LEGACY_USERS_COLLECTION_PATH,
-    V2_LEADERBOARD_COLLECTION_PATH, V2_SCORE_EVENTS_COLLECTION_PATH, V2_SUBMISSIONS_COLLECTION_PATH,
+    V2_CHANNEL_THREADS_COLLECTION_PATH,
+    V2_LEADERBOARD_COLLECTION_PATH,
+    V2_NARRATIVE_USER_REACTIONS_COLLECTION_PATH,
+    V2_SCORE_EVENTS_COLLECTION_PATH,
+    V2_SUBMISSIONS_COLLECTION_PATH,
     V2_USERS_COLLECTION_PATH
 } from './constants.js';
 import {
@@ -53,11 +57,23 @@ export async function deleteAccountData(uid: string) {
     const userDocumentPaths = [`${V2_USERS_COLLECTION_PATH}/${uid}`, `${LEGACY_USERS_COLLECTION_PATH}/${uid}`];
     await Promise.all([
     ...userDocumentPaths.map((path) => firestore.doc(path).delete().catch(() => undefined)),
+    deleteChannelThreadsByOwnerUid(uid),
+    deleteDocumentsByQuery(firestore.collection(V2_NARRATIVE_USER_REACTIONS_COLLECTION_PATH).where('ownerUid', '==', uid)),
     deleteDocumentsByQuery(firestore.collection(V2_SUBMISSIONS_COLLECTION_PATH).where('ownerUid', '==', uid)),
     deleteDocumentsByQuery(firestore.collection(V2_SCORE_EVENTS_COLLECTION_PATH).where('uid', '==', uid)),
     deleteDocumentsByQuery(firestore.collection(V2_LEADERBOARD_COLLECTION_PATH).where('uid', '==', uid)),
     storage.bucket().deleteFiles({ prefix: `submissions/${uid}/` }).catch(() => undefined),
     ]);
+}
+
+async function deleteChannelThreadsByOwnerUid(uid: string) {
+    const snapshot = await firestore.collection(V2_CHANNEL_THREADS_COLLECTION_PATH).where('ownerUid', '==', uid).get();
+    await Promise.all(snapshot.docs.map((doc) => deleteChannelThreadDoc(doc)));
+}
+
+async function deleteChannelThreadDoc(doc: QueryDocumentSnapshot<DocumentData>) {
+    await deleteDocumentsByQuery(doc.ref.collection('messages'));
+    await doc.ref.delete().catch(() => undefined);
 }
 
 export async function deleteDocumentsByQuery(query: Query<DocumentData>) {

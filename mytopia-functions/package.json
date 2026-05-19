@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "cleanup-launch-artifacts": "bun --env-file=.env ./scripts/cleanup-launch-artifacts.mjs",
     "deploy": "bun ./scripts/deploy.mjs",
     "repair-channel-threads": "bun ./scripts/repair-channel-threads.mjs",
     "set-claim": "bun ./scripts/set-claim.mjs",
