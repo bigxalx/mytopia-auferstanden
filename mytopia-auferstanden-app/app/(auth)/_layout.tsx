@@ -1,11 +1,21 @@
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { ActivityIndicator, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useEffect, useRef, useState } from 'react';
+import { Stack, useRouter, useSegments } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { hasCompletedFirstRunOnboarding, markFirstRunOnboardingComplete } from '@/src/core/onboarding/firstRunOnboarding';
-import { FirstRunOnboardingProvider } from '@/src/features/auth/firstRunOnboardingContext';
-import { theme } from '@/src/shared/ui/theme';
+import {
+  hasCompletedFirstRunOnboarding,
+  markFirstRunOnboardingComplete,
+} from "@/src/core/onboarding/firstRunOnboarding";
+import { FirstRunOnboardingProvider } from "@/src/features/auth/firstRunOnboardingContext";
+import { theme } from "@/src/shared/ui/theme";
 
 export default function AuthLayout() {
   const insets = useSafeAreaInsets();
@@ -16,8 +26,8 @@ export default function AuthLayout() {
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
   const hasStartedOnboardingPresentation = useRef(false);
 
-  const isOnboardingRoute = String(segments[1]) === 'onboarding';
-  const isAndroidTabletWidth = Platform.OS === 'android' && width >= 600;
+  const isOnboardingRoute = String(segments[1]) === "onboarding";
+  const isAndroidTabletWidth = Platform.OS === "android" && width >= 600;
 
   useEffect(() => {
     let isMounted = true;
@@ -61,7 +71,7 @@ export default function AuthLayout() {
     }
 
     hasStartedOnboardingPresentation.current = true;
-    router.push('../onboarding');
+    router.push("../onboarding");
   }, [hasPendingOnboarding, isCheckingOnboarding, isOnboardingRoute, router]);
 
   const handleOnboardingComplete = async () => {
@@ -69,7 +79,8 @@ export default function AuthLayout() {
     setHasPendingOnboarding(false);
   };
 
-  const isBlockingInteraction = isCheckingOnboarding || (hasPendingOnboarding && !isOnboardingRoute);
+  const isBlockingInteraction =
+    isCheckingOnboarding || (hasPendingOnboarding && !isOnboardingRoute);
 
   return (
     <FirstRunOnboardingProvider
@@ -89,17 +100,27 @@ export default function AuthLayout() {
             },
           ]}
         >
-          <View style={[styles.content, isAndroidTabletWidth ? styles.contentTablet : null]}>
+          <View
+            style={[
+              styles.content,
+              isAndroidTabletWidth ? styles.contentTablet : null,
+            ]}
+          >
             <View style={styles.logoContainer}>
-              <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={2} style={styles.logoTitle}>
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                numberOfLines={2}
+                style={styles.logoTitle}
+              >
                 √My Messenger
               </Text>
-              <Text style={styles.logoSubtitle}>Auferstanden aus Rache</Text>
+              <Text style={styles.logoSubtitle}>Auferstanden aus Ruinen</Text>
             </View>
             <View style={styles.stackContainer}>
               <Stack
                 screenOptions={{
-                  contentStyle: { backgroundColor: 'transparent' },
+                  contentStyle: { backgroundColor: "transparent" },
                   headerShown: false,
                 }}
               >
@@ -108,9 +129,13 @@ export default function AuthLayout() {
                 <Stack.Screen
                   name="onboarding"
                   options={{
-                    animation: Platform.OS === 'android' ? 'slide_from_bottom' : 'default',
+                    animation:
+                      Platform.OS === "android"
+                        ? "slide_from_bottom"
+                        : "default",
                     gestureEnabled: false,
-                    presentation: Platform.OS === 'android' ? 'fullScreenModal' : 'modal',
+                    presentation:
+                      Platform.OS === "android" ? "fullScreenModal" : "modal",
                   }}
                 />
               </Stack>
@@ -134,10 +159,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    alignSelf: 'center',
+    alignSelf: "center",
     flex: 1,
     maxWidth: 420,
-    width: '100%',
+    width: "100%",
   },
   contentTablet: {
     maxWidth: 560,
@@ -148,29 +173,29 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: theme.colors.background,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
     paddingHorizontal: 24,
   },
   logoTitle: {
     color: theme.colors.textPrimary,
-    fontFamily: 'Nunito_700Bold',
+    fontFamily: "Nunito_700Bold",
     fontSize: 34,
     lineHeight: 38,
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   logoSubtitle: {
     color: theme.colors.textSecondary,
-    fontFamily: 'NunitoSans_400Regular',
+    fontFamily: "NunitoSans_400Regular",
     fontSize: 15,
     lineHeight: 22,
-    textAlign: 'center',
+    textAlign: "center",
   },
   stackContainer: {
     flex: 1,
