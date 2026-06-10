@@ -10,6 +10,7 @@ export const V2_COLLECTION = {
   tasks: 'v2/app/tasks',
   users: 'v2/app/users',
   fcmRegistrations: 'v2/app/fcmRegistrations',
+  liveSessions: 'v2/app/liveSessions',
 } as const;
 
 export type FirestoreTimestampString = string;
@@ -204,5 +205,56 @@ export type V2NarrativeUserReactionDoc = {
   messages: Record<string, { reaction: string }>;
   mode: ChannelMode;
   ownerUid: string;
+  updatedAt: FirestoreTimestampString;
+};
+
+export type LiveSessionStatus = 'draft' | 'active' | 'paused' | 'closed';
+export type LiveConnectionState = 'connected' | 'reconnecting' | 'offline';
+export type LiveJoinMethod = 'qr' | 'auto-gps-time' | 'manual-admin';
+export type LiveEventType = 'terror_alert';
+export type LiveEventStatus = 'active' | 'cleared';
+export type LiveEventSource = 'admin' | 'adaptor';
+
+export type V2LiveSessionDoc = {
+  currentEventId?: string | null;
+  endsAt?: FirestoreTimestampString;
+  mode: ChannelMode;
+  sessionId: string;
+  startsAt?: FirestoreTimestampString;
+  status: LiveSessionStatus;
+  title: string;
+  updatedAt?: FirestoreTimestampString;
+  venueLatitude?: number | null;
+  venueLongitude?: number | null;
+  venueName?: string | null;
+  venueRadiusMeters?: number | null;
+};
+
+export type V2LiveParticipantDoc = {
+  connectionState: LiveConnectionState;
+  deviceLabel?: string;
+  joinedAt: FirestoreTimestampString;
+  joinMethod: LiveJoinMethod;
+  lastSeenAt: FirestoreTimestampString;
+  uid: string;
+  updatedAt: FirestoreTimestampString;
+};
+
+export type V2LiveEventDoc = {
+  clearCueId?: string | null;
+  clearedAt?: FirestoreTimestampString;
+  clearedBy?: string;
+  createdAt: FirestoreTimestampString;
+  createdBy: string;
+  cueId?: string | null;
+  mode: ChannelMode;
+  payload?: {
+    message?: string;
+    severity?: string;
+    title?: string;
+  };
+  source: LiveEventSource;
+  status: LiveEventStatus;
+  type: LiveEventType;
   updatedAt: FirestoreTimestampString;
 };

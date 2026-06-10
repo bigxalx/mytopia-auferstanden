@@ -5,6 +5,7 @@ import { NarrativeSignalProvider } from '@/src/features/feed/data/NarrativeSigna
 import { ActiveMissionProvider } from '@/src/features/tasks/context/ActiveMissionContext';
 import { ChannelsProvider } from '@/src/features/channels/data/ChannelContext';
 import { ThreadNavigationProvider } from '@/src/features/thread/data/ThreadNavigationContext';
+import { LiveSessionProvider } from '@/src/features/live/data/LiveSessionContext';
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
@@ -13,8 +14,10 @@ export function AppProviders({ children }: PropsWithChildren) {
         <ChannelsProvider>
           <ThreadNavigationProvider>
             <ActiveMissionProvider>
-              <ExpoUpdatesController />
-              {children}
+              <LiveSessionProvider>
+                <ExpoUpdatesController />
+                {children}
+              </LiveSessionProvider>
             </ActiveMissionProvider>
           </ThreadNavigationProvider>
         </ChannelsProvider>

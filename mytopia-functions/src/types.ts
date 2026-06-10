@@ -150,6 +150,7 @@ export type SanityWebhookPayload = {
 export type EnvConfig = {
       cloudTasksLocation: string;
       cloudTasksQueue: string;
+      adaptorLiveTriggerToken?: string;
       fcmTopicNarrative: string;
       fcmTopicNarrativeDev?: string;
       projectId: string;

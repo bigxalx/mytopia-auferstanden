@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mytopia Phase 2 Live-Interaktion Mockups</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --app-bg: #252b30;
+      --header: #3f454a;
+      --text: #eef2ef;
+      --muted: #9ca3af;
+      --card: #f8fafc;
+      --paper: #f7f6f0;
+      --ink: #111827;
+      --soft-ink: #586161;
+      --orange: #f97316;
+      --orange-press: #fb923c;
+      --green: #16a34a;
+      --yellow: #d97706;
+      --red: #b42318;
+      --red-bg: #dc2626;
+      --blue: #3b82f6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eef2ef;
+      color: #111827;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin-bottom: 10px;
+      color: #252b30;
+      font-size: 34px;
+      line-height: 1.12;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      max-width: 780px;
+      margin-bottom: 0;
+      color: #3f454a;
+      font-size: 17px;
+    }
+
+    .pitch-box {
+      background: #ffffff;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .pitch-box h2 {
+      margin-bottom: 8px;
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .pitch-box p {
+      margin-bottom: 0;
+      color: #454a4a;
+      font-size: 14px;
+    }
+
+    .mockup-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(260px, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+
+    .panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .panel-title {
+      min-height: 70px;
+      background: #ffffff;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .panel-title h2 {
+      margin-bottom: 4px;
+      color: #252b30;
+      font-size: 16px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .panel-title p {
+      margin-bottom: 0;
+      color: #586161;
+      font-size: 13px;
+    }
+
+    .phone {
+      width: min(100%, 360px);
+      aspect-ratio: 9 / 19.2;
+      margin: 0 auto;
+      padding: 12px;
+      background: #111827;
+      border-radius: 32px;
+      box-shadow: 0 22px 42px rgba(17, 24, 39, 0.28);
+    }
+
+    .screen {
+      position: relative;
+      display: flex;
+      min-height: 100%;
+      overflow: hidden;
+      background: var(--app-bg);
+      border-radius: 24px;
+      color: var(--text);
+      flex-direction: column;
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 18px 7px;
+      color: rgba(238, 242, 239, 0.82);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .notch {
+      position: absolute;
+      top: 9px;
+      left: 50%;
+      width: 78px;
+      height: 20px;
+      transform: translateX(-50%);
+      background: #111827;
+      border-radius: 999px;
+      z-index: 3;
+    }
+
+    .app-header {
+      display: grid;
+      gap: 8px;
+      padding: 18px 18px 16px;
+      background: var(--header);
+      border-bottom: 1px solid #1f2937;
+      text-align: center;
+    }
+
+    .app-title {
+      color: var(--text);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .live-pill {
+      display: inline-flex;
+      width: fit-content;
+      margin: 0 auto;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      color: #f8fafc;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18);
+    }
+
+    .screen-content {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .quiet-copy {
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .resource {
+      display: grid;
+      min-height: 72px;
+      align-content: center;
+      justify-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .resource .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+
+    .blue {
+      background: var(--blue);
+    }
+
+    .green {
+      background: var(--green);
+    }
+
+    .orange {
+      background: var(--orange);
+    }
+
+    .mission-bar {
+      margin-top: auto;
+      padding: 12px 14px;
+      background: rgba(249, 116, 22, 0.86);
+      color: #111827;
+      text-align: center;
+    }
+
+    .mission-bar strong {
+      display: block;
+      font-size: 15px;
+      text-transform: uppercase;
+    }
+
+    .mission-bar span {
+      display: block;
+      color: #7c2d12;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .vote-card {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      background: var(--paper);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      color: var(--ink);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .vote-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--soft-ink);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .timer {
+      color: var(--orange);
+    }
+
+    .question {
+      margin: 0;
+      color: #454a4a;
+      font-size: 20px;
+      line-height: 1.22;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .options {
+      display: grid;
+      gap: 8px;
+    }
+
+    .option {
+      display: flex;
+      min-height: 46px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      background: #ffffff;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      color: #111827;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .option.selected {
+      background: #fff7ed;
+      border-color: rgba(249, 115, 22, 0.55);
+    }
+
+    .check {
+      display: inline-grid;
+      width: 22px;
+      height: 22px;
+      place-items: center;
+      background: var(--orange);
+      border-radius: 50%;
+      color: #111827;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .submit {
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--orange);
+      color: #111827;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .receipt {
+      padding: 9px 10px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      color: #166534;
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .alarm-screen {
+      background:
+        radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.18), transparent 32%),
+        var(--red-bg);
+    }
+
+    .alarm-screen .status-bar {
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .alarm-content {
+      display: grid;
+      flex: 1;
+      align-content: center;
+      gap: 18px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .alarm-mark {
+      display: grid;
+      width: 82px;
+      height: 82px;
+      margin: 0 auto;
+      place-items: center;
+      border: 4px solid rgba(255, 255, 255, 0.86);
+      border-radius: 50%;
+      color: #ffffff;
+      font-size: 48px;
+      font-weight: 900;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .alarm-title {
+      margin: 0;
+      color: #ffffff;
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .alarm-copy {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .alarm-live {
+      display: inline-flex;
+      width: fit-content;
+      margin: 0 auto;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      background: rgba(0, 0, 0, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 999px;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .cue-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .cue {
+      background: #ffffff;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .cue strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #252b30;
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+
+    .cue span {
+      color: #586161;
+      font-size: 13px;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.28);
+      }
+      50% {
+        transform: scale(1.04);
+        box-shadow: 0 0 0 14px rgba(255, 255, 255, 0);
+      }
+    }
+
+    @media (max-width: 920px) {
+      .top,
+      .mockup-grid,
+      .cue-list {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-title {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="top" aria-label="Einordnung">
+      <div>
+        <h1>Mytopia Phase 2: Live-Interaktion während der Vorstellung</h1>
+        <p class="lede">Pitch-Mockups für einen ruhigen Live-Modus: sichtbar verbunden, schnell abstimmen, und ein starker Alarm-Trigger von der Bühne zur App.</p>
+      </div>
+      <aside class="pitch-box">
+        <h2>Kernaussage</h2>
+        <p>Die App wird zum Show-Kanal. Der grüne Status schafft Vertrauen, Voting liefert Cues an die Bühne, Alarm macht die Rückrichtung sichtbar.</p>
+      </aside>
+    </section>
+
+    <section class="mockup-grid" aria-label="Mockups">
+      <article class="panel">
+        <div class="panel-title">
+          <h2>1. Live verbunden</h2>
+          <p>Der Saal sieht: Die App ist bereit und wartet auf Cues.</p>
+        </div>
+        <div class="phone" role="img" aria-label="Mytopia Live-Modus mit grünem Status">
+          <div class="screen">
+            <div class="notch"></div>
+            <div class="status-bar"><span>16:30</span><span>5G</span></div>
+            <header class="app-header">
+              <div class="app-title">Mytopia</div>
+              <div class="live-pill"><span class="dot"></span><span>Live verbunden</span></div>
+            </header>
+            <div class="screen-content">
+              <p class="quiet-copy">Die Versammlung beginnt. Warte auf das nächste Signal.</p>
+              <div class="resource-grid">
+                <div class="resource"><span class="swatch blue"></span><span>Wasser</span></div>
+                <div class="resource"><span class="swatch green"></span><span>Medizin</span></div>
+                <div class="resource"><span class="swatch orange"></span><span>Nahrung</span></div>
+              </div>
+              <div class="vote-card">
+                <div class="vote-meta"><span>Nächster Cue</span><span class="timer">Bereit</span></div>
+                <h2 class="question">Die Bühne startet deine nächste Entscheidung.</h2>
+              </div>
+            </div>
+            <div class="mission-bar">
+              <strong>Live-Modus aktiv</strong>
+              <span>Aktuelle Vorstellung</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title">
+          <h2>2. Voting</h2>
+          <p>App sammelt stabil, Ergebnis erscheint auf der Bühne.</p>
+        </div>
+        <div class="phone" role="img" aria-label="Mytopia Voting Mockup">
+          <div class="screen">
+            <div class="notch"></div>
+            <div class="status-bar"><span>16:42</span><span>5G</span></div>
+            <header class="app-header">
+              <div class="app-title">Abstimmung</div>
+              <div class="live-pill"><span class="dot"></span><span>Live verbunden</span></div>
+            </header>
+            <div class="screen-content">
+              <div class="vote-card">
+                <div class="vote-meta"><span>Haustiere in Mytopia</span><span class="timer">00:42</span></div>
+                <h2 class="question">Sollen Tiere Ressourcen erhalten?</h2>
+                <div class="options">
+                  <div class="option">Ja, sie gehören zur Gemeinschaft</div>
+                  <div class="option selected"><span>Nein, Ressourcen für Menschen</span><span class="check">✓</span></div>
+                  <div class="option">Nur, wenn sie nützlich sind</div>
+                </div>
+                <button class="submit">Stimme senden</button>
+                <div class="receipt">Stimme bereit für die Bühne</div>
+              </div>
+              <p class="quiet-copy">Nach dem Senden wartet die App ruhig auf den nächsten Cue.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title">
+          <h2>3. Alarm</h2>
+          <p>Die Bühne übernimmt die App und schaltet den Saal rot.</p>
+        </div>
+        <div class="phone" role="img" aria-label="Mytopia Alarm Mockup">
+          <div class="screen alarm-screen">
+            <div class="notch"></div>
+            <div class="status-bar"><span>17:18</span><span>LIVE</span></div>
+            <div class="alarm-content">
+              <div class="alarm-live"><span class="dot"></span><span>Trigger empfangen</span></div>
+              <div class="alarm-mark">!</div>
+              <h2 class="alarm-title">Terrorwarnung</h2>
+              <p class="alarm-copy">Angriff außerhalb der Kuppel bestätigt.</p>
+              <p class="alarm-copy">Bleib im Saal. Warte auf Anweisung der Bühne.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="cue-list" aria-label="Planung">
+      <div class="cue">
+        <strong>MVP</strong>
+        <span>Verbindung, eine Live-Abstimmung, ein Alarm-Trigger, Ergebnisdaten für adaptor:ex.</span>
+      </div>
+      <div class="cue">
+        <strong>Regie</strong>
+        <span>Cues klar benennen: Vote öffnen, Vote schließen, Alarm auslösen, Alarm löschen.</span>
+      </div>
+      <div class="cue">
+        <strong>Test</strong>
+        <span>WLAN/5G im Saal prüfen, Latenz messen, Fallback für Offline-Geräte festlegen.</span>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

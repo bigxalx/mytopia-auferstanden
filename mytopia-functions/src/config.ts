@@ -33,10 +33,12 @@ export function env(): EnvConfig {
 
   const fcmTopicNarrativeDev = optionalEnv('FCM_TOPIC_NARRATIVE_DEV');
   const sanityDatasetDev = optionalEnv('SANITY_DATASET_DEV');
+  const adaptorLiveTriggerToken = optionalEnv('ADAPTOR_LIVE_TRIGGER_TOKEN');
 
   cachedEnv = {
     cloudTasksLocation: requiredEnv('CLOUD_TASKS_LOCATION'),
     cloudTasksQueue: requiredEnv('CLOUD_TASKS_QUEUE'),
+    ...(adaptorLiveTriggerToken ? { adaptorLiveTriggerToken } : {}),
     fcmTopicNarrative: requiredEnv('FCM_TOPIC_NARRATIVE'),
     ...(fcmTopicNarrativeDev ? { fcmTopicNarrativeDev } : {}),
     projectId: requiredEnv('MYTOPIA_FIREBASE_PROJECT_ID', 'GCLOUD_PROJECT', 'GCP_PROJECT'),

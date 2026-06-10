@@ -3,6 +3,7 @@ import { onRequest, Request } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { firestore, messaging, oidcClient, storage, tasksClient } from './firebase.js';
 import { syncActorMetadataToChannelThreads } from './channelThreads.js';
+import { handleLiveRequest } from './live.js';
 
 import {
     ACTOR_PROFILE_PROJECTION,
@@ -58,6 +59,11 @@ export const narrativeApi = onRequest({ cors: true, region: 'europe-west1' }, as
 
       if (path === '/internal/release-bundle') {
         await handleReleaseNarrativeBundle(req, res);
+        return;
+      }
+
+      if (path === '/live' || path.startsWith('/live/')) {
+        await handleLiveRequest(req, res, path);
         return;
       }
 

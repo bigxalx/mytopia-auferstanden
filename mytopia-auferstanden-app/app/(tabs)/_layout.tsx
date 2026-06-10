@@ -6,9 +6,11 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useSession } from '@/src/core/session/SessionContext';
 import { theme } from '@/src/shared/ui/theme';
 import { NativeActiveMissionBar, FallbackActiveMissionBar } from '@/components/tasks/ActiveMissionBar';
+import { NativeLiveSessionBar, FallbackLiveSessionBar } from '@/components/live/LiveSessionBar';
 import { GpsProximityPrompt } from '@/components/tasks/GpsProximityPrompt';
 import { useActiveMission } from '@/src/features/tasks/context/ActiveMissionContext';
 import { useChannels } from '@/src/features/channels/data/ChannelContext';
+import { useLiveSession } from '@/src/features/live/data/LiveSessionContext';
 
 import { FEATURES } from '@/src/config/features';
 
@@ -20,7 +22,10 @@ function TabLayoutInner() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
   const { totalUnreadCount } = useChannels();
   const { focusedMissionId } = useActiveMission();
+  const { activeEvent, connectionStatus, isJoined, session } = useLiveSession();
   const supportsNativeBottomAccessory = FEATURES.ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
+  const shouldShowLiveBar = isJoined && Boolean(session) && connectionStatus !== 'offline' && !activeEvent;
+  const shouldShowMissionBar = FEATURES.SHOW_ACTIVE_MISSION_BAR && !shouldShowLiveBar && !focusedMissionId;
 
   if (!isHydrated) {
     return (
@@ -120,14 +125,15 @@ function TabLayoutInner() {
 
         <NativeTabs.Trigger name="index" hidden />
 
-        {FEATURES.SHOW_ACTIVE_MISSION_BAR && supportsNativeBottomAccessory && !focusedMissionId && (
+        {supportsNativeBottomAccessory && (shouldShowLiveBar || shouldShowMissionBar) && (
           <NativeTabs.BottomAccessory>
-            <NativeActiveMissionBar />
+            {shouldShowLiveBar ? <NativeLiveSessionBar /> : <NativeActiveMissionBar />}
           </NativeTabs.BottomAccessory>
         )}
       </NativeTabs>
 
-      {FEATURES.SHOW_ACTIVE_MISSION_BAR && !supportsNativeBottomAccessory && !focusedMissionId && <FallbackActiveMissionBar />}
+      {!supportsNativeBottomAccessory && shouldShowLiveBar ? <FallbackLiveSessionBar /> : null}
+      {!supportsNativeBottomAccessory && shouldShowMissionBar ? <FallbackActiveMissionBar /> : null}
       <GpsProximityPrompt />
     </View>
   );

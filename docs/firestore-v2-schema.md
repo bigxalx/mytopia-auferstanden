@@ -25,6 +25,7 @@ Collections (nested under top-level collection `v2`, app document `app`):
 System collection:
 
 1. `v2/app/narrativeState/{bundleId}`
+2. `v2/app/liveSessions/{sessionId}`
 
 ## Collection Contracts
 
@@ -78,6 +79,87 @@ System collection:
 - Clients read the latest updated doc (authenticated) and refetch feed when it changes.
 - Client writes are denied.
 
+`v2/app/liveSessions/{sessionId}`:
+
+- Backend-managed live show session for Phase 2 interactions.
+- The session gates live events so production users outside the current show do
+  not receive theatre triggers.
+- Current sessions use deterministic IDs:
+  - `production-current`
+  - `dev-current`
+- The moderator UI treats each mode as a singleton live session. Starting a
+  session upserts that deterministic document and closes older active sessions in
+  the same mode.
+- Canonical fields:
+  - `title`,
+  - `mode` (`production` or `dev`),
+  - `status` (`draft`, `active`, `paused`, `closed`),
+  - `startsAt`,
+  - `endsAt`,
+  - `venueName`,
+  - `venueLatitude`,
+  - `venueLongitude`,
+  - `venueRadiusMeters`,
+  - `joinTokenHash`,
+  - `currentEventId`,
+  - `createdAt`,
+  - `updatedAt`.
+- QR/session join is the authoritative gate. GPS plus time can auto-check-in a
+  user only when permission, time window, and venue radius match.
+- Start/end times are internal safety fields; moderators do not need to choose
+  them during show operation.
+- MVP venue defaults are Theater Altenburg Gera at `50.9871377`, `12.4374725`
+  with a 50m radius.
+- Client writes to session metadata are denied.
+
+`v2/app/liveSessions/{sessionId}/private/joinToken`:
+
+- Backend-only private token document used by the admin page to redisplay the
+  active QR code without storing the raw token in the public session document.
+- Canonical fields:
+  - `token`,
+  - `tokenHash`,
+  - `createdAt`,
+  - `updatedAt`.
+- Client reads and writes are denied.
+
+`v2/app/liveSessions/{sessionId}/participants/{uid}`:
+
+- Per-user session membership and connection state.
+- Canonical fields:
+  - `uid`,
+  - `joinedAt`,
+  - `joinMethod` (`qr`, `auto-gps-time`, `manual-admin`),
+  - `lastSeenAt`,
+  - `connectionState` (`connected`, `reconnecting`, `offline`),
+  - `deviceLabel`,
+  - `updatedAt`.
+- Participants are scoped to one session. Joining a session is required before a
+  user listens for or renders live events.
+- Implementation should prefer Function-backed writes for joins and heartbeats
+  so validation can check QR token, session status, and GPS/time constraints.
+
+`v2/app/liveSessions/{sessionId}/events/{eventId}`:
+
+- Backend-managed live event lifecycle for joined session participants.
+- Initial supported event type is `terror_alert`.
+- Canonical fields:
+  - `type` (`terror_alert`),
+  - `status` (`active`, `cleared`),
+  - `source` (`admin`, `adaptor`),
+  - `cueId`,
+  - `payload.title`,
+  - `payload.message`,
+  - `payload.severity`,
+  - `createdAt`,
+  - `createdBy`,
+  - `clearedAt`,
+  - `clearedBy`,
+  - `updatedAt`.
+- Joined app clients listen to the current session state and render a global
+  alarm takeover when the active event is `terror_alert`.
+- Client writes are denied; admin/adaptor writes go through Firebase Functions.
+
 ## Why Score Events Are Required
 
 `scoreEvents` are the authoritative scoring input and solve four problems:
@@ -107,7 +189,10 @@ Key policy:
 2. Submission writes require moderator/admin claims because user submission creation goes through Cloud Functions.
 3. `v2/app/scoreEvents` are immutable after creation.
 4. `v2/app/leaderboard` is client read-only.
-5. Non-`v2` access is denied by default in this rules baseline.
+5. Live sessions are read only for eligible signed-in users; live event writes
+   are server-only.
+6. Live session private token docs are denied to all clients.
+7. Non-`v2` access is denied by default in this rules baseline.
 
 ## Indexes
 

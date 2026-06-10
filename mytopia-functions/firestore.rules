@@ -25,6 +25,27 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.dev == true;
     }
 
+    function liveSessionDoc(sessionId) {
+      return get(/databases/$(database)/documents/v2/app/liveSessions/$(sessionId));
+    }
+
+    function canReadLiveSession(sessionId) {
+      return isModerator()
+        || (
+          isSignedIn()
+          && liveSessionDoc(sessionId).data.mode == 'production'
+        )
+        || (
+          hasDevClaim()
+          && liveSessionDoc(sessionId).data.mode == 'dev'
+        );
+    }
+
+    function isLiveSessionParticipant(sessionId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/v2/app/liveSessions/$(sessionId)/participants/$(request.auth.uid));
+    }
+
     function canReadNarrativeReactionDoc(docId) {
       return isSignedIn()
         && (
@@ -385,6 +406,25 @@ service cloud.firestore {
     match /v2/app/narrativeUserReactions/{docId} {
       allow read: if isModerator() || isNarrativeUserReactionOwnerDoc(docId);
       allow write: if false;
+    }
+
+    match /v2/app/liveSessions/{sessionId} {
+      allow read: if canReadLiveSession(sessionId);
+      allow write: if false;
+
+      match /participants/{uid} {
+        allow read: if isModerator() || isOwner(uid);
+        allow write: if false;
+      }
+
+      match /events/{eventId} {
+        allow read: if isModerator() || (canReadLiveSession(sessionId) && isLiveSessionParticipant(sessionId));
+        allow write: if false;
+      }
+
+      match /private/{docId} {
+        allow read, write: if false;
+      }
     }
 
     match /v2/app/fcmRegistrations/{uid} {
