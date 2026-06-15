@@ -62,7 +62,10 @@ export function SubmissionAttachmentView({
   const visibleErrorMessage = effectiveStatus === 'error'
     ? getVisibleErrorMessage(payload, 'Die Einreichung konnte nicht gesendet werden. Bitte versuche es erneut.')
     : null;
-  const canRetry = kind === 'photo' && Boolean(missionId) && Boolean(resolveRetryLocalPhotoUri(payload));
+  const canRetry = Boolean(missionId) && (
+    (kind === 'photo' && Boolean(resolveRetryLocalPhotoUri(payload))) ||
+    (kind === 'text' && Boolean(resolveRetryText(payload)))
+  );
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -312,6 +315,17 @@ function resolveErrorDetails(payload: unknown) {
   }
 
   return resolveErrorMessage(payload);
+}
+
+function resolveRetryText(payload: unknown) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const text = (payload as { text?: unknown }).text;
+  return typeof text === 'string' && text.trim().length > 0
+    ? text.trim()
+    : null;
 }
 
 const styles = StyleSheet.create({

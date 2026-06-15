@@ -1,4 +1,3 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import React from 'react';
@@ -6,12 +5,16 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
+import { AltArrowRightLinear } from '@/components/ui/SolarTabIcons';
 import { useLiveSession } from '@/src/features/live/data/LiveSessionContext';
 import { theme } from '@/src/shared/ui/theme';
 
 function useShouldShowLiveBar() {
-  const { activeEvent, connectionStatus, isJoined, session } = useLiveSession();
-  return isJoined && Boolean(session) && connectionStatus !== 'offline' && !activeEvent;
+  const { activeEvent, availableSession, connectionStatus, isJoined, session } = useLiveSession();
+  return !activeEvent && (
+    (isJoined && Boolean(session) && connectionStatus !== 'offline')
+    || Boolean(availableSession)
+  );
 }
 
 function LiveSessionBarContent({
@@ -22,12 +25,13 @@ function LiveSessionBarContent({
   transparent?: boolean;
 }) {
   const router = useRouter();
-  const { connectionStatus } = useLiveSession();
+  const { availableSession, connectionStatus, isGpsBypassEnabled, isJoined } = useLiveSession();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
   const isConnected = connectionStatus === 'connected';
+  const isJoinPrompt = !isJoined && Boolean(availableSession);
 
   return (
     <Pressable
@@ -55,13 +59,21 @@ function LiveSessionBarContent({
           <View style={[styles.statusDot, isConnected ? styles.statusConnected : styles.statusConnecting]} />
           <View style={styles.textBlock}>
             <Text numberOfLines={1} style={styles.title}>
-              {isConnected ? 'Live verbunden' : 'Verbinde...'}
+              {isJoinPrompt ? 'Jetzt Live' : isConnected ? 'Live verbunden' : 'Live wird verbunden'}
             </Text>
             <Text numberOfLines={1} style={styles.subtitle}>
-              {isConnected ? 'Warte auf das nächste Signal' : 'Live-Verbindung wird hergestellt'}
+              {isJoinPrompt
+                ? isGpsBypassEnabled
+                  ? 'Testmodus: GPS-Prüfung aus'
+                  : 'Vor Ort beitreten oder jetzt nicht'
+                : isConnected
+                  ? 'Warteraum ist geöffnet'
+                  : 'Live-Verbindung wird hergestellt'}
             </Text>
           </View>
-          <MaterialIcons color="rgba(255, 255, 255, 0.7)" name="chevron-right" size={22} />
+          <View style={styles.arrowSlot}>
+            <AltArrowRightLinear color="rgba(255, 255, 255, 0.72)" size={19} />
+          </View>
         </Animated.View>
       )}
     </Pressable>
@@ -97,15 +109,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
-    justifyContent: 'center',
-    minHeight: 58,
-    paddingHorizontal: 16,
+    justifyContent: 'flex-start',
+    minHeight: 56,
+    paddingHorizontal: 18,
     paddingVertical: 10,
   },
+  arrowSlot: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
   fallbackContainer: {
-    backgroundColor: 'rgba(15, 23, 42, 0.94)',
-    borderColor: 'rgba(34, 197, 94, 0.38)',
-    borderRadius: 22,
+    backgroundColor: 'rgba(37, 43, 48, 0.96)',
+    borderColor: 'rgba(177, 194, 210, 0.32)',
+    borderRadius: 16,
     borderWidth: 1,
     elevation: 10,
     shadowColor: '#000',
@@ -115,7 +134,7 @@ const styles = StyleSheet.create({
   },
   inlineContainer: {
     minHeight: 44,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 7,
   },
   manualFallbackWrapper: {
@@ -125,8 +144,8 @@ const styles = StyleSheet.create({
     zIndex: 99,
   },
   nativeContainer: {
-    backgroundColor: 'rgba(15, 23, 42, 0.74)',
-    borderTopColor: 'rgba(34, 197, 94, 0.28)',
+    backgroundColor: 'rgba(37, 43, 48, 0.82)',
+    borderTopColor: 'rgba(177, 194, 210, 0.2)',
     borderTopWidth: 1,
   },
   pressed: {
@@ -142,11 +161,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f59e0b',
   },
   statusDot: {
-    borderColor: 'rgba(255, 255, 255, 0.72)',
     borderRadius: 999,
-    borderWidth: 2,
-    height: 14,
-    width: 14,
+    height: 9,
+    width: 9,
   },
   subtitle: {
     color: 'rgba(255, 255, 255, 0.66)',
@@ -156,6 +173,7 @@ const styles = StyleSheet.create({
   },
   textBlock: {
     flex: 1,
+    minWidth: 0,
   },
   title: {
     color: '#fff',

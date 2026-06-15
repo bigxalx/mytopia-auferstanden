@@ -87,13 +87,16 @@ System collection:
 - Current sessions use deterministic IDs:
   - `production-current`
   - `dev-current`
-- The moderator UI treats each mode as a singleton live session. Starting a
-  session upserts that deterministic document and closes older active sessions in
-  the same mode.
+- The moderator UI treats each mode as a singleton live session. Normal show
+  operation is driven by `liveShowWindows`; the backend lazily upserts this
+  deterministic session during an active window. Manual start/end exists only in
+  Advanced debug controls.
 - Canonical fields:
   - `title`,
   - `mode` (`production` or `dev`),
   - `status` (`draft`, `active`, `paused`, `closed`),
+  - `sessionSource` (`schedule` or `manual`),
+  - `showWindowId`,
   - `startsAt`,
   - `endsAt`,
   - `venueName`,
@@ -106,21 +109,47 @@ System collection:
   - `updatedAt`.
 - QR/session join is the authoritative gate. GPS plus time can auto-check-in a
   user only when permission, time window, and venue radius match.
-- Start/end times are internal safety fields; moderators do not need to choose
-  them during show operation.
+- `startsAt`/`endsAt` are copied from the active show window for scheduled
+  sessions, or set to a short debug duration for manual Advanced sessions.
 - MVP venue defaults are Theater Altenburg Gera at `50.9871377`, `12.4374725`
   with a 50m radius.
 - Client writes to session metadata are denied.
 
+`v2/app/liveShowWindows/{windowId}`:
+
+- Backend-managed showtime windows that define when the reusable QR can join the
+  live session.
+- Created and edited through the hidden website moderation dashboard.
+- Canonical fields:
+  - `title`,
+  - `mode` (`production` or `dev`),
+  - `status` (`scheduled` or `cancelled`),
+  - `startsAt`,
+  - `endsAt`,
+  - `venueName`,
+  - `venueLatitude`,
+  - `venueLongitude`,
+  - `venueRadiusMeters`,
+  - `createdAt`,
+  - `createdBy`,
+  - `updatedAt`,
+  - `updatedBy`,
+  - `cancelledAt`,
+  - `cancelledBy`.
+- A scheduled window is active when server time is between `startsAt` and
+  `endsAt`. Active windows take priority over leftover manual debug sessions.
+- Client writes are denied.
+
 `v2/app/liveSessions/{sessionId}/private/joinToken`:
 
 - Backend-only private token document used by the admin page to redisplay the
-  active QR code without storing the raw token in the public session document.
+  reusable QR code without storing the raw token in the public session document.
 - Canonical fields:
   - `token`,
   - `tokenHash`,
   - `createdAt`,
   - `updatedAt`.
+- The token is stable by default and is not rotated when sessions/windows open.
 - Client reads and writes are denied.
 
 `v2/app/liveSessions/{sessionId}/participants/{uid}`:
@@ -131,13 +160,15 @@ System collection:
   - `joinedAt`,
   - `joinMethod` (`qr`, `auto-gps-time`, `manual-admin`),
   - `lastSeenAt`,
+  - `leftAt`,
   - `connectionState` (`connected`, `reconnecting`, `offline`),
   - `deviceLabel`,
   - `updatedAt`.
 - Participants are scoped to one session. Joining a session is required before a
   user listens for or renders live events.
-- Implementation should prefer Function-backed writes for joins and heartbeats
-  so validation can check QR token, session status, and GPS/time constraints.
+- Implementation should prefer Function-backed writes for joins, explicit leaves,
+  and session/window cleanup so validation can check QR token, session status,
+  and GPS/time constraints.
 
 `v2/app/liveSessions/{sessionId}/events/{eventId}`:
 

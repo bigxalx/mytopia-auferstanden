@@ -1,6 +1,7 @@
 export const LEGACY_USERS_COLLECTION_PATH = 'users';
 export const V2_CHANNEL_THREADS_COLLECTION_PATH = 'v2/app/channelThreads';
 export const V2_LIVE_SESSIONS_COLLECTION_PATH = 'v2/app/liveSessions';
+export const V2_LIVE_SHOW_WINDOWS_COLLECTION_PATH = 'v2/app/liveShowWindows';
 export const NARRATIVE_STATE_COLLECTION_PATH = 'v2/app/narrativeState';
 export const NARRATIVE_STATE_COLLECTION_PATH_DEV = 'v2/app/narrativeStateDev';
 export const V2_NARRATIVE_REACTIONS_COLLECTION_PATH = 'v2/app/narrativeReactions';

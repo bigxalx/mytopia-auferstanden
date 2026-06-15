@@ -214,12 +214,16 @@ export type LiveJoinMethod = 'qr' | 'auto-gps-time' | 'manual-admin';
 export type LiveEventType = 'terror_alert';
 export type LiveEventStatus = 'active' | 'cleared';
 export type LiveEventSource = 'admin' | 'adaptor';
+export type LiveSessionSource = 'schedule' | 'manual';
+export type LiveShowWindowStatus = 'scheduled' | 'cancelled';
 
 export type V2LiveSessionDoc = {
   currentEventId?: string | null;
   endsAt?: FirestoreTimestampString;
   mode: ChannelMode;
+  sessionSource?: LiveSessionSource;
   sessionId: string;
+  showWindowId?: string | null;
   startsAt?: FirestoreTimestampString;
   status: LiveSessionStatus;
   title: string;
@@ -236,8 +240,28 @@ export type V2LiveParticipantDoc = {
   joinedAt: FirestoreTimestampString;
   joinMethod: LiveJoinMethod;
   lastSeenAt: FirestoreTimestampString;
+  leftAt?: FirestoreTimestampString;
   uid: string;
   updatedAt: FirestoreTimestampString;
+};
+
+export type V2LiveShowWindowDoc = {
+  cancelledAt?: FirestoreTimestampString;
+  cancelledBy?: string | null;
+  createdAt?: FirestoreTimestampString;
+  createdBy?: string | null;
+  endsAt?: FirestoreTimestampString;
+  mode: ChannelMode;
+  startsAt?: FirestoreTimestampString;
+  status: LiveShowWindowStatus;
+  title: string;
+  updatedAt?: FirestoreTimestampString;
+  updatedBy?: string | null;
+  venueLatitude?: number | null;
+  venueLongitude?: number | null;
+  venueName?: string | null;
+  venueRadiusMeters?: number | null;
+  windowId: string;
 };
 
 export type V2LiveEventDoc = {

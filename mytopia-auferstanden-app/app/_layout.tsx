@@ -52,7 +52,16 @@ export default function RootLayout() {
               <Stack.Screen name="index" />
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="live/session" />
+              <Stack.Screen
+                name="live/session"
+                options={{
+                  animation: 'slide_from_bottom',
+                  gestureEnabled: true,
+                  headerShown: false,
+                  presentation: 'modal',
+                  title: '',
+                }}
+              />
               <Stack.Screen name="welcome-back" />
               <Stack.Screen
                 name="(modals)/tasks/[taskId]"

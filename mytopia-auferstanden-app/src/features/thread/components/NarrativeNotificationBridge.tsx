@@ -20,6 +20,11 @@ export function NarrativeNotificationBridge() {
         return;
       }
 
+      if (isLiveAlertPayload(payload)) {
+        router.navigate('/live/session');
+        return;
+      }
+
       const channelId = resolveChannelId(payload.route);
       if (payload.bundleId) {
         queueExternalTarget({
@@ -40,6 +45,10 @@ export function NarrativeNotificationBridge() {
   }, [queueExternalTarget]);
 
   return null;
+}
+
+function isLiveAlertPayload(payload: FcmNarrativePayload) {
+  return payload.eventType === 'live_terror_alert' || payload.route === '/live/session';
 }
 
 function resolveChannelId(route?: string) {

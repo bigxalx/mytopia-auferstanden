@@ -22,9 +22,12 @@ function TabLayoutInner() {
   const { isHydrated, shouldShowWelcomeBack, user } = useSession();
   const { totalUnreadCount } = useChannels();
   const { focusedMissionId } = useActiveMission();
-  const { activeEvent, connectionStatus, isJoined, session } = useLiveSession();
+  const { activeEvent, availableSession, connectionStatus, isJoined, session } = useLiveSession();
   const supportsNativeBottomAccessory = FEATURES.ENABLE_NATIVE_BOTTOM_ACCESSORY && Platform.OS === 'ios' && getIOSMajorVersion() >= 26;
-  const shouldShowLiveBar = isJoined && Boolean(session) && connectionStatus !== 'offline' && !activeEvent;
+  const shouldShowLiveBar = !activeEvent && (
+    (isJoined && Boolean(session) && connectionStatus !== 'offline')
+    || Boolean(availableSession)
+  );
   const shouldShowMissionBar = FEATURES.SHOW_ACTIVE_MISSION_BAR && !shouldShowLiveBar && !focusedMissionId;
 
   if (!isHydrated) {

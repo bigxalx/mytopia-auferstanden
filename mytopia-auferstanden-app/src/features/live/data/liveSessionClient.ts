@@ -3,7 +3,12 @@ import * as firestore from '@react-native-firebase/firestore';
 
 import { env, hasConfiguredFeedApi } from '@/src/config/env';
 import { getCurrentFirebaseUser } from '@/src/core/firebase/authClient';
-import { V2_COLLECTION, type V2LiveEventDoc, type V2LiveSessionDoc } from '@/src/core/firestore/schema';
+import {
+  V2_COLLECTION,
+  type V2LiveEventDoc,
+  type V2LiveSessionDoc,
+  type V2LiveShowWindowDoc,
+} from '@/src/core/firestore/schema';
 import type { AppMode } from '@/src/core/session/appMode';
 
 const REQUEST_TIMEOUT_MS = 15000;
@@ -26,12 +31,45 @@ export type LiveEventDto = V2LiveEventDoc & {
   eventId: string;
 };
 
+export type LiveAvailabilityDto = {
+  currentWindow?: V2LiveShowWindowDoc | null;
+  nextWindow?: V2LiveShowWindowDoc | null;
+  session?: LiveSessionDto | null;
+  state: 'active' | 'upcoming' | 'unavailable';
+};
+
 export async function fetchActiveLiveSession(mode: AppMode): Promise<LiveSessionDto | null> {
   const payload = await liveApiRequest<{ session?: LiveSessionDto | null }>({
     method: 'GET',
     path: `live/sessions/active${mode === 'dev' ? '?mode=dev' : ''}`,
   });
   return payload.session ?? null;
+}
+
+export async function fetchLiveAvailability({
+  mode,
+  sessionId,
+  token,
+}: {
+  mode: AppMode;
+  sessionId: string;
+  token: string;
+}): Promise<LiveAvailabilityDto> {
+  const params = new URLSearchParams({
+    mode,
+    sessionId,
+    token,
+  });
+  logLiveClientDebug('fetch availability', { mode, sessionId, tokenLength: token.length });
+  const payload = await liveApiRequest<LiveAvailabilityDto>({
+    method: 'GET',
+    path: `live/availability?${params.toString()}`,
+  });
+  logLiveClientDebug('availability fetched', {
+    hasSession: Boolean(payload.session),
+    state: payload.state,
+  });
+  return payload;
 }
 
 export async function joinLiveSession({
@@ -47,6 +85,7 @@ export async function joinLiveSession({
   sessionId: string;
   token?: string | null;
 }): Promise<LiveSessionDto> {
+  logLiveClientDebug('join request', { joinMethod, mode, sessionId, tokenLength: token?.length ?? 0 });
   const payload = await liveApiRequest<{ session?: LiveSessionDto }>({
     body: {
       joinMethod,
@@ -61,14 +100,20 @@ export async function joinLiveSession({
   if (!payload.session) {
     throw new Error('Live session join response did not include a session.');
   }
+  logLiveClientDebug('join response', {
+    endsAt: payload.session.endsAt,
+    sessionId: payload.session.sessionId,
+    status: payload.session.status,
+  });
   return payload.session;
 }
 
-export async function sendLiveHeartbeat(sessionId: string) {
+export async function leaveLiveSession(sessionId: string) {
+  logLiveClientDebug('leave request', { sessionId });
   await liveApiRequest({
     body: { sessionId },
     method: 'POST',
-    path: 'live/heartbeat',
+    path: 'live/leave',
   });
 }
 
@@ -84,18 +129,34 @@ export function subscribeLiveSession({
   try {
     const db = getFirestore();
     const sessionRef = doc(db, V2_COLLECTION.liveSessions, sessionId);
+    logLiveClientDebug('subscribe session snapshot', { sessionId });
     return onSnapshot(
       sessionRef,
       (snapshot: any) => {
         if (!snapshot.exists()) {
+          logLiveClientDebug('session snapshot missing', { sessionId });
           listener(null);
           return;
         }
-        listener(normalizeSessionSnapshot(sessionId, snapshot.data()));
+        const normalized = normalizeSessionSnapshot(sessionId, snapshot.data());
+        logLiveClientDebug('session snapshot received', {
+          currentEventId: normalized.currentEventId,
+          endsAt: normalized.endsAt,
+          fromCache: Boolean(snapshot.metadata?.fromCache),
+          hasPendingWrites: Boolean(snapshot.metadata?.hasPendingWrites),
+          sessionId,
+          status: normalized.status,
+          updatedAt: normalized.updatedAt,
+        });
+        listener(normalized);
       },
-      onError
+      (error) => {
+        logLiveClientDebug('session snapshot error', { message: error instanceof Error ? error.message : String(error), sessionId });
+        onError(error);
+      }
     );
   } catch (error) {
+    logLiveClientDebug('subscribe session threw', { message: error instanceof Error ? error.message : String(error), sessionId });
     onError(error);
     return () => undefined;
   }
@@ -179,6 +240,12 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   }
 }
 
+function logLiveClientDebug(message: string, details?: Record<string, unknown>) {
+  if (__DEV__) {
+    console.info(`[live/client] ${message}`, details ?? {});
+  }
+}
+
 function normalizeBaseUrl(url: string) {
   return url.endsWith('/') ? url : `${url}/`;
 }
@@ -188,7 +255,9 @@ function normalizeSessionSnapshot(sessionId: string, data: Record<string, unknow
     currentEventId: typeof data.currentEventId === 'string' ? data.currentEventId : null,
     endsAt: toIsoString(data.endsAt) ?? undefined,
     mode: data.mode === 'dev' ? 'dev' : 'production',
+    sessionSource: data.sessionSource === 'schedule' ? 'schedule' : 'manual',
     sessionId,
+    showWindowId: typeof data.showWindowId === 'string' ? data.showWindowId : null,
     startsAt: toIsoString(data.startsAt) ?? undefined,
     status: normalizeSessionStatus(data.status),
     title: typeof data.title === 'string' ? data.title : 'Mytopia Live',

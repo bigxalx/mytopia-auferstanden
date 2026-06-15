@@ -59,22 +59,29 @@ There is exactly one current live session per mode:
 - `production-current`
 - `dev-current`
 
-The admin page does not manage parallel sessions. Starting a live session upserts
-the current session for the selected mode and closes older active sessions in
-that mode. The session keeps an internal safety expiry, but moderators do not set
-start/end times in the show UI.
+The admin page does not manage parallel sessions. The normal operator workflow
+is based on live show windows, not manual session start/end. Moderators create a
+show window, usually from one hour before the performance until the end of the
+show. During that window, the backend lazily upserts the deterministic current
+session and closes it automatically when the window ends.
+
+Manual start/end controls remain available only inside an Advanced debug menu.
+Manual start creates a short debug session using the same deterministic session
+id and reusable QR token; it is not part of normal theatre operation.
 
 The only supported venue for MVP auto-check-in is Theater Altenburg Gera
 (`50.9871377`, `12.4374725`) with a 50m radius. QR join remains authoritative;
 GPS/time is a convenience path when location permission is available.
 
-The authoritative join mechanism is a QR/session link shown at the theatre. The
-QR code opens the app into a live session route and joins the signed-in user to
-the specific session.
+The authoritative join mechanism is one reusable QR/session link shown at the
+theatre. The poster QR can remain printed across performances. It opens the app
+into a live session route; joining succeeds only when an active show window or
+debug session exists.
 
 The QR token is stored outside the public session document in a backend-only
-private document. Moderators can redisplay the same QR code while the session is
-active; app users can read live session state, but not the join token.
+private document. The token is stable by default so the poster does not need to
+be reprinted for each show. App users can read live session state, but not the
+join token.
 
 GPS plus time is a convenience layer:
 
@@ -98,6 +105,11 @@ Session status states:
   current.
 - `Verbinde...`: the app is joining, reconnecting, or waiting for Firestore.
 - `Offline`: the app cannot currently confirm the live connection.
+- `Noch nicht live`: the reusable QR was scanned before the next live window;
+  the app shows the next possible join time, polls availability, and joins when
+  the window becomes active.
+- `Derzeit nicht live`: the reusable QR was scanned with no upcoming window;
+  the app returns users to the normal app without a joined state.
 
 The first event type is `terror_alert`.
 
@@ -106,21 +118,30 @@ a global full-screen alarm overlay above the current tab stack. The overlay is
 not tied to a dedicated tab, because the theatrical effect is that the stage
 takes control of the app from wherever the user currently is.
 
+The alarm overlay triggers device vibration immediately. If notification
+permission has already been granted, the app also schedules a short local
+notification burst while the overlay is active. The app must not request
+notification permission at alarm time.
+
 When the event is cleared, the overlay dismisses and the user returns to the
-previous app state.
+previous app state. Pending local alarm notifications are cancelled when the
+overlay clears.
 
 ## Admin and adaptor Control
 
 The website admin surface is hidden and authenticated. It should support:
 
-- starting or viewing the one current live session per mode,
-- printing and copying the QR/session link,
+- creating, editing, and cancelling live show windows per mode,
+- viewing the current deterministic session when a window/debug session is
+  active,
+- printing the reusable QR/session link even when no session is active,
 - a dedicated print route for the theatre entry poster:
   `/moderation/live/print`,
 - seeing connected participant counts and recent heartbeats,
 - triggering `terror_alert`,
 - clearing the active event,
-- closing the current live session.
+- manual start/end controls inside Advanced for debugging and emergency
+  recovery.
 
 adaptor:ex will later call the same Firebase event endpoint used by the admin
 page. The adaptor integration should provide:

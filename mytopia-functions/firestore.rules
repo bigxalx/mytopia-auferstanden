@@ -427,6 +427,19 @@ service cloud.firestore {
       }
     }
 
+    match /v2/app/liveShowWindows/{windowId} {
+      allow read: if isModerator()
+        || (
+          isSignedIn()
+          && resource.data.mode == 'production'
+        )
+        || (
+          hasDevClaim()
+          && resource.data.mode == 'dev'
+        );
+      allow write: if false;
+    }
+
     match /v2/app/fcmRegistrations/{uid} {
       allow read, write: if isOwner(uid);
     }

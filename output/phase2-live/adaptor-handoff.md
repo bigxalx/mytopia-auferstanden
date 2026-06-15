@@ -21,17 +21,17 @@ first, so the app and backend can be tested before adaptor access is available.
 - Crash course timing with Anton K. and Lena Biresch.
 - QLab cue naming/trigger payload conventions.
 
-## Planned Firebase Endpoint
+## Firebase Endpoints
 
-Base:
+The adaptor can call fixed URLs without headers or JSON bodies.
 
 ```text
-POST https://europe-west1-<firebase-project>.cloudfunctions.net/narrativeApi/live/events
+POST https://europe-west1-mytopia-6c440.cloudfunctions.net/narrativeApi/live/adaptor/terror-alert/start?token=<ADAPTOR_LIVE_TRIGGER_TOKEN>
+POST https://europe-west1-mytopia-6c440.cloudfunctions.net/narrativeApi/live/adaptor/terror-alert/stop?token=<ADAPTOR_LIVE_TRIGGER_TOKEN>
 ```
 
-The exact base URL comes from the deployed Firebase Functions environment. The
-route may be implemented under an existing `narrativeApi` function or a sibling
-`liveApi` if that is cleaner during implementation.
+`GET` is also accepted for both URLs as a fallback if adaptor cannot use `POST`.
+Use `POST` where possible.
 
 ## Authentication
 
@@ -41,75 +41,45 @@ Admin page:
 
 adaptor:ex:
 
-- Preferred: server-side shared secret or signed service credential configured
-  in Firebase Functions environment.
-- The secret must not be committed to the repo.
-- The final header name/value will be filled in after adaptor access is known.
+- Uses `ADAPTOR_LIVE_TRIGGER_TOKEN` configured in Firebase Functions environment.
+- Sends the token as a `token` query parameter because adaptor cannot set HTTP
+  headers.
+- The secret must not be committed to the repo or printed in public show docs.
 
-Placeholder:
+Optional rehearsal mode:
 
 ```text
-Authorization: Bearer <ADAPTOR_LIVE_TRIGGER_TOKEN>
+POST https://europe-west1-mytopia-6c440.cloudfunctions.net/narrativeApi/live/adaptor/terror-alert/start?mode=dev&token=<ADAPTOR_LIVE_TRIGGER_TOKEN>
+POST https://europe-west1-mytopia-6c440.cloudfunctions.net/narrativeApi/live/adaptor/terror-alert/stop?mode=dev&token=<ADAPTOR_LIVE_TRIGGER_TOKEN>
 ```
 
-## Trigger Request
-
-Initial event type: `terror_alert`.
-
-```json
-{
-  "mode": "production",
-  "sessionId": "production-current",
-  "type": "terror_alert",
-  "source": "adaptor",
-  "cueId": "qlab-cue-123",
-  "payload": {
-    "title": "Terrorwarnung",
-    "message": "Angriff außerhalb der Kuppel bestätigt.",
-    "severity": "alarm"
-  }
-}
-```
-
-Required fields:
-
-- `sessionId`
-- `type`
-- `source`
-
-Optional fields:
-
-- `mode` defaults to `production`
-- `cueId`
-- `payload.title`
-- `payload.message`
-- `payload.severity`
-
-## Trigger Response
+## Start Response
 
 ```json
 {
   "ok": true,
   "sessionId": "production-current",
-  "eventId": "terror-alert-2026-08-xxT18-42-10Z",
+  "eventId": "<event-id>",
   "status": "active"
 }
 ```
 
-## Clear Request
+Repeated start calls are idempotent. If the terror warning is already active,
+the backend returns success with the existing active event id.
 
-```text
-POST /live/events/{eventId}/clear
-```
+## Stop Response
 
 ```json
 {
-  "mode": "production",
+  "ok": true,
   "sessionId": "production-current",
-  "source": "adaptor",
-  "cueId": "qlab-clear-123"
+  "eventId": "<event-id-or-null>",
+  "status": "cleared"
 }
 ```
+
+Repeated stop calls are idempotent. If no terror warning is active, the backend
+returns success with `eventId: null`.
 
 ## App Delivery Contract
 

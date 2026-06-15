@@ -1183,7 +1183,7 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
     payload: any;
     submissionId: string;
   }) => {
-    if (kind !== 'photo' || !missionId || !user?.id) {
+    if ((kind !== 'photo' && kind !== 'text') || !missionId || !user?.id) {
       return;
     }
 
@@ -1200,8 +1200,6 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
         : undefined;
 
     const basePayload = sanitizeSubmissionPayload(payload);
-    const localPhotoUri = resolveRetryLocalPhotoUri(payload);
-    const storageAvailability = getFirebaseStorageAvailability();
 
     const publishRetryBundle = (
       status: 'sending' | 'pending' | 'approved' | 'rejected' | 'error',
@@ -1222,6 +1220,82 @@ export function ActiveMissionProvider({ children }: { children: React.ReactNode 
       void persistBundleToActorChannel(bundle);
       return bundle;
     };
+
+    if (kind === 'text') {
+      const text = resolveRetryText(basePayload);
+
+      if (!text) {
+        publishRetryBundle(
+          'error',
+          buildSubmissionErrorPayload(
+            basePayload,
+            'Kein Text für die Wiederholung verfügbar.',
+            'Fehler',
+          ),
+        );
+        return;
+      }
+
+      publishRetryBundle('sending', {
+        ...basePayload,
+        text,
+      });
+
+      try {
+        const apiResult: any = await submitTextMission(
+          missionId,
+          text,
+          selectedMode,
+          channelMeta,
+        );
+
+        const isImmediateMissionCompletion =
+          apiResult?.action === 'scored' ||
+          apiResult?.action === 'already_completed';
+        const finalStatus = isImmediateMissionCompletion ? 'approved' : 'pending';
+        const moderatorNote =
+          typeof apiResult?.moderatorNote === 'string' && apiResult.moderatorNote.trim().length > 0
+            ? apiResult.moderatorNote.trim()
+            : undefined;
+
+        publishRetryBundle(
+          finalStatus,
+          {
+            ...basePayload,
+            ...apiResult,
+            text,
+          },
+          moderatorNote,
+        );
+
+        if (finalStatus === 'pending') {
+          insertSystemMessage('Dein Beitrag wird geprüft', 120, 'neutral');
+        }
+
+        scrollToMessageRef.current('bottom');
+      } catch (error) {
+        console.error('[ActiveMission] Retry submission failed:', error);
+        const errorMessage = describeMissionSubmissionError(error);
+        const errorDetails = extractMissionSubmissionErrorDetails(error);
+
+        publishRetryBundle(
+          'error',
+          buildSubmissionErrorPayload(
+            {
+              ...basePayload,
+              text,
+            },
+            errorDetails,
+            errorMessage,
+          ),
+        );
+      }
+
+      return;
+    }
+
+    const localPhotoUri = resolveRetryLocalPhotoUri(payload);
+    const storageAvailability = getFirebaseStorageAvailability();
 
     if (!storageAvailability.available) {
       publishRetryBundle(
@@ -1700,6 +1774,17 @@ function sanitizeSubmissionPayload(payload: unknown) {
   } = payload as Record<string, unknown>;
 
   return rest;
+}
+
+function resolveRetryText(payload: unknown) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const text = (payload as { text?: unknown }).text;
+  return typeof text === 'string' && text.trim().length > 0
+    ? text.trim()
+    : null;
 }
 
 function buildSubmissionErrorPayload(

@@ -40,3 +40,52 @@ export function SettingsBold({ color, size }: { color: string; size: number }) {
     </Svg>
   );
 }
+
+export function AltArrowRightLinear({ color, size }: { color: string; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M14.43 5.93L20.5 12L14.43 18.07"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit={10}
+        strokeWidth={1.8}
+      />
+      <Path
+        d="M3.5 12H20.33"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit={10}
+        strokeWidth={1.8}
+      />
+    </Svg>
+  );
+}
+
+export function AltArrowDownLinear({ color, size }: { color: string; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M18.07 9.57L12 15.64L5.93 9.57"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeMiterlimit={10}
+        strokeWidth={1.8}
+      />
+    </Svg>
+  );
+}
+
+export function DangerTriangleBold({ color, size }: { color: string; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M10.36 3.78C11.08 2.51 12.92 2.51 13.64 3.78L22.23 18.9C22.94 20.15 22.03 21.7 20.59 21.7H3.41C1.97 21.7 1.06 20.15 1.77 18.9L10.36 3.78ZM12 8.25C11.59 8.25 11.25 8.59 11.25 9V13C11.25 13.41 11.59 13.75 12 13.75C12.41 13.75 12.75 13.41 12.75 13V9C12.75 8.59 12.41 8.25 12 8.25ZM12 17.25C12.55 17.25 13 16.8 13 16.25C13 15.7 12.55 15.25 12 15.25C11.45 15.25 11 15.7 11 16.25C11 16.8 11.45 17.25 12 17.25Z"
+        fill={color}
+      />
+    </Svg>
+  );
+}

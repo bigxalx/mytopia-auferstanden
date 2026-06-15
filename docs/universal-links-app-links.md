@@ -5,16 +5,17 @@ links with standard HTTPS links.
 
 ## Goal
 
-Use one audience-facing QR URL:
+Use one reusable audience-facing QR URL per mode:
 
 ```text
 https://mytopia.world/live/session?mode=production&sessionId=production-current&token=<join-token>
 ```
 
-When the app is installed, iOS Universal Links and Android App Links should open
-the app directly. When the app is not installed, the same URL should open a
-website fallback page that explains the app and links to the store once store
-links are available.
+The token is stable by default, so production theatre posters can remain printed
+across multiple performances. When the app is installed, iOS Universal Links and
+Android App Links should open the app directly. When the app is not installed,
+the same URL should open a website fallback page that explains the app and links
+to the store once store links are available.
 
 The current custom scheme remains acceptable for development testing only.
 
@@ -32,6 +33,7 @@ installed. Android App Links use the same idea with Android's verified links.
    - `https://mytopia.world/live/session`
    - Reads `mode`, `sessionId`, and `token`.
    - Shows a fallback page when the app is not installed.
+   - Explains that live joining is only possible during configured show windows.
    - Does not leak or log join tokens unnecessarily.
 
 2. iOS association:
@@ -51,7 +53,9 @@ installed. Android App Links use the same idea with Android's verified links.
 4. App route handling:
    - Map the HTTPS URL to the existing Expo Router live route.
    - Reuse the same `mode`, `sessionId`, and `token` join logic.
-   - Treat ended or inactive sessions as a return to the normal app.
+   - If a show window is active, join the deterministic current session.
+   - If a future window exists, show the next live interaction time.
+   - If no window exists, show a neutral unavailable state and return to the app.
 
 ## Expo Notes
 
@@ -69,7 +73,8 @@ update is not enough for new entitlements or intent filters.
 The fallback page should be simple:
 
 - identify the app as "Die App zu √Mytopia - Auferstanden aus Ruinen";
-- explain that the link joins the live theatre interaction;
+- explain that the link joins the live theatre interaction during scheduled
+  show windows;
 - show app store links when available;
 - optionally provide a "try opening app" button that links back to the same URL.
 
@@ -86,7 +91,7 @@ the live interaction surface.
 2. Add association files to `mytopia.world`.
 3. Add iOS/Android app config entries.
 4. Implement the `/live/session` website fallback route.
-5. Switch admin QR generation from the custom scheme to the HTTPS URL.
+5. Switch reusable admin QR generation from the custom scheme to the HTTPS URL.
 6. Build and install native TestFlight/internal Android builds.
 7. Test from Camera, WhatsApp, Mail, Safari/Chrome, and QR scanner apps.
 
