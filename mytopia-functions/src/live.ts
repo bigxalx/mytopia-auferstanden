@@ -836,6 +836,7 @@ async function sendLiveAlertPushBurstToConnectedParticipants({
   }
 
   const invalidTokensByUid = new Map<string, string[]>();
+  const failureCodeCounts = new Map<string, number>();
   let successCount = 0;
   let failureCount = 0;
   for (let burstIndex = 0; burstIndex < LIVE_ALERT_PUSH_BURST_COUNT; burstIndex += 1) {
@@ -882,6 +883,11 @@ async function sendLiveAlertPushBurstToConnectedParticipants({
       successCount += response.successCount;
       failureCount += response.failureCount;
       response.responses.forEach((result, index) => {
+        const errorCode = result.error?.code;
+        if (errorCode) {
+          failureCodeCounts.set(errorCode, (failureCodeCounts.get(errorCode) ?? 0) + 1);
+        }
+
         if (result.success || !PERMANENT_FCM_TOKEN_ERROR_CODES.has(result.error?.code ?? '')) {
           return;
         }
@@ -898,6 +904,7 @@ async function sendLiveAlertPushBurstToConnectedParticipants({
   logger.info('live alert push burst sent', {
     eventId,
     failureCount,
+    failureCodes: sortedCountRecord(failureCodeCounts),
     sessionId,
     successCount,
     targetTokenCount: tokenOwners.length,
@@ -953,6 +960,10 @@ function chunkArray<T>(items: T[], size: number) {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+function sortedCountRecord(counts: Map<string, number>) {
+  return Object.fromEntries([...counts.entries()].sort(([left], [right]) => left.localeCompare(right)));
 }
 
 function delay(ms: number) {
