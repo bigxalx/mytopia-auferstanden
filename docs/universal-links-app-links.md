@@ -11,6 +11,9 @@ Use one reusable audience-facing QR URL per mode:
 https://mytopia.world/live/session?mode=production&sessionId=production-current&token=<join-token>
 ```
 
+`https://www.mytopia.world/live/session?...` is also associated with the app so
+links keep working if a scanner or browser normalizes to the `www` host.
+
 The token is stable by default, so production theatre posters can remain printed
 across multiple performances. When the app is installed, iOS Universal Links and
 Android App Links should open the app directly. When the app is not installed,
@@ -37,18 +40,23 @@ installed. Android App Links use the same idea with Android's verified links.
    - Does not leak or log join tokens unnecessarily.
 
 2. iOS association:
-   - Host `/.well-known/apple-app-site-association` on `mytopia.world`.
+   - Host `/.well-known/apple-app-site-association` on `mytopia.world` and
+     `www.mytopia.world`.
    - Include the Apple Team ID and iOS bundle identifier.
    - Include the live path, for example `/live/session*`.
    - Add the Associated Domains entitlement to the app:
-     `applinks:mytopia.world`.
+     `applinks:mytopia.world` and `applinks:www.mytopia.world`.
+   - Regenerate or refresh the App Store provisioning profile after enabling
+     Associated Domains. OTA updates cannot add this entitlement.
 
 3. Android association:
-   - Host `/.well-known/assetlinks.json` on `mytopia.world`.
+   - Host `/.well-known/assetlinks.json` on `mytopia.world` and
+     `www.mytopia.world`.
    - Include the Android package name.
    - Include the SHA-256 certificate fingerprint for the release signing key.
    - Add an Android intent filter with `scheme: https`, `host:
      mytopia.world`, `pathPrefix: /live/session`, and `autoVerify: true`.
+     The app config also includes the same filter for `www.mytopia.world`.
 
 4. App route handling:
    - Map the HTTPS URL to the existing Expo Router live route.
@@ -94,6 +102,16 @@ the live interaction surface.
 5. Switch reusable admin QR generation from the custom scheme to the HTTPS URL.
 6. Build and install native TestFlight/internal Android builds.
 7. Test from Camera, WhatsApp, Mail, Safari/Chrome, and QR scanner apps.
+
+## Release Checklist
+
+- Website env has `NEXT_PUBLIC_APP_JOIN_BASE_URL=https://mytopia.world`.
+- Website env has `IOS_UNIVERSAL_LINK_APP_ID=<team-id>.<bundle-id>`.
+- Website env has the Android package and release SHA-256 fingerprint.
+- iOS TestFlight build is made after the App Store provisioning profile includes
+  Associated Domains.
+- Android internal build is made with the same signing certificate whose
+  fingerprint is published in `assetlinks.json`.
 
 ## Known Caveats
 

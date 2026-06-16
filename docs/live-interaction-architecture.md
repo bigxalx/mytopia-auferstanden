@@ -1,9 +1,9 @@
 # Live Interaction Architecture
 
 This document defines the Phase 2 live interaction architecture for the show
-runtime. It is the implementation baseline for QR-gated live sessions, realtime
-Firebase events, the app alarm takeover, and the later theatre integration via
-QLab and adaptor:ex.
+runtime. It is the implementation baseline for reusable live-session links,
+the in-app live entry bar, realtime Firebase events, the app alarm takeover,
+and the later theatre integration via QLab and adaptor:ex.
 
 ## Runtime Flow
 
@@ -54,10 +54,14 @@ will need a separate timing mechanism.
 A live event must never target every production app user. It only targets users
 who have joined the current show session.
 
-There is exactly one current live session per mode:
+There is exactly one current live session per backend mode:
 
 - `production-current`
 - `dev-current`
+
+The production app always targets `production-current`. The backend and
+moderation website can still expose `dev-current` for controlled admin testing,
+but app live-session discovery does not switch to dev sessions.
 
 The admin page does not manage parallel sessions. The normal operator workflow
 is based on live show windows, not manual session start/end. Moderators create a
@@ -69,42 +73,51 @@ Manual start/end controls remain available only inside an Advanced debug menu.
 Manual start creates a short debug session using the same deterministic session
 id and reusable QR token; it is not part of normal theatre operation.
 
-The only supported venue for MVP auto-check-in is Theater Altenburg Gera
-(`50.9871377`, `12.4374725`) with a 50m radius. QR join remains authoritative;
-GPS/time is a convenience path when location permission is available.
+The only supported venue for MVP GPS gating is Theater Altenburg Gera
+(`50.9871377`, `12.4374725`) with a 50m radius.
 
-The authoritative join mechanism is one reusable QR/session link shown at the
-theatre. The poster QR can remain printed across performances. It opens the app
-into a live session route; joining succeeds only when an active show window or
-debug session exists.
+The authoritative join mechanisms are:
+
+- one reusable QR/session link shown at the theatre;
+- the in-app bottom live bar shown during an active live window.
+
+The poster QR can remain printed across performances. It opens the app into a
+live session route; joining succeeds only when an active show window or debug
+session exists. The bottom live bar opens the same live route as a compact
+sheet, so users can join, dismiss, or re-open it while the live window is active.
 
 The QR token is stored outside the public session document in a backend-only
 private document. The token is stable by default so the poster does not need to
 be reprinted for each show. App users can read live session state, but not the
 join token.
 
-GPS plus time is a convenience layer:
+GPS plus time is a visibility and join-safety layer:
 
-- If the user has granted location permission, the app can auto-check-in when
-  the current time is inside the show window and the device is within the venue
-  radius.
-- GPS/time can join a user to the same live session without scanning the QR.
-- GPS/time must never be required, because some users will deny location access
-  or have unreliable device location.
+- If the user has granted location permission and is outside the venue radius,
+  the bottom live bar is hidden.
+- If location is unavailable or denied, the app can still show the live bar and
+  let the backend enforce the join rules.
+- Development builds bypass GPS gating for testing and show an explicit notice
+  that production will not behave that way.
 
 Users who are not joined to the session do not listen to or render session
 events. People outside the show are therefore isolated from the alarm takeover.
 
+The MVP does not use a heartbeat. A participant becomes connected only through
+an explicit join via QR/link/bottom bar, and remains connected until they
+disconnect, the app marks them offline, or the live window/session closes.
+`lastSeenAt` is therefore connection metadata, not a continuous liveness check.
+
 ## App Behavior
 
-The app has a hidden or QR-opened live route for session join and status.
+The app has a QR/universal-link/bottom-bar opened live route for session join
+and status. The live route is presented as a compact bottom sheet rather than a
+full-screen modal.
 
 Session status states:
 
-- `Live verbunden`: the user is joined, the listener is active, and heartbeat is
-  current.
+- `Live verbunden`: the user is joined and the listener is active.
 - `Verbinde...`: the app is joining, reconnecting, or waiting for Firestore.
-- `Offline`: the app cannot currently confirm the live connection.
 - `Noch nicht live`: the reusable QR was scanned before the next live window;
   the app shows the next possible join time, polls availability, and joins when
   the window becomes active.
@@ -118,14 +131,14 @@ a global full-screen alarm overlay above the current tab stack. The overlay is
 not tied to a dedicated tab, because the theatrical effect is that the stage
 takes control of the app from wherever the user currently is.
 
-The alarm overlay triggers device vibration immediately. If notification
-permission has already been granted, the app also schedules a short local
-notification burst while the overlay is active. The app must not request
-notification permission at alarm time.
+The alarm overlay triggers device vibration immediately. The backend also sends
+four rapid push notifications to connected participants. These push
+notifications must use identical neutral, spoiler-free title/body text. The
+in-app Firestore event payload may contain the fuller stage-facing warning copy;
+the OS notification copy must not reveal story details or add sequence numbers.
 
 When the event is cleared, the overlay dismisses and the user returns to the
-previous app state. Pending local alarm notifications are cancelled when the
-overlay clears.
+previous app state.
 
 ## Admin and adaptor Control
 
@@ -137,7 +150,8 @@ The website admin surface is hidden and authenticated. It should support:
 - printing the reusable QR/session link even when no session is active,
 - a dedicated print route for the theatre entry poster:
   `/moderation/live/print`,
-- seeing connected participant counts and recent heartbeats,
+- seeing connected participant counts while a session is active,
+- auto-refreshing as live windows become active or end,
 - triggering `terror_alert`,
 - clearing the active event,
 - manual start/end controls inside Advanced for debugging and emergency
@@ -161,10 +175,12 @@ page. The adaptor integration should provide:
 
 The MVP includes:
 
-- QR-gated session join,
-- GPS/time auto-check-in when possible,
-- live connection status and heartbeat,
+- QR/universal-link session join,
+- bottom-bar entry during active live windows,
+- GPS/time gating when possible,
+- explicit connect and disconnect,
 - one event type: `terror_alert`,
+- four identical spoiler-free push notifications to connected participants,
 - admin trigger and clear controls,
 - adaptor-compatible backend event contract.
 
