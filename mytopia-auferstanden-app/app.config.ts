@@ -98,6 +98,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...base.ios,
       ...(iosAppleTeamId ? { appleTeamId: iosAppleTeamId } : {}),
       ...(iosBundleIdentifier ? { bundleIdentifier: iosBundleIdentifier } : {}),
+      associatedDomains: [
+        ...new Set([
+          ...((base.ios?.associatedDomains as string[] | undefined) ?? []),
+          'applinks:mytopia.world',
+          'applinks:www.mytopia.world',
+        ]),
+      ],
       entitlements: {
         ...(base.ios?.entitlements as object),
         'aps-environment': isProduction ? 'production' : 'development',
@@ -107,6 +114,26 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       ...base.android,
       ...(androidPackage ? { package: androidPackage } : {}),
+      intentFilters: [
+        ...((base.android?.intentFilters as NonNullable<ExpoConfig['android']>['intentFilters']) ?? []),
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          category: ['BROWSABLE', 'DEFAULT'],
+          data: [
+            {
+              host: 'mytopia.world',
+              pathPrefix: '/live/session',
+              scheme: 'https',
+            },
+            {
+              host: 'www.mytopia.world',
+              pathPrefix: '/live/session',
+              scheme: 'https',
+            },
+          ],
+        },
+      ],
       ...(androidGoogleServicesFile ? { googleServicesFile: androidGoogleServicesFile } : {}),
     },
     extra: {

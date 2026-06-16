@@ -63,7 +63,6 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [joinedSessionId, setJoinedSessionId] = useState<string | null>(null);
   const [session, setSession] = useState<LiveSessionDto | null>(null);
-  const autoAttemptKeyRef = useRef<string | null>(null);
   const lastJoinAtMsRef = useRef<number | null>(null);
   const latestSessionRef = useRef<LiveSessionDto | null>(null);
 
@@ -121,36 +120,6 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
       })
       .catch(() => undefined);
   }, [isHydrated, shouldShowWelcomeBack, storageKey, user]);
-
-  useEffect(() => {
-    if (!storageKey || !isHydrated || !user || shouldShowWelcomeBack || joinedSessionId) {
-      return;
-    }
-
-    const attemptKey = `${user.id}:${LIVE_SESSION_MODE}`;
-    if (autoAttemptKeyRef.current === attemptKey) {
-      return;
-    }
-    autoAttemptKeyRef.current = attemptKey;
-
-    let cancelled = false;
-    void tryAutoCheckIn(LIVE_SESSION_MODE)
-      .then(async (autoSession) => {
-        if (cancelled || !autoSession) return;
-        logLiveContextDebug('auto check-in joined session', { liveMode: LIVE_SESSION_MODE, sessionId: autoSession.sessionId });
-        await AsyncStorage.setItem(storageKey, autoSession.sessionId);
-        lastJoinAtMsRef.current = Date.now();
-        latestSessionRef.current = autoSession;
-        setJoinedSessionId(autoSession.sessionId);
-        setSession(autoSession);
-        setConnectionStatus('connecting');
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isHydrated, joinedSessionId, shouldShowWelcomeBack, storageKey, user]);
 
   const refreshAvailableSession = useCallback(async () => {
     if (!isHydrated || !user || shouldShowWelcomeBack || joinedSessionId) {
@@ -448,32 +417,6 @@ export function useLiveSession() {
     throw new Error('useLiveSession must be used inside LiveSessionProvider');
   }
   return context;
-}
-
-async function tryAutoCheckIn(mode: AppMode) {
-  const activeSession = await fetchActiveLiveSession(mode);
-  if (!activeSession) {
-    return null;
-  }
-
-  const permission = await getForegroundLocationPermissionStatus();
-  if (permission !== 'granted') {
-    return null;
-  }
-
-  const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
-  });
-
-  return joinLiveSession({
-    joinMethod: 'auto-gps-time',
-    location: {
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-    },
-    mode,
-    sessionId: activeSession.sessionId,
-  });
 }
 
 async function shouldShowAvailableSessionPrompt(session: LiveSessionDto) {

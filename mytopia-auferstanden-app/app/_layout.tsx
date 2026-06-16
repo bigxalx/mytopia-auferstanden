@@ -55,10 +55,13 @@ export default function RootLayout() {
               <Stack.Screen
                 name="live/session"
                 options={{
-                  animation: 'slide_from_bottom',
+                  contentStyle: { backgroundColor: AppNavigationTheme.colors.background },
                   gestureEnabled: true,
                   headerShown: false,
-                  presentation: 'modal',
+                  presentation: 'formSheet',
+                  sheetAllowedDetents: 'fitToContents',
+                  sheetCornerRadius: 24,
+                  sheetGrabberVisible: true,
                   title: '',
                 }}
               />

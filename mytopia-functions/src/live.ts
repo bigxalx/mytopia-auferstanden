@@ -1406,7 +1406,7 @@ function normalizeLiveEventType(value: unknown): LiveEventType {
 function normalizeEventPayload(value: unknown) {
   const source = typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
   return {
-    message: stringValue(source.message) ?? 'Angriff außerhalb der Kuppel bestätigt.',
+    message: stringValue(source.message) ?? 'Angriff bestätigt. Es gibt mehrere Opfer. Die Angreifer konnten vorerst vertrieben werden.',
     severity: stringValue(source.severity) ?? 'alarm',
     title: stringValue(source.title) ?? 'Terrorwarnung',
   };

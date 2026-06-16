@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, LayoutAnimation, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { AltArrowDownLinear } from '@/components/ui/SolarTabIcons';
 import { useSession } from '@/src/core/session/SessionContext';
 import type { AppMode } from '@/src/core/session/appMode';
 import { useLiveSession } from '@/src/features/live/data/LiveSessionContext';
@@ -43,11 +42,9 @@ export default function LiveSessionScreen() {
   const [paramGraceElapsed, setParamGraceElapsed] = useState(false);
   const [previewSession, setPreviewSession] = useState<LiveAvailabilityDto['session'] | null>(null);
   const attemptedKeyRef = useRef<string | null>(null);
-  const hadLiveSessionRef = useRef(false);
 
   const sessionId = firstParam(params.sessionId);
   const token = firstParam(params.token);
-  const requestedMode = firstParam(params.mode);
   const attemptKey = useMemo(
     () => sessionId && token ? `${LIVE_SESSION_MODE}:${sessionId}:${token}` : null,
     [sessionId, token]
@@ -60,9 +57,8 @@ export default function LiveSessionScreen() {
       hasToken: Boolean(token),
       liveMode: LIVE_SESSION_MODE,
       paramKeys: Object.keys(params),
-      requestedMode,
     });
-  }, [attemptKey, params, requestedMode, sessionId, token]);
+  }, [attemptKey, params, sessionId, token]);
 
   useEffect(() => {
     setParamGraceElapsed(false);
@@ -107,7 +103,7 @@ export default function LiveSessionScreen() {
           state: result.state,
         });
         if (result.state === 'joined') {
-          hadLiveSessionRef.current = true;
+          animateSheetTransition();
           setInactiveState(null);
           setPreviewSession(result.session);
           return;
@@ -150,7 +146,6 @@ export default function LiveSessionScreen() {
         sessionId: session.sessionId,
         status: session.status,
       });
-      hadLiveSessionRef.current = true;
       setPreviewSession(null);
     }
   }, [session]);
@@ -195,7 +190,7 @@ export default function LiveSessionScreen() {
     }
 
     logLiveSessionDebug('showing unavailable state after missing params', {
-      hadLiveSession: hadLiveSessionRef.current,
+      hasAvailableSession: Boolean(availableSession),
     });
     setInactiveState({ state: 'unavailable' });
   }, [attemptKey, availableSession, inactiveState, isHydrated, isJoining, paramGraceElapsed, user, visibleError, visibleSession]);
@@ -224,7 +219,7 @@ export default function LiveSessionScreen() {
     try {
       const result = await joinAvailableSession();
       if (result.state === 'joined') {
-        hadLiveSessionRef.current = true;
+        animateSheetTransition();
         setInactiveState(null);
         setPreviewSession(result.session);
         return;
@@ -275,7 +270,13 @@ export default function LiveSessionScreen() {
 
   if (!isHydrated) {
     return (
-      <Screen centerContent headerShown={false} scrollable={false} title="">
+      <Screen
+        backgroundColor={theme.colors.background}
+        centerContent
+        headerShown={false}
+        scrollable={false}
+        title=""
+      >
         <ActivityIndicator color={theme.colors.orange} size="large" />
       </Screen>
     );
@@ -283,7 +284,7 @@ export default function LiveSessionScreen() {
 
   if (!user) {
     return (
-      <Screen headerShown={false} title="" topInset>
+      <Screen backgroundColor={theme.colors.background} headerShown={false} title="">
         <View style={styles.card}>
           <Text style={styles.heading}>Anmeldung erforderlich</Text>
           <Text style={styles.body}>Melde dich an, um der Live-Interaktion beizutreten.</Text>
@@ -295,47 +296,21 @@ export default function LiveSessionScreen() {
 
   if (!visibleSession && !visibleError && !inactiveState && !availableSession) {
     return (
-      <Screen centerContent headerShown={false} scrollable={false} title="">
+      <Screen
+        backgroundColor={theme.colors.background}
+        centerContent
+        headerShown={false}
+        scrollable={false}
+        title=""
+      >
         <ActivityIndicator color={theme.colors.orange} size="large" />
       </Screen>
     );
   }
 
   return (
-    <Screen headerShown={false} title="" topInset>
+    <Screen backgroundColor={theme.colors.background} bottomInset={false} headerShown={false} noPadding title="">
       <View style={styles.modalContent}>
-        <View style={styles.dismissRow}>
-          <Pressable
-            accessibilityLabel="Live-Warteraum schließen"
-            accessibilityRole="button"
-            hitSlop={10}
-            onPress={dismissModal}
-            style={({ pressed }) => [
-              styles.dismissButton,
-              pressed ? styles.dismissButtonPressed : null,
-            ]}
-          >
-            <AltArrowDownLinear color="rgba(255, 255, 255, 0.82)" size={22} />
-          </Pressable>
-        </View>
-
-        {!isConnectedSession ? (
-          <LiveSignalModule
-            detail={getSignalDetail({
-              hasError: Boolean(visibleError),
-              inactiveState,
-              isJoining,
-              isPromptSession,
-            })}
-            label={getVisualLabel({
-              hasError: Boolean(visibleError),
-              inactiveState,
-              isConnectedSession,
-              isJoining,
-              isPromptSession,
-            })}
-          />
-        ) : null}
         <View style={styles.panel}>
           <View style={styles.copyBlock}>
             <View style={[
@@ -389,7 +364,6 @@ export default function LiveSessionScreen() {
               {getLiveCopy({
                 hasError: Boolean(visibleError),
                 inactiveState,
-                isJoining,
                 isPromptSession,
                 session: Boolean(visibleSession),
               })}
@@ -407,13 +381,6 @@ export default function LiveSessionScreen() {
           {visibleError ? (
             <View style={styles.errorBox}>
               <Text style={styles.error}>{visibleError}</Text>
-            </View>
-          ) : null}
-
-          {isJoining ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color={theme.colors.orange} />
-              <Text style={styles.loadingText}>Live-Zugang wird geprüft…</Text>
             </View>
           ) : null}
 
@@ -436,23 +403,37 @@ export default function LiveSessionScreen() {
                   onPress={() => {
                     handleIgnoreAvailableSession();
                   }}
-                  style={styles.secondaryAction}
+                  style={styles.returnButton}
                   variant="secondary"
                 />
               </>
             ) : isConnectedSession ? (
-              <AppButton
-                disabled={isJoining}
-                fullWidth
-                label="Verbindung trennen"
-                loading={isDisconnecting}
-                onPress={() => {
-                  void handleDisconnectLiveSession();
-                }}
-                style={styles.secondaryAction}
-                tone="danger"
-                variant="secondary"
-              />
+              <>
+                <AppButton
+                  fullWidth
+                  label="Okay"
+                  onPress={dismissModal}
+                  style={styles.returnButton}
+                />
+                <Pressable
+                  accessibilityLabel="Live-Verbindung trennen"
+                  accessibilityRole="button"
+                  disabled={isJoining || isDisconnecting}
+                  onPress={() => {
+                    void handleDisconnectLiveSession();
+                  }}
+                  style={({ pressed }) => [
+                    styles.disconnectAction,
+                    pressed && !isDisconnecting ? styles.disconnectActionPressed : null,
+                    isJoining || isDisconnecting ? styles.disconnectActionDisabled : null,
+                  ]}
+                >
+                  {isDisconnecting ? <ActivityIndicator color={theme.colors.destructiveBorder} size="small" /> : null}
+                  <Text style={styles.disconnectActionText}>
+                    {isDisconnecting ? 'Verbindung wird getrennt…' : 'Verbindung trennen'}
+                  </Text>
+                </Pressable>
+              </>
             ) : visibleError || inactiveState ? (
               <AppButton
                 fullWidth
@@ -474,27 +455,8 @@ function DevGpsNotice() {
     <View style={styles.devNotice}>
       <Text style={styles.devNoticeTitle}>Testmodus</Text>
       <Text style={styles.devNoticeText}>
-        GPS-Prüfung ist deaktiviert. In Production erscheint dieser Live-Zugang nur vor Ort.
+        GPS-Prüfung ist in Dev deaktiviert. In Production erscheint dieser Live-Zugang nur vor Ort.
       </Text>
-    </View>
-  );
-}
-
-function LiveSignalModule({ detail, label }: { detail: string; label: string }) {
-  return (
-    <View style={styles.signalCard}>
-      <View style={styles.signalMark}>
-        <View style={styles.signalRing}>
-          <View style={styles.signalDot} />
-        </View>
-      </View>
-      <View style={styles.signalTextBlock}>
-        <Text style={styles.signalLabel}>{label}</Text>
-        <Text style={styles.signalDetail}>{detail}</Text>
-      </View>
-      <View style={styles.signalMeta}>
-        <Text style={styles.signalMetaText}>Live</Text>
-      </View>
     </View>
   );
 }
@@ -512,7 +474,7 @@ function isEndedSessionError(message: string) {
 }
 
 function formatConnectionStatus(status: 'connecting' | 'connected' | 'offline') {
-  if (status === 'connected') return 'Live verbunden';
+  if (status === 'connected') return 'Live';
   if (status === 'connecting') return 'Verbinde…';
   return 'Nicht verbunden';
 }
@@ -534,73 +496,13 @@ function getStatusLabel({
   if (isPromptSession) {
     return 'Jetzt Live';
   }
-  if (inactiveState) {
-    return 'Nicht verbunden';
-  }
-  return formatConnectionStatus(connectionStatus);
-}
-
-function getVisualLabel({
-  hasError,
-  inactiveState,
-  isConnectedSession,
-  isJoining,
-  isPromptSession,
-}: {
-  hasError: boolean;
-  inactiveState: { nextWindow?: LiveAvailabilityDto['nextWindow'] | null; state: 'upcoming' | 'unavailable' } | null;
-  isConnectedSession: boolean;
-  isJoining: boolean;
-  isPromptSession: boolean;
-}) {
-  if (hasError) {
-    return 'Live-Zugang';
-  }
   if (inactiveState?.state === 'upcoming') {
     return 'Nächstes Zeitfenster';
   }
   if (inactiveState) {
-    return 'Zurzeit geschlossen';
+    return 'Kein Zeitfenster';
   }
-  if (isConnectedSession) {
-    return 'Live-Warteraum';
-  }
-  if (isJoining) {
-    return 'Prüfung läuft';
-  }
-  if (isPromptSession) {
-    return 'Jetzt Live';
-  }
-  return 'Mytopia Live';
-}
-
-function getSignalDetail({
-  hasError,
-  inactiveState,
-  isJoining,
-  isPromptSession,
-}: {
-  hasError: boolean;
-  inactiveState: { nextWindow?: LiveAvailabilityDto['nextWindow'] | null; state: 'upcoming' | 'unavailable' } | null;
-  isJoining: boolean;
-  isPromptSession: boolean;
-}) {
-  if (hasError) {
-    return 'Live-Zugang im Theater';
-  }
-  if (inactiveState?.state === 'upcoming') {
-    return 'Das nächste Zeitfenster wird automatisch geprüft.';
-  }
-  if (inactiveState) {
-    return 'Zurzeit ist kein Live-Zugang geöffnet.';
-  }
-  if (isJoining) {
-    return 'Zeitfenster und Standort werden geprüft.';
-  }
-  if (isPromptSession) {
-    return 'Live-Zugang im Theater';
-  }
-  return 'Live-Verbindung wird vorbereitet.';
+  return formatConnectionStatus(connectionStatus);
 }
 
 function getLiveTitle({
@@ -640,13 +542,11 @@ function getLiveTitle({
 function getLiveCopy({
   hasError,
   inactiveState,
-  isJoining,
   isPromptSession,
   session,
 }: {
   hasError: boolean;
   inactiveState: { nextWindow?: LiveAvailabilityDto['nextWindow'] | null; state: 'upcoming' | 'unavailable' } | null;
-  isJoining: boolean;
   isPromptSession: boolean;
   session: boolean;
 }) {
@@ -654,7 +554,7 @@ function getLiveCopy({
     return 'Schließe dieses Fenster ruhig. Die Live-Leiste bleibt während des Zeitfensters sichtbar, sobald du vor Ort bist.';
   }
   if (isPromptSession) {
-    return 'Wenn du gerade im Theater bist, kannst du dich mit der laufenden Vorstellung verbinden. Du kannst dieses Fenster schließen und jederzeit zurückkehren.';
+    return 'Nimm an der Live-Interaktion teil und entscheide mit, wie es weitergeht.';
   }
   if (inactiveState?.state === 'upcoming' && inactiveState.nextWindow?.startsAt) {
     return `Die nächste Live-Interaktion ist ab ${formatWindowTime(inactiveState.nextWindow.startsAt)} möglich.`;
@@ -666,10 +566,7 @@ function getLiveCopy({
     return 'Die Live-Verbindung konnte gerade nicht bestätigt werden. Bitte versuche es vor Ort noch einmal.';
   }
   if (session) {
-    return 'Du bist im Live-Warteraum. Sobald die Bühne ein Signal sendet, erscheint es automatisch in der App.';
-  }
-  if (isJoining) {
-    return 'Wir prüfen kurz das Zeitfenster und deinen Standort.';
+    return 'Signale erscheinen automatisch. Du kannst dieses Fenster schließen und bleibst verbunden.';
   }
   return 'Die Live-Verbindung wird vorbereitet.';
 }
@@ -685,6 +582,10 @@ function formatWindowTime(value: string) {
   }).format(date);
 }
 
+function animateSheetTransition() {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+}
+
 function logLiveSessionDebug(message: string, details?: Record<string, unknown>) {
   if (__DEV__) {
     console.info(`[live/session] ${message}`, details ?? {});
@@ -695,7 +596,6 @@ const styles = StyleSheet.create({
   actions: {
     alignSelf: 'stretch',
     gap: 10,
-    marginTop: 4,
   },
   body: {
     color: theme.colors.textSecondary,
@@ -707,12 +607,12 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    backgroundColor: theme.colors.cardSubtleBackground,
-    borderColor: theme.colors.cardBorder,
-    borderRadius: 8,
+    backgroundColor: theme.colors.headerBackground,
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 22,
     borderWidth: 1,
     gap: 14,
-    padding: 20,
+    padding: 18,
   },
   copyBlock: {
     alignItems: 'center',
@@ -720,56 +620,56 @@ const styles = StyleSheet.create({
   },
   devNotice: {
     alignSelf: 'stretch',
-    backgroundColor: 'rgba(249, 115, 22, 0.1)',
-    borderColor: 'rgba(249, 115, 22, 0.32)',
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 3,
+    paddingHorizontal: 4,
   },
   devNoticeText: {
     color: theme.colors.textSecondary,
     fontFamily: 'NunitoSans_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
   },
   devNoticeTitle: {
     color: theme.colors.orange,
     fontFamily: 'NunitoSans_700Bold',
-    fontSize: 12,
+    fontSize: 11,
     letterSpacing: 0,
+    textAlign: 'center',
     textTransform: 'uppercase',
   },
-  dismissButton: {
+  disconnectAction: {
     alignItems: 'center',
-    backgroundColor: 'rgba(248, 250, 252, 0.08)',
-    borderColor: 'rgba(216, 222, 232, 0.18)',
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  dismissButtonPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.98 }],
-  },
-  dismissRow: {
-    alignItems: 'flex-end',
     alignSelf: 'stretch',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  disconnectActionDisabled: {
+    opacity: 0.5,
+  },
+  disconnectActionPressed: {
+    opacity: 0.72,
+  },
+  disconnectActionText: {
+    color: theme.colors.destructiveBorder,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 14,
   },
   error: {
-    color: theme.colors.destructiveText,
+    color: theme.colors.destructiveBorder,
     fontFamily: 'NunitoSans_700Bold',
     fontSize: 14,
     textAlign: 'center',
   },
   errorBox: {
     alignSelf: 'stretch',
-    backgroundColor: theme.colors.destructiveSurface,
-    borderColor: theme.colors.destructiveBorder,
-    borderRadius: 8,
+    backgroundColor: 'rgba(252, 165, 165, 0.1)',
+    borderColor: 'rgba(252, 165, 165, 0.32)',
+    borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -777,121 +677,28 @@ const styles = StyleSheet.create({
   heading: {
     color: theme.colors.textPrimary,
     fontFamily: 'NunitoSans_700Bold',
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 28,
+    maxWidth: 320,
     textAlign: 'center',
   },
   modalContent: {
     alignItems: 'center',
     alignSelf: 'center',
-    gap: 14,
+    gap: 2,
     maxWidth: 360,
+    paddingBottom: 22,
+    paddingHorizontal: 20,
+    paddingTop: 18,
     width: '100%',
-  },
-  loadingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-    minHeight: 30,
-  },
-  loadingText: {
-    color: theme.colors.textSecondary,
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 13,
   },
   panel: {
     alignItems: 'center',
     alignSelf: 'stretch',
-    backgroundColor: 'rgba(248, 250, 252, 0.06)',
-    borderColor: 'rgba(216, 222, 232, 0.14)',
-    borderRadius: 8,
-    borderWidth: 1,
     gap: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
   },
   returnButton: {
     width: '100%',
-  },
-  secondaryAction: {
-    width: '100%',
-  },
-  signalCard: {
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    backgroundColor: 'rgba(248, 250, 252, 0.06)',
-    borderColor: 'rgba(216, 222, 232, 0.14)',
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 14,
-    minHeight: 104,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-  },
-  signalDetail: {
-    color: theme.colors.textSecondary,
-    fontFamily: 'NunitoSans_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  signalDot: {
-    backgroundColor: theme.colors.orange,
-    borderRadius: 999,
-    height: 13,
-    shadowColor: theme.colors.orange,
-    shadowOffset: { height: 0, width: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    width: 13,
-  },
-  signalLabel: {
-    color: theme.colors.textPrimary,
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 18,
-    lineHeight: 23,
-  },
-  signalMark: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.08)',
-    borderColor: 'rgba(249, 115, 22, 0.25)',
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 54,
-    justifyContent: 'center',
-    width: 54,
-  },
-  signalMeta: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(177, 194, 210, 0.1)',
-    borderColor: 'rgba(177, 194, 210, 0.18)',
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  signalMetaText: {
-    color: theme.colors.accent,
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 11,
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-  },
-  signalRing: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.14)',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  signalTextBlock: {
-    flex: 1,
-    gap: 3,
-    minWidth: 0,
   },
   statusDot: {
     borderRadius: 999,
@@ -902,10 +709,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#22c55e',
   },
   statusDotConnecting: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: theme.colors.orange,
   },
   statusDotError: {
-    backgroundColor: theme.colors.destructiveText,
+    backgroundColor: theme.colors.destructiveBorder,
   },
   statusDotNeutral: {
     backgroundColor: theme.colors.textSecondary,
@@ -920,16 +727,16 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   statusPillConnected: {
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
-    borderColor: 'rgba(34, 197, 94, 0.28)',
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderColor: 'rgba(34, 197, 94, 0.32)',
   },
   statusPillConnecting: {
-    backgroundColor: 'rgba(249, 115, 22, 0.08)',
-    borderColor: 'rgba(249, 115, 22, 0.3)',
+    backgroundColor: theme.colors.orangeSoft,
+    borderColor: theme.colors.orangeStroke,
   },
   statusPillError: {
-    backgroundColor: 'rgba(254, 242, 242, 0.08)',
-    borderColor: 'rgba(252, 165, 165, 0.3)',
+    backgroundColor: 'rgba(252, 165, 165, 0.1)',
+    borderColor: 'rgba(252, 165, 165, 0.32)',
   },
   statusPillNeutral: {
     backgroundColor: 'rgba(248, 250, 252, 0.06)',
@@ -942,13 +749,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   statusTextConnected: {
-    color: '#22c55e',
+    color: '#86efac',
   },
   statusTextConnecting: {
-    color: '#f59e0b',
+    color: theme.colors.orange,
   },
   statusTextError: {
-    color: theme.colors.destructiveText,
+    color: theme.colors.destructiveBorder,
   },
   statusTextNeutral: {
     color: theme.colors.textSecondary,

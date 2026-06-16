@@ -9,7 +9,6 @@ import type { LiveEventDto } from '@/src/features/live/data/liveSessionClient';
 export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
   const insets = useSafeAreaInsets();
   const pulse = useRef(new Animated.Value(1)).current;
-  const glow = useRef(new Animated.Value(0)).current;
   const strobe = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -30,10 +29,6 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
           }),
         ]),
         Animated.sequence([
-          Animated.timing(glow, { duration: 360, toValue: 1, useNativeDriver: true }),
-          Animated.timing(glow, { duration: 520, toValue: 0, useNativeDriver: true }),
-        ]),
-        Animated.sequence([
           Animated.timing(strobe, { duration: 90, toValue: 1, useNativeDriver: true }),
           Animated.timing(strobe, { duration: 280, toValue: 0, useNativeDriver: true }),
         ]),
@@ -42,7 +37,7 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
 
     animation.start();
     return () => animation.stop();
-  }, [glow, pulse, strobe]);
+  }, [pulse, strobe]);
 
   useEffect(() => {
     Vibration.vibrate([0, 420, 160, 420, 160, 820, 220, 420], true);
@@ -54,7 +49,7 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
   }, []);
 
   const title = event.payload?.title ?? 'Terrorwarnung';
-  const message = event.payload?.message ?? 'Angriff außerhalb der Kuppel bestätigt.';
+  const message = event.payload?.message ?? 'Angriff bestätigt. Es gibt mehrere Opfer. Die Angreifer konnten vorerst vertrieben werden.';
 
   return (
     <View
@@ -70,16 +65,6 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
       <Animated.View
         pointerEvents="none"
         style={[
-          styles.glow,
-          {
-            opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.34] }),
-            transform: [{ scale: pulse }],
-          },
-        ]}
-      />
-      <Animated.View
-        pointerEvents="none"
-        style={[
           styles.strobe,
           {
             opacity: strobe.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] }),
@@ -88,15 +73,13 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
       />
 
       <View style={styles.alertPill}>
-        <Text style={styles.alertPillText}>Live-Alarm</Text>
+        <Text style={styles.alertPillText}>Alarm</Text>
       </View>
 
       <Animated.View style={[styles.markShell, { transform: [{ scale: pulse }] }]}>
-        <View style={styles.markOuter}>
-          <View style={styles.markInner}>
-            <View style={styles.markIconSlot}>
-              <DangerTriangleBold color="#fff" size={58} />
-            </View>
+        <View style={styles.markInner}>
+          <View style={styles.markIconSlot}>
+            <DangerTriangleBold color="#fff" size={58} />
           </View>
         </View>
       </Animated.View>
@@ -174,14 +157,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
-  glow: {
-    backgroundColor: '#fecaca',
-    borderRadius: 260,
-    height: 320,
-    position: 'absolute',
-    top: 104,
-    width: 320,
-  },
   kicker: {
     color: 'rgba(255, 255, 255, 0.86)',
     fontFamily: 'NunitoSans_700Bold',
@@ -204,16 +179,6 @@ const styles = StyleSheet.create({
     height: 58,
     justifyContent: 'center',
     width: 58,
-  },
-  markOuter: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(254, 202, 202, 0.18)',
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    borderRadius: 80,
-    borderWidth: 2,
-    height: 160,
-    justifyContent: 'center',
-    width: 160,
   },
   markShell: {
     alignItems: 'center',

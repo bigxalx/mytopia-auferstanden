@@ -25,7 +25,7 @@ function LiveSessionBarContent({
   transparent?: boolean;
 }) {
   const router = useRouter();
-  const { availableSession, connectionStatus, isGpsBypassEnabled, isJoined } = useLiveSession();
+  const { availableSession, connectionStatus, isJoined } = useLiveSession();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -60,15 +60,6 @@ function LiveSessionBarContent({
           <View style={styles.textBlock}>
             <Text numberOfLines={1} style={styles.title}>
               {isJoinPrompt ? 'Jetzt Live' : isConnected ? 'Live verbunden' : 'Live wird verbunden'}
-            </Text>
-            <Text numberOfLines={1} style={styles.subtitle}>
-              {isJoinPrompt
-                ? isGpsBypassEnabled
-                  ? 'Testmodus: GPS-Prüfung aus'
-                  : 'Vor Ort beitreten oder jetzt nicht'
-                : isConnected
-                  ? 'Warteraum ist geöffnet'
-                  : 'Live-Verbindung wird hergestellt'}
             </Text>
           </View>
           <View style={styles.arrowSlot}>
@@ -110,9 +101,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     justifyContent: 'flex-start',
-    minHeight: 56,
+    minHeight: 50,
     paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
   arrowSlot: {
     alignItems: 'center',
@@ -135,7 +126,7 @@ const styles = StyleSheet.create({
   inlineContainer: {
     minHeight: 44,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
   manualFallbackWrapper: {
     left: 8,
@@ -165,21 +156,15 @@ const styles = StyleSheet.create({
     height: 9,
     width: 9,
   },
-  subtitle: {
-    color: 'rgba(255, 255, 255, 0.66)',
-    fontFamily: 'NunitoSans_400Regular',
-    fontSize: 12,
-    lineHeight: 16,
-  },
   textBlock: {
     flex: 1,
+    justifyContent: 'center',
     minWidth: 0,
   },
   title: {
     color: '#fff',
     fontFamily: theme.typography.button.fontFamily,
     fontSize: 14,
-    lineHeight: 18,
-    textTransform: 'uppercase',
+    lineHeight: 19,
   },
 });
