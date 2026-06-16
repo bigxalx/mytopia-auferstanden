@@ -77,6 +77,8 @@ const DEFAULT_VENUE_RADIUS_METERS = 50;
 const EARTH_RADIUS_METERS = 6_371_000;
 const LIVE_ALERT_PUSH_BURST_COUNT = 4;
 const LIVE_ALERT_PUSH_BURST_DELAY_MS = 350;
+const LIVE_ALERT_PUSH_TITLE = 'Dringende Live-Meldung';
+const LIVE_ALERT_PUSH_BODY = 'Öffne Mytopia für weitere Informationen.';
 const LIVE_ALERT_PUSH_CHANNEL_ID = 'live-terror-alert';
 const LIVE_ALERT_PUSH_BATCH_SIZE = 500;
 const PERMANENT_FCM_TOKEN_ERROR_CODES = new Set([
@@ -633,7 +635,6 @@ async function handleAdaptorTerrorAlertStart(req: Request, res: FirebaseResponse
   if (!result.reused) {
     await sendLiveAlertPushBurstToConnectedParticipants({
       eventId: result.eventId,
-      payload,
       sessionId,
     });
   }
@@ -741,7 +742,6 @@ async function handleTriggerLiveEvent(req: Request, res: FirebaseResponse) {
   if (type === 'terror_alert') {
     await sendLiveAlertPushBurstToConnectedParticipants({
       eventId: eventRef.id,
-      payload,
       sessionId,
     });
   }
@@ -805,11 +805,9 @@ async function handleClearLiveEvent(req: Request, res: FirebaseResponse, eventId
 
 async function sendLiveAlertPushBurstToConnectedParticipants({
   eventId,
-  payload,
   sessionId,
 }: {
   eventId: string;
-  payload: ReturnType<typeof normalizeEventPayload>;
   sessionId: string;
 }) {
   const participantsSnapshot = await liveSessionRef(sessionId)
@@ -868,7 +866,6 @@ async function sendLiveAlertPushBurstToConnectedParticipants({
           },
         },
         data: {
-          burstIndex: String(burstIndex),
           eventId,
           eventType: 'live_terror_alert',
           route: '/live/session',
@@ -876,8 +873,8 @@ async function sendLiveAlertPushBurstToConnectedParticipants({
           type: 'live_terror_alert',
         },
         notification: {
-          body: burstIndex === 0 ? payload.message : 'Warte auf Anweisung der Bühne.',
-          title: burstIndex === 0 ? payload.title : `${payload.title} ${burstIndex + 1}`,
+          body: LIVE_ALERT_PUSH_BODY,
+          title: LIVE_ALERT_PUSH_TITLE,
         },
         tokens: chunk.map(({ token }) => token),
       });
