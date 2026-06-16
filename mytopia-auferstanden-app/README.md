@@ -95,6 +95,11 @@ The release lanes keep `expo.version`, `ios.buildNumber`, and
 `android.versionCode` in `app.json` because those values are intentionally
 mutated during native release preparation.
 
+For iOS capability changes such as Associated Domains, use either
+`IOS_SIGNING_STYLE=automatic` with Apple credentials that can refresh App Store
+profiles, or regenerate the manual App Store provisioning profile and set
+`IOS_PROVISIONING_PROFILE_NAME` to that profile name.
+
 ## Verification
 
 ```bash

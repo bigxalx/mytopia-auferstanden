@@ -269,6 +269,44 @@ def require_apple_id!
   apple_id
 end
 
+def app_store_connect_api_key_if_configured
+  key_id = ENV["APP_STORE_CONNECT_KEY_ID"].to_s.strip
+  issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"].to_s.strip
+  key_path = ENV["APP_STORE_CONNECT_KEY_PATH"].to_s.strip
+
+  return nil if [key_id, issuer_id, key_path].all?(&:empty?)
+
+  if [key_id, issuer_id, key_path].any?(&:empty?)
+    UI.user_error!("APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, and APP_STORE_CONNECT_KEY_PATH must all be set together.")
+  end
+
+  resolved_key_path = absolute_from_project(key_path)
+  UI.user_error!("App Store Connect API key was not found at #{resolved_key_path}.") unless File.exist?(resolved_key_path)
+
+  app_store_connect_api_key(
+    key_id: key_id,
+    issuer_id: issuer_id,
+    key_filepath: resolved_key_path,
+    duration: 1200,
+    in_house: false
+  )
+end
+
+def xcode_authentication_xcargs
+  key_id = ENV["APP_STORE_CONNECT_KEY_ID"].to_s.strip
+  issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"].to_s.strip
+  key_path = ENV["APP_STORE_CONNECT_KEY_PATH"].to_s.strip
+
+  return nil if [key_id, issuer_id, key_path].any?(&:empty?)
+
+  resolved_key_path = absolute_from_project(key_path)
+  [
+    "-authenticationKeyPath #{shellescape(resolved_key_path)}",
+    "-authenticationKeyID #{shellescape(key_id)}",
+    "-authenticationKeyIssuerID #{shellescape(issuer_id)}"
+  ].join(" ")
+end
+
 def android_signing!
   credentials_path =
     if ENV["ANDROID_CREDENTIALS_JSON_PATH"].to_s.strip != ""
@@ -330,7 +368,8 @@ lane :ios_beta do
   release_version = prepare_release_version!
   resolve_google_services!(:ios)
   team_id = ensure_ios_team_id!
-  apple_id = require_apple_id!
+  api_key = app_store_connect_api_key_if_configured
+  apple_id = api_key ? nil : require_apple_id!
   build_number = increment_ios_build_number!
   verify_release_config!("ios")
 
@@ -340,22 +379,27 @@ lane :ios_beta do
   archive_path = absolute_from_project(IOS_ARCHIVE_PATH)
   FileUtils.mkdir_p(output_directory)
 
-  # Check if the user specified a manual provisioning profile
+  # Check if the user specified a manual provisioning profile.
+  # Set IOS_SIGNING_STYLE=automatic to let Xcode refresh profiles after
+  # capability changes without editing ignored local env files.
   prov_profile = ENV["IOS_PROVISIONING_PROFILE_NAME"].to_s.strip
-  
+  signing_style = ENV["IOS_SIGNING_STYLE"].to_s.strip.downcase
+
   export_options = {
     method: "app-store",
     teamID: team_id
   }
 
-  unless prov_profile.empty?
+  if signing_style == "automatic"
+    export_options[:signingStyle] = "automatic"
+  elsif !prov_profile.empty?
     export_options[:provisioningProfiles] = {
       app_identifier => prov_profile
     }
     export_options[:signingStyle] = "manual"
   end
 
-  gym(
+  gym_options = {
     workspace: absolute_from_project(ios_workspace),
     scheme: ios_scheme,
     configuration: "Release",
@@ -365,13 +409,29 @@ lane :ios_beta do
     output_name: IOS_IPA_NAME,
     export_options: export_options,
     silent: false
-  )
+  }
 
-  upload_to_testflight(
-    username: apple_id,
+  if signing_style == "automatic"
+    xcode_auth_args = xcode_authentication_xcargs
+    signing_args = ["-allowProvisioningUpdates"]
+    signing_args << xcode_auth_args unless xcode_auth_args.to_s.empty?
+    gym_options[:xcargs] = signing_args.join(" ")
+    gym_options[:export_xcargs] = signing_args.join(" ")
+  end
+
+  gym(**gym_options)
+
+  testflight_options = {
     ipa: File.join(output_directory, IOS_IPA_NAME),
     skip_waiting_for_build_processing: true
-  )
+  }
+  if api_key
+    testflight_options[:api_key] = api_key
+  else
+    testflight_options[:username] = apple_id
+  end
+
+  upload_to_testflight(**testflight_options)
 
   UI.success("Uploaded iOS build #{build_number} (app version #{release_version}) to TestFlight.")
 end
