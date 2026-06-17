@@ -74,13 +74,11 @@ export async function fetchLiveAvailability({
 
 export async function joinLiveSession({
   joinMethod = 'qr',
-  location,
   mode,
   sessionId,
   token,
 }: {
-  joinMethod?: 'qr' | 'auto-gps-time' | 'auto-time-only';
-  location?: { latitude: number; longitude: number };
+  joinMethod?: 'qr' | 'auto-local-gps-time' | 'auto-time-only';
   mode: AppMode;
   sessionId: string;
   token?: string | null;
@@ -89,7 +87,6 @@ export async function joinLiveSession({
   const payload = await liveApiRequest<{ session?: LiveSessionDto }>({
     body: {
       joinMethod,
-      ...(location ? { location } : {}),
       mode,
       sessionId,
       ...(token ? { token } : {}),

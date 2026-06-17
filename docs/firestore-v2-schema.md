@@ -107,9 +107,10 @@ System collection:
   - `currentEventId`,
   - `createdAt`,
   - `updatedAt`.
-- An active time window is the authoritative gate. When location is available,
-  GPS plus time can auto-check-in a user only inside the venue radius. Without
-  location access, the active time window alone allows joining.
+- An active time window is the authoritative backend gate. When location is
+  available, the app checks the venue radius locally and sends no coordinates
+  to the backend. Without location access, the active time window alone allows
+  joining.
 - `startsAt`/`endsAt` are copied from the active show window for scheduled
   sessions, or set to a short debug duration for manual Advanced sessions.
 - MVP venue defaults are Theater Altenburg Gera at `50.9871377`, `12.4374725`
@@ -159,7 +160,7 @@ System collection:
 - Canonical fields:
   - `uid`,
   - `joinedAt`,
-  - `joinMethod` (`qr`, `auto-gps-time`, `auto-time-only`, `manual-admin`),
+  - `joinMethod` (`qr`, `auto-local-gps-time`, `auto-time-only`, `manual-admin`),
   - `lastSeenAt`,
   - `leftAt`,
   - `connectionState` (`connected`, `reconnecting`, `offline`),

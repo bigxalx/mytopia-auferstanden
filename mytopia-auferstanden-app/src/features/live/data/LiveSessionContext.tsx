@@ -323,17 +323,16 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
 
     try {
       const position = isGpsBypassEnabled ? null : await getLiveJoinPosition();
-      const location = resolveJoinLocation(availableSession, position, isGpsBypassEnabled);
-      const joinMethod = !isGpsBypassEnabled && !position
-        ? 'auto-time-only'
-        : 'auto-gps-time';
-      if (joinMethod === 'auto-gps-time' && !location) {
-        setConnectionStatus('offline');
-        return { state: 'outside-venue' };
+      let joinMethod: 'auto-local-gps-time' | 'auto-time-only' = 'auto-time-only';
+      if (!isGpsBypassEnabled && position && hasVenueTarget(availableSession)) {
+        if (!isPositionWithinVenue(availableSession, position)) {
+          setConnectionStatus('offline');
+          return { state: 'outside-venue' };
+        }
+        joinMethod = 'auto-local-gps-time';
       }
       const nextSession = await joinLiveSession({
         joinMethod,
-        ...(location ? { location } : {}),
         mode: LIVE_SESSION_MODE,
         sessionId: availableSession.sessionId,
       });
@@ -348,11 +347,6 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
     } catch (error) {
       setConnectionStatus('offline');
       const message = describeError(error);
-      if (
-        message.includes('Live auto check-in is not available here')
-      ) {
-        return { state: 'outside-venue' };
-      }
       if (
         message.includes('No active live window')
         || message.includes('Live session is not active')
@@ -480,29 +474,16 @@ async function getLiveJoinPosition() {
   }
 }
 
-function resolveJoinLocation(
-  session: LiveSessionDto,
-  position: Location.LocationObject | null,
-  bypassGps: boolean
+function isPositionWithinVenue(
+  session: LiveSessionDto & { venueLatitude: number; venueLongitude: number; venueRadiusMeters: number },
+  position: Location.LocationObject
 ) {
-  if (bypassGps) {
-    if (!hasVenueTarget(session)) {
-      return null;
-    }
-    return {
-      latitude: session.venueLatitude,
-      longitude: session.venueLongitude,
-    };
-  }
-
-  if (!position) {
-    return null;
-  }
-
-  return {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-  };
+  return getDistanceMeters(
+    position.coords.latitude,
+    position.coords.longitude,
+    session.venueLatitude,
+    session.venueLongitude
+  ) <= session.venueRadiusMeters;
 }
 
 function hasVenueTarget(

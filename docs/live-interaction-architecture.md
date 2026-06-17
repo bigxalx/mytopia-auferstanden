@@ -97,6 +97,8 @@ GPS plus time is a conditional visibility and join layer:
   the bottom live bar is hidden.
 - If location is unavailable or denied, the app still shows the live bar and an
   active time window alone allows joining.
+- Location coordinates and calculated distances stay on the device and are not
+  included in live join requests or stored by the backend.
 - Development builds bypass GPS gating for testing and show an explicit notice
   that production checks location when it is available.
 

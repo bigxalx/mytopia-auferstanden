@@ -74,7 +74,6 @@ const DEFAULT_VENUE_LATITUDE = 50.9871377;
 const DEFAULT_VENUE_LONGITUDE = 12.4374725;
 const DEFAULT_VENUE_NAME = 'Theater Altenburg Gera';
 const DEFAULT_VENUE_RADIUS_METERS = 50;
-const EARTH_RADIUS_METERS = 6_371_000;
 const LIVE_ALERT_PUSH_BURST_COUNT = 4;
 const LIVE_ALERT_PUSH_BURST_DELAY_MS = 350;
 const LIVE_ALERT_PUSH_TITLE = 'Dringende Live-Meldung';
@@ -496,14 +495,13 @@ async function handleJoinLiveSession(req: Request, res: FirebaseResponse) {
 
   const token = stringValue(body.token);
   const requestedJoinMethod = stringValue(body.joinMethod);
-  const location = normalizeLocation(body.location);
 
-  let joinMethod: 'qr' | 'auto-gps-time' | 'auto-time-only';
+  let joinMethod: 'qr' | 'auto-local-gps-time' | 'auto-time-only';
   let session = await ensureCurrentSessionForActiveWindow(mode) ?? await findActiveLiveSession(mode);
   if (token && await doesJoinTokenMatch(sessionId, token)) {
     joinMethod = 'qr';
-  } else if (requestedJoinMethod === 'auto-gps-time') {
-    joinMethod = 'auto-gps-time';
+  } else if (requestedJoinMethod === 'auto-local-gps-time') {
+    joinMethod = 'auto-local-gps-time';
     session = await ensureCurrentSessionForActiveWindow(mode);
   } else if (requestedJoinMethod === 'auto-time-only') {
     joinMethod = 'auto-time-only';
@@ -518,9 +516,6 @@ async function handleJoinLiveSession(req: Request, res: FirebaseResponse) {
 
   const data = session.data;
   assertSessionCanAcceptJoin(data);
-  if (joinMethod === 'auto-gps-time' && !isValidAutoCheckIn(data, location)) {
-    throw new HttpError(403, 'Live auto check-in is not available here.');
-  }
 
   const participantRef = liveSessionRef(sessionId).collection('participants').doc(decoded.uid);
   const participantSnapshot = await participantRef.get();
@@ -1267,48 +1262,6 @@ function hasSessionEnded(data: LiveSessionDoc) {
   return typeof endsAtMs === 'number' && endsAtMs < Date.now();
 }
 
-function isValidAutoCheckIn(data: LiveSessionDoc, location: { latitude: number; longitude: number } | null) {
-  if (!location) {
-    return false;
-  }
-
-  const now = Date.now();
-  const startsAtMs = data.startsAt?.toMillis();
-  const endsAtMs = data.endsAt?.toMillis();
-  if (typeof startsAtMs === 'number' && now < startsAtMs) {
-    return false;
-  }
-  if (typeof endsAtMs === 'number' && now > endsAtMs) {
-    return false;
-  }
-  if (typeof data.venueLatitude !== 'number' || typeof data.venueLongitude !== 'number') {
-    return false;
-  }
-
-  const radius = data.venueRadiusMeters ?? DEFAULT_VENUE_RADIUS_METERS;
-  return calculateDistanceMeters(location, {
-    latitude: data.venueLatitude,
-    longitude: data.venueLongitude,
-  }) <= radius;
-}
-
-function calculateDistanceMeters(
-  left: { latitude: number; longitude: number },
-  right: { latitude: number; longitude: number }
-) {
-  const leftLat = toRadians(left.latitude);
-  const rightLat = toRadians(right.latitude);
-  const deltaLat = toRadians(right.latitude - left.latitude);
-  const deltaLon = toRadians(right.longitude - left.longitude);
-  const a = Math.sin(deltaLat / 2) ** 2
-    + Math.cos(leftLat) * Math.cos(rightLat) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function toRadians(value: number) {
-  return value * Math.PI / 180;
-}
-
 function objectBody(req: Request): Record<string, unknown> {
   return typeof req.body === 'object' && req.body !== null ? req.body as Record<string, unknown> : {};
 }
@@ -1389,18 +1342,6 @@ function isLiveShowWindowActive(data: LiveShowWindowDoc, now: number) {
 
 function compareTimestamps(left: Timestamp | undefined, right: Timestamp | undefined) {
   return (left?.toMillis() ?? 0) - (right?.toMillis() ?? 0);
-}
-
-function normalizeLocation(value: unknown) {
-  if (typeof value !== 'object' || value === null) {
-    return null;
-  }
-  const latitude = numberValue((value as { latitude?: unknown }).latitude);
-  const longitude = numberValue((value as { longitude?: unknown }).longitude);
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    return null;
-  }
-  return { latitude, longitude };
 }
 
 function normalizeLiveEventSource(value: unknown): LiveEventSource {
