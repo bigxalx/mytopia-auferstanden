@@ -89,11 +89,18 @@ bun run release:bootstrap
 bun run release:ios-beta
 bun run release:android-beta
 bun run release
+bun run release:build:ios
+bun run release:build:android
+bun run release:build
 ```
 
 The release lanes keep `expo.version`, `ios.buildNumber`, and
 `android.versionCode` in `app.json` because those values are intentionally
 mutated during native release preparation.
+
+The `release:build*` scripts build signed store artifacts from the version and
+build numbers already tracked in `app.json`. They do not increment those values
+or upload artifacts to App Store Connect or Google Play.
 
 For iOS capability changes such as Associated Domains, use either
 `IOS_SIGNING_STYLE=automatic` with Apple credentials that can refresh App Store

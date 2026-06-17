@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mytopia App",
     "slug": "mytopia-auferstanden-app",
-    "version": "1.0.22",
+    "version": "1.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -19,7 +19,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "47",
+      "buildNumber": "49",
       "bundleIdentifier": "com.example.mytopia",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -35,7 +35,7 @@
       }
     },
     "android": {
-      "versionCode": 28,
+      "versionCode": 29,
       "adaptiveIcon": {
         "backgroundColor": "#ff7a1a",
         "foregroundImage": "./assets/images/android-icon-foreground.png"

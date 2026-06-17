@@ -47,6 +47,10 @@ def non_empty(value)
   normalized.empty? ? nil : normalized
 end
 
+def build_only?
+  %w[1 true yes].include?(ENV["FASTLANE_BUILD_ONLY"].to_s.strip.downcase)
+end
+
 def app_identifier
   env_value = (ENV["FASTLANE_APP_IDENTIFIER"] || ENV["IOS_BUNDLE_IDENTIFIER"]).to_s.strip
   return env_value unless env_value.empty?
@@ -247,7 +251,7 @@ def prepare_release_version!
   requested_version = ENV["RELEASE_APP_VERSION"].to_s.strip
   release_version =
     if requested_version.empty?
-      next_release_version(current_version)
+      build_only? ? current_version : next_release_version(current_version)
     else
       normalize_release_version!(requested_version)
     end
@@ -368,9 +372,14 @@ lane :ios_beta do
   release_version = prepare_release_version!
   resolve_google_services!(:ios)
   team_id = ensure_ios_team_id!
-  api_key = app_store_connect_api_key_if_configured
-  apple_id = api_key ? nil : require_apple_id!
-  build_number = increment_ios_build_number!
+  api_key = build_only? ? nil : app_store_connect_api_key_if_configured
+  apple_id = build_only? || api_key ? nil : require_apple_id!
+  build_number =
+    if build_only?
+      load_app_json.fetch("expo", {}).dig("ios", "buildNumber").to_s
+    else
+      increment_ios_build_number!
+    end
   verify_release_config!("ios")
 
   run_prebuild!(:ios)
@@ -421,19 +430,23 @@ lane :ios_beta do
 
   gym(**gym_options)
 
-  testflight_options = {
-    ipa: File.join(output_directory, IOS_IPA_NAME),
-    skip_waiting_for_build_processing: true
-  }
-  if api_key
-    testflight_options[:api_key] = api_key
+  if build_only?
+    UI.success("Built iOS build #{build_number} (app version #{release_version}) without uploading it.")
   else
-    testflight_options[:username] = apple_id
+    testflight_options = {
+      ipa: File.join(output_directory, IOS_IPA_NAME),
+      skip_waiting_for_build_processing: true
+    }
+    if api_key
+      testflight_options[:api_key] = api_key
+    else
+      testflight_options[:username] = apple_id
+    end
+
+    upload_to_testflight(**testflight_options)
+
+    UI.success("Uploaded iOS build #{build_number} (app version #{release_version}) to TestFlight.")
   end
-
-  upload_to_testflight(**testflight_options)
-
-  UI.success("Uploaded iOS build #{build_number} (app version #{release_version}) to TestFlight.")
 end
 
 desc "Build and upload the Android beta to Play Internal Testing"
@@ -445,8 +458,13 @@ lane :android_beta do
   release_version = prepare_release_version!
   resolve_google_services!(:android)
   signing = android_signing!
-  play_json = play_json_key_path
-  version_code = increment_android_version_code!
+  play_json = build_only? ? nil : play_json_key_path
+  version_code =
+    if build_only?
+      load_app_json.fetch("expo", {}).dig("android", "versionCode").to_i
+    else
+      increment_android_version_code!
+    end
   verify_release_config!("android")
 
   run_prebuild!(:android)
@@ -473,7 +491,9 @@ lane :android_beta do
   FileUtils.mkdir_p(output_directory)
   FileUtils.cp(absolute_from_project(ANDROID_AAB_PATH), destination_path)
 
-  if play_json
+  if build_only?
+    UI.success("Built Android versionCode #{version_code} (app version #{release_version}) without uploading it.")
+  elsif play_json
     supply(
       aab: destination_path,
       package_name: android_package,
