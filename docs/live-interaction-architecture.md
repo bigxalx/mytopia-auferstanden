@@ -91,17 +91,18 @@ private document. The token is stable by default so the poster does not need to
 be reprinted for each show. App users can read live session state, but not the
 join token.
 
-GPS plus time is a visibility and join-safety layer:
+GPS plus time is a conditional visibility and join layer:
 
 - If the user has granted location permission and is outside the venue radius,
   the bottom live bar is hidden.
-- If location is unavailable or denied, the app can still show the live bar and
-  let the backend enforce the join rules.
+- If location is unavailable or denied, the app still shows the live bar and an
+  active time window alone allows joining.
 - Development builds bypass GPS gating for testing and show an explicit notice
-  that production will not behave that way.
+  that production checks location when it is available.
 
 Users who are not joined to the session do not listen to or render session
-events. People outside the show are therefore isolated from the alarm takeover.
+events. Because users without location access can join during an active window,
+venue presence is a convenience filter rather than an access-control boundary.
 
 The MVP does not use a heartbeat. A participant becomes connected only through
 an explicit join via QR/link/bottom bar, and remains connected until they

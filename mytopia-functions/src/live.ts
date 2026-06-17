@@ -498,12 +498,15 @@ async function handleJoinLiveSession(req: Request, res: FirebaseResponse) {
   const requestedJoinMethod = stringValue(body.joinMethod);
   const location = normalizeLocation(body.location);
 
-  let joinMethod: 'qr' | 'auto-gps-time';
+  let joinMethod: 'qr' | 'auto-gps-time' | 'auto-time-only';
   let session = await ensureCurrentSessionForActiveWindow(mode) ?? await findActiveLiveSession(mode);
   if (token && await doesJoinTokenMatch(sessionId, token)) {
     joinMethod = 'qr';
   } else if (requestedJoinMethod === 'auto-gps-time') {
     joinMethod = 'auto-gps-time';
+    session = await ensureCurrentSessionForActiveWindow(mode);
+  } else if (requestedJoinMethod === 'auto-time-only') {
+    joinMethod = 'auto-time-only';
     session = await ensureCurrentSessionForActiveWindow(mode);
   } else {
     throw new HttpError(403, 'Invalid live session join credentials.');

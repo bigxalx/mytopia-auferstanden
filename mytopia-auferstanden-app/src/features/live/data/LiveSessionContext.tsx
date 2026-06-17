@@ -29,7 +29,6 @@ type LiveQrJoinResult =
   | { state: 'unavailable' };
 type LivePromptJoinResult =
   | { state: 'joined'; session: LiveSessionDto }
-  | { state: 'needs-location-permission' }
   | { state: 'outside-venue' }
   | { message: string; state: 'error' }
   | { state: 'unavailable' };
@@ -324,18 +323,17 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
 
     try {
       const position = isGpsBypassEnabled ? null : await getLiveJoinPosition();
-      if (!isGpsBypassEnabled && !position) {
-        setConnectionStatus('offline');
-        return { state: 'needs-location-permission' };
-      }
       const location = resolveJoinLocation(availableSession, position, isGpsBypassEnabled);
-      if (!location) {
+      const joinMethod = !isGpsBypassEnabled && !position
+        ? 'auto-time-only'
+        : 'auto-gps-time';
+      if (joinMethod === 'auto-gps-time' && !location) {
         setConnectionStatus('offline');
         return { state: 'outside-venue' };
       }
       const nextSession = await joinLiveSession({
-        joinMethod: 'auto-gps-time',
-        location,
+        joinMethod,
+        ...(location ? { location } : {}),
         mode: LIVE_SESSION_MODE,
         sessionId: availableSession.sessionId,
       });
@@ -352,7 +350,6 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
       const message = describeError(error);
       if (
         message.includes('Live auto check-in is not available here')
-        || message.includes('(403)')
       ) {
         return { state: 'outside-venue' };
       }

@@ -79,7 +79,7 @@ export async function joinLiveSession({
   sessionId,
   token,
 }: {
-  joinMethod?: 'qr' | 'auto-gps-time';
+  joinMethod?: 'qr' | 'auto-gps-time' | 'auto-time-only';
   location?: { latitude: number; longitude: number };
   mode: AppMode;
   sessionId: string;

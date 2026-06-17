@@ -224,10 +224,6 @@ export default function LiveSessionScreen() {
         setPreviewSession(result.session);
         return;
       }
-      if (result.state === 'needs-location-permission') {
-        setJoinError('Bitte erlaube den Standortzugriff, damit wir den Live-Zugang vor Ort freischalten können. Alternativ kannst du den QR-Code im Theater scannen.');
-        return;
-      }
       if (result.state === 'outside-venue') {
         setJoinError('Du scheinst gerade nicht im Theater zu sein. Der Live-Zugang erscheint wieder, sobald du vor Ort bist und das Zeitfenster läuft.');
         return;
@@ -455,7 +451,7 @@ function DevGpsNotice() {
     <View style={styles.devNotice}>
       <Text style={styles.devNoticeTitle}>Testmodus</Text>
       <Text style={styles.devNoticeText}>
-        GPS-Prüfung ist in Dev deaktiviert. In Production erscheint dieser Live-Zugang nur vor Ort.
+        GPS-Prüfung ist in Dev deaktiviert. In Production wird dein Standort geprüft, wenn du ihn freigegeben hast.
       </Text>
     </View>
   );
@@ -551,7 +547,7 @@ function getLiveCopy({
   session: boolean;
 }) {
   if (isPromptSession && hasError) {
-    return 'Schließe dieses Fenster ruhig. Die Live-Leiste bleibt während des Zeitfensters sichtbar, sobald du vor Ort bist.';
+    return 'Schließe dieses Fenster ruhig. Die Live-Leiste bleibt während des Zeitfensters sichtbar.';
   }
   if (isPromptSession) {
     return 'Nimm an der Live-Interaktion teil und entscheide mit, wie es weitergeht.';
@@ -563,7 +559,7 @@ function getLiveCopy({
     return 'Im Moment ist keine Live-Interaktion verfügbar. Du kannst die App normal weiter nutzen.';
   }
   if (hasError) {
-    return 'Die Live-Verbindung konnte gerade nicht bestätigt werden. Bitte versuche es vor Ort noch einmal.';
+    return 'Die Live-Verbindung konnte gerade nicht bestätigt werden. Bitte versuche es noch einmal.';
   }
   if (session) {
     return 'Signale erscheinen automatisch. Du kannst dieses Fenster schließen und bleibst verbunden.';

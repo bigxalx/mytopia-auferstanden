@@ -210,7 +210,7 @@ export type V2NarrativeUserReactionDoc = {
 
 export type LiveSessionStatus = 'draft' | 'active' | 'paused' | 'closed';
 export type LiveConnectionState = 'connected' | 'reconnecting' | 'offline';
-export type LiveJoinMethod = 'qr' | 'auto-gps-time' | 'manual-admin';
+export type LiveJoinMethod = 'qr' | 'auto-gps-time' | 'auto-time-only' | 'manual-admin';
 export type LiveEventType = 'terror_alert';
 export type LiveEventStatus = 'active' | 'cleared';
 export type LiveEventSource = 'admin' | 'adaptor';

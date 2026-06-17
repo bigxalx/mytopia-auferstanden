@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mytopia App",
     "slug": "mytopia-auferstanden-app",
-    "version": "1.0.21",
+    "version": "1.0.22",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -19,7 +19,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "43",
+      "buildNumber": "45",
       "bundleIdentifier": "com.example.mytopia",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

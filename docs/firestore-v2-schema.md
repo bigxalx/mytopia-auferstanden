@@ -107,8 +107,9 @@ System collection:
   - `currentEventId`,
   - `createdAt`,
   - `updatedAt`.
-- QR/session join is the authoritative gate. GPS plus time can auto-check-in a
-  user only when permission, time window, and venue radius match.
+- An active time window is the authoritative gate. When location is available,
+  GPS plus time can auto-check-in a user only inside the venue radius. Without
+  location access, the active time window alone allows joining.
 - `startsAt`/`endsAt` are copied from the active show window for scheduled
   sessions, or set to a short debug duration for manual Advanced sessions.
 - MVP venue defaults are Theater Altenburg Gera at `50.9871377`, `12.4374725`
@@ -158,7 +159,7 @@ System collection:
 - Canonical fields:
   - `uid`,
   - `joinedAt`,
-  - `joinMethod` (`qr`, `auto-gps-time`, `manual-admin`),
+  - `joinMethod` (`qr`, `auto-gps-time`, `auto-time-only`, `manual-admin`),
   - `lastSeenAt`,
   - `leftAt`,
   - `connectionState` (`connected`, `reconnecting`, `offline`),
@@ -168,7 +169,7 @@ System collection:
   user listens for or renders live events.
 - Implementation should prefer Function-backed writes for joins, explicit leaves,
   and session/window cleanup so validation can check QR token, session status,
-  and GPS/time constraints.
+  and applicable GPS/time constraints.
 
 `v2/app/liveSessions/{sessionId}/events/{eventId}`:
 
