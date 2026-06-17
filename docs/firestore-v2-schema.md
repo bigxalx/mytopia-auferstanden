@@ -88,9 +88,9 @@ System collection:
   - `production-current`
   - `dev-current`
 - The moderator UI treats each mode as a singleton live session. Normal show
-  operation is driven by `liveShowWindows`; the backend lazily upserts this
-  deterministic session during an active window. Manual start/end exists only in
-  Advanced debug controls.
+  operation is driven by `liveShowWindows`; Cloud Tasks activate and close each
+  run at the configured boundaries, with API checks as a fallback. Manual
+  start/end exists only in Advanced debug controls.
 - Canonical fields:
   - `title`,
   - `mode` (`production` or `dev`),
@@ -103,6 +103,7 @@ System collection:
   - `venueLatitude`,
   - `venueLongitude`,
   - `venueRadiusMeters`,
+  - `activeRunId`,
   - `joinTokenHash`,
   - `currentEventId`,
   - `createdAt`,
@@ -111,6 +112,8 @@ System collection:
   available, the app checks the venue radius locally and sends no coordinates
   to the backend. Without location access, the active time window alone allows
   joining.
+- `activeRunId` identifies one performance inside the reusable deterministic
+  session. Scheduled runs use the show-window id; manual debug runs use a UUID.
 - `startsAt`/`endsAt` are copied from the active show window for scheduled
   sessions, or set to a short debug duration for manual Advanced sessions.
 - MVP venue defaults are Theater Altenburg Gera at `50.9871377`, `12.4374725`
@@ -161,6 +164,7 @@ System collection:
   - `uid`,
   - `joinedAt`,
   - `joinMethod` (`qr`, `auto-local-gps-time`, `auto-time-only`, `manual-admin`),
+  - `runId`,
   - `lastSeenAt`,
   - `leftAt`,
   - `connectionState` (`connected`, `reconnecting`, `offline`),
@@ -168,6 +172,9 @@ System collection:
   - `updatedAt`.
 - Participants are scoped to one session. Joining a session is required before a
   user listens for or renders live events.
+- A participant is eligible only while connected and while `runId` matches the
+  parent session's `activeRunId`. Historical participant documents do not grant
+  access to later performances.
 - Implementation should prefer Function-backed writes for joins, explicit leaves,
   and session/window cleanup so validation can check QR token, session status,
   and applicable GPS/time constraints.
@@ -180,6 +187,7 @@ System collection:
   - `type` (`terror_alert`),
   - `status` (`active`, `cleared`),
   - `source` (`admin`, `adaptor`),
+  - `runId`,
   - `cueId`,
   - `payload.title`,
   - `payload.message`,
@@ -222,8 +230,8 @@ Key policy:
 2. Submission writes require moderator/admin claims because user submission creation goes through Cloud Functions.
 3. `v2/app/scoreEvents` are immutable after creation.
 4. `v2/app/leaderboard` is client read-only.
-5. Live sessions are read only for eligible signed-in users; live event writes
-   are server-only.
+5. Live sessions are read only for eligible signed-in users. Event reads require
+   connected membership in the current `activeRunId`; event writes are server-only.
 6. Live session private token docs are denied to all clients.
 7. Non-`v2` access is denied by default in this rules baseline.
 

@@ -20,14 +20,17 @@
 - Reusing the same printed QR across multiple show windows works without
   reprinting.
 
-## GPS + Time Auto-Check-In
+## GPS + Time Join
 
 - User with location permission, within 50m of Theater Altenburg Gera, inside
-  an active show window auto-joins the active session.
-- User outside the 50m venue radius does not auto-join.
-- User inside venue radius but outside show window does not auto-join.
+  an active show window sees the live bar and can explicitly join.
+- User outside the 50m venue radius with an available location does not see the
+  bar and is rejected locally if the route is already open.
+- User with denied permission or unavailable GPS still sees the bar and can join
+  remotely during the active time window using `auto-time-only`.
+- User inside venue radius but outside the show window cannot join.
 - Location permission denial does not block QR join.
-- Location failure falls back to manual QR/session join.
+- Join requests never include device coordinates or calculated distance.
 
 ## Audience Isolation
 
@@ -37,16 +40,23 @@
 - User joined to a dev/test session does not receive production events.
 - User from a previous expired window does not receive the current event unless
   explicitly joined again.
+- Participant membership and event reads require a run id matching the active
+  performance.
+- Offline and previous-run participant documents cannot read current event data.
+- Push delivery and moderator connected counts include only the active run.
 - Creating/entering the current scheduled window closes older active sessions in
   the same mode.
 
 ## Connection Status
 
-- Joined app shows `Live verbunden` when listener and heartbeat are current.
+- Joined app shows `Live verbunden` after the current run's session listener is
+  active.
 - App shows `Verbinde...` while joining or reconnecting.
 - App shows `Offline` when the listener cannot confirm current state.
-- Admin page shows recent participant count based on heartbeat.
+- Admin page shows connected participants for the active run. This is explicit
+  membership, not a heartbeat-based liveness count.
 - Closing/reopening the app restores joined session state when still valid.
+- Closing/reopening the app does not restore membership if the run id changed.
 - When the show window ends, the phone removes joined state and hides
   `Live verbunden`.
 - Advanced manual end removes joined state on the phone and hides
@@ -59,8 +69,8 @@
 - Alarm title and message are readable on mobile.
 - Animation runs without blocking dismissal after clear.
 - Device vibrates while the alarm overlay is active.
-- If notification permission was already granted, the app sends a short local
-  notification burst and cancels pending burst notifications on clear.
+- If notification permission was already granted, the backend sends four
+  identical spoiler-free FCM notifications to connected users in the active run.
 - If notification permission was not granted, the app does not ask for
   permission during the alarm.
 - Trigger is idempotent enough that repeated clicks do not create confusing
@@ -77,8 +87,20 @@
 
 - App offline during trigger shows correct active event after reconnect.
 - App offline during clear dismisses after reconnect.
-- Heartbeat resumes after reconnect.
-- Admin participant count ages out stale devices.
+- Explicit disconnect marks the participant offline.
+- Starting another run excludes old participant records without deleting audit
+  history.
+
+## Scheduled Boundaries
+
+- Creating a window schedules authenticated Cloud Tasks for start and close.
+- A start task activates the run only if the window still has the expected start
+  time and is currently active.
+- A close task closes only the matching run and expected end time.
+- Editing or cancelling a window invalidates or removes its previous tasks.
+- A stale task from a rescheduled or superseded window is a successful no-op.
+- Repeated availability polling does not update the session while it already
+  matches the active window.
 
 ## adaptor Dry Run
 
@@ -106,6 +128,8 @@ Run after code implementation batches:
 ```bash
 bun run --cwd mytopia-auferstanden-app lint
 bun run --cwd mytopia-auferstanden-app tsc --noEmit
+bun test mytopia-auferstanden-app/tests/liveMembership.test.mjs
 bun run --cwd mytopia-functions build
+bun run --cwd mytopia-functions test:rules
 bun run --cwd mytopia-website build
 ```

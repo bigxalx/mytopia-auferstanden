@@ -41,9 +41,19 @@ service cloud.firestore {
         );
     }
 
-    function isLiveSessionParticipant(sessionId) {
+    function liveParticipantDoc(sessionId) {
+      return get(/databases/$(database)/documents/v2/app/liveSessions/$(sessionId)/participants/$(request.auth.uid));
+    }
+
+    function isCurrentLiveSessionParticipant(sessionId) {
+      let session = liveSessionDoc(sessionId);
       return isSignedIn()
-        && exists(/databases/$(database)/documents/v2/app/liveSessions/$(sessionId)/participants/$(request.auth.uid));
+        && exists(/databases/$(database)/documents/v2/app/liveSessions/$(sessionId)/participants/$(request.auth.uid))
+        && session.data.status == 'active'
+        && session.data.activeRunId != null
+        && request.time <= session.data.endsAt
+        && liveParticipantDoc(sessionId).data.connectionState == 'connected'
+        && liveParticipantDoc(sessionId).data.runId == session.data.activeRunId;
     }
 
     function canReadNarrativeReactionDoc(docId) {
@@ -418,7 +428,12 @@ service cloud.firestore {
       }
 
       match /events/{eventId} {
-        allow read: if isModerator() || (canReadLiveSession(sessionId) && isLiveSessionParticipant(sessionId));
+        allow read: if isModerator()
+          || (
+            canReadLiveSession(sessionId)
+            && isCurrentLiveSessionParticipant(sessionId)
+            && resource.data.runId == liveSessionDoc(sessionId).data.activeRunId
+          );
         allow write: if false;
       }
 

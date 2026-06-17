@@ -218,6 +218,7 @@ export type LiveSessionSource = 'schedule' | 'manual';
 export type LiveShowWindowStatus = 'scheduled' | 'cancelled';
 
 export type V2LiveSessionDoc = {
+  activeRunId?: string | null;
   currentEventId?: string | null;
   endsAt?: FirestoreTimestampString;
   mode: ChannelMode;
@@ -241,6 +242,7 @@ export type V2LiveParticipantDoc = {
   joinMethod: LiveJoinMethod;
   lastSeenAt: FirestoreTimestampString;
   leftAt?: FirestoreTimestampString;
+  runId: string;
   uid: string;
   updatedAt: FirestoreTimestampString;
 };
@@ -277,6 +279,7 @@ export type V2LiveEventDoc = {
     severity?: string;
     title?: string;
   };
+  runId: string;
   source: LiveEventSource;
   status: LiveEventStatus;
   type: LiveEventType;

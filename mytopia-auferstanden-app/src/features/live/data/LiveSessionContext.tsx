@@ -11,6 +11,10 @@ import { useSession } from '@/src/core/session/SessionContext';
 import type { AppMode } from '@/src/core/session/appMode';
 import { TerrorAlertOverlay } from '@/src/features/live/components/TerrorAlertOverlay';
 import {
+  parseStoredLiveMembership,
+  serializeLiveMembership,
+} from '@/src/features/live/data/liveMembership';
+import {
   fetchLiveAvailability,
   fetchActiveLiveSession,
   joinLiveSession,
@@ -60,6 +64,7 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
   const [availableSession, setAvailableSession] = useState<LiveSessionDto | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<LiveConnectionStatus>('offline');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [joinedRunId, setJoinedRunId] = useState<string | null>(null);
   const [joinedSessionId, setJoinedSessionId] = useState<string | null>(null);
   const [session, setSession] = useState<LiveSessionDto | null>(null);
   const lastJoinAtMsRef = useRef<number | null>(null);
@@ -76,6 +81,7 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
     logLiveContextDebug('clear joined session', {
       reason,
       liveMode: LIVE_SESSION_MODE,
+      runId: joinedRunId,
       sessionId: joinedSessionId,
     });
     if (storageKey) {
@@ -86,16 +92,18 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
     setActiveEvent(null);
     setAvailableSession(null);
     setErrorMessage(null);
+    setJoinedRunId(null);
     setJoinedSessionId(null);
     setSession(null);
     setConnectionStatus('offline');
-  }, [joinedSessionId, storageKey]);
+  }, [joinedRunId, joinedSessionId, storageKey]);
 
   useEffect(() => {
     setActiveEvent(null);
     setAvailableSession(null);
     setErrorMessage(null);
     setSession(null);
+    setJoinedRunId(null);
     setJoinedSessionId(null);
     lastJoinAtMsRef.current = null;
     latestSessionRef.current = null;
@@ -110,11 +118,21 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
     }
 
     AsyncStorage.getItem(storageKey)
-      .then((storedSessionId) => {
-        if (storedSessionId) {
-          logLiveContextDebug('restored stored live session', { liveMode: LIVE_SESSION_MODE, storedSessionId });
-          setJoinedSessionId(storedSessionId);
+      .then((storedValue) => {
+        const membership = parseStoredLiveMembership(storedValue);
+        if (membership) {
+          logLiveContextDebug('restored stored live session', {
+            liveMode: LIVE_SESSION_MODE,
+            runId: membership.runId,
+            sessionId: membership.sessionId,
+          });
+          setJoinedRunId(membership.runId);
+          setJoinedSessionId(membership.sessionId);
           setConnectionStatus('connecting');
+          return;
+        }
+        if (storedValue) {
+          void AsyncStorage.removeItem(storageKey).catch(() => undefined);
         }
       })
       .catch(() => undefined);
@@ -167,14 +185,31 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
   }, [isHydrated, joinedSessionId, refreshAvailableSession, shouldShowWelcomeBack, user]);
 
   useEffect(() => {
-    if (!joinedSessionId || !user || shouldShowWelcomeBack) {
+    if (!joinedRunId || !joinedSessionId || !user || shouldShowWelcomeBack) {
       return;
     }
 
     setConnectionStatus('connecting');
     logLiveContextDebug('subscribe live session', { sessionId: joinedSessionId });
     return subscribeLiveSession({
-      listener: (nextSession) => {
+      listener: (nextSession, metadata) => {
+        if (nextSession && nextSession.activeRunId !== joinedRunId) {
+          if (metadata.fromCache) {
+            logLiveContextDebug('ignored stale session run snapshot', {
+              expectedRunId: joinedRunId,
+              nextRunId: nextSession.activeRunId,
+              sessionId: joinedSessionId,
+            });
+            return;
+          }
+          logLiveContextDebug('session run changed', {
+            expectedRunId: joinedRunId,
+            nextRunId: nextSession.activeRunId,
+            sessionId: joinedSessionId,
+          });
+          clearJoinedSession('session run changed');
+          return;
+        }
         if (!nextSession || !isActiveLiveSession(nextSession)) {
           const latestSession = latestSessionRef.current;
           if (shouldIgnoreInactiveSnapshot({
@@ -225,10 +260,10 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
       },
       sessionId: joinedSessionId,
     });
-  }, [clearJoinedSession, joinedSessionId, shouldShowWelcomeBack, user]);
+  }, [clearJoinedSession, joinedRunId, joinedSessionId, shouldShowWelcomeBack, user]);
 
   useEffect(() => {
-    if (!joinedSessionId || !session?.currentEventId) {
+    if (!joinedRunId || !joinedSessionId || !session?.currentEventId) {
       setActiveEvent(null);
       return;
     }
@@ -241,7 +276,13 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
           status: event?.status,
           type: event?.type,
         });
-        setActiveEvent(event?.status === 'active' && event.type === 'terror_alert' ? event : null);
+        setActiveEvent(
+          event?.status === 'active'
+          && event.type === 'terror_alert'
+          && event.runId === joinedRunId
+            ? event
+            : null
+        );
       },
       onError: (error) => {
         logLiveContextDebug('event subscription error', { message: describeError(error) });
@@ -250,7 +291,41 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
       },
       sessionId: joinedSessionId,
     });
-  }, [joinedSessionId, session?.currentEventId]);
+  }, [joinedRunId, joinedSessionId, session?.currentEventId]);
+
+  useEffect(() => {
+    if (!joinedRunId || !joinedSessionId || session?.activeRunId !== joinedRunId || !session.endsAt) {
+      return;
+    }
+
+    const endsAtMs = Date.parse(session.endsAt);
+    if (!Number.isFinite(endsAtMs)) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const expireWhenDue = () => {
+      const remainingMs = endsAtMs - Date.now();
+      if (remainingMs > 0) {
+        timeout = setTimeout(expireWhenDue, Math.min(remainingMs + 50, 2_147_000_000));
+        return;
+      }
+      if (cancelled) {
+        return;
+      }
+      void leaveLiveSession(joinedSessionId, joinedRunId).catch(() => undefined);
+      clearJoinedSession('session end time reached');
+    };
+
+    expireWhenDue();
+    return () => {
+      cancelled = true;
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
+  }, [clearJoinedSession, joinedRunId, joinedSessionId, session?.activeRunId, session?.endsAt]);
 
   const joinFromQr = useCallback(async ({
     mode,
@@ -297,16 +372,22 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
       token,
     });
     logLiveContextDebug('qr join response', {
+      activeRunId: nextSession.activeRunId,
       endsAt: nextSession.endsAt,
       sessionId: nextSession.sessionId,
       status: nextSession.status,
     });
+    const nextRunId = requireActiveRunId(nextSession);
     const nextStorageKey = user ? buildStorageKey(user.id, targetMode) : null;
     if (nextStorageKey) {
-      await AsyncStorage.setItem(nextStorageKey, nextSession.sessionId);
+      await AsyncStorage.setItem(nextStorageKey, serializeLiveMembership({
+        runId: nextRunId,
+        sessionId: nextSession.sessionId,
+      }));
     }
     lastJoinAtMsRef.current = Date.now();
     latestSessionRef.current = nextSession;
+    setJoinedRunId(nextRunId);
     setJoinedSessionId(nextSession.sessionId);
     setSession(nextSession);
     return { session: nextSession, state: 'joined' as const };
@@ -336,11 +417,16 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
         mode: LIVE_SESSION_MODE,
         sessionId: availableSession.sessionId,
       });
+      const nextRunId = requireActiveRunId(nextSession);
       const nextStorageKey = buildStorageKey(user.id, LIVE_SESSION_MODE);
-      await AsyncStorage.setItem(nextStorageKey, nextSession.sessionId);
+      await AsyncStorage.setItem(nextStorageKey, serializeLiveMembership({
+        runId: nextRunId,
+        sessionId: nextSession.sessionId,
+      }));
       lastJoinAtMsRef.current = Date.now();
       latestSessionRef.current = nextSession;
       setAvailableSession(null);
+      setJoinedRunId(nextRunId);
       setJoinedSessionId(nextSession.sessionId);
       setSession(nextSession);
       return { session: nextSession, state: 'joined' };
@@ -362,11 +448,12 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
 
   const disconnectLiveSession = useCallback(async () => {
     const sessionId = joinedSessionId;
-    if (sessionId) {
-      await leaveLiveSession(sessionId);
+    const runId = joinedRunId;
+    if (sessionId && runId) {
+      await leaveLiveSession(sessionId, runId);
     }
     clearJoinedSession('user disconnected');
-  }, [clearJoinedSession, joinedSessionId]);
+  }, [clearJoinedSession, joinedRunId, joinedSessionId]);
 
   const value = useMemo<LiveSessionContextValue>(() => ({
     activeEvent,
@@ -375,7 +462,7 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
     disconnectLiveSession,
     errorMessage,
     isGpsBypassEnabled,
-    isJoined: Boolean(joinedSessionId),
+    isJoined: Boolean(joinedSessionId && joinedRunId),
     joinAvailableSession,
     joinFromQr,
     session,
@@ -386,6 +473,7 @@ export function LiveSessionProvider({ children }: PropsWithChildren) {
     disconnectLiveSession,
     errorMessage,
     isGpsBypassEnabled,
+    joinedRunId,
     joinedSessionId,
     joinAvailableSession,
     joinFromQr,
@@ -531,6 +619,13 @@ function logLiveContextDebug(message: string, details?: Record<string, unknown>)
 
 function buildStorageKey(uid: string, mode: AppMode) {
   return `${STORAGE_KEY_BASE}:${uid}:${mode}`;
+}
+
+function requireActiveRunId(session: LiveSessionDto) {
+  if (typeof session.activeRunId === 'string' && session.activeRunId.trim().length > 0) {
+    return session.activeRunId;
+  }
+  throw new Error('Live session response did not include an active run.');
 }
 
 function shouldIgnoreInactiveSnapshot({

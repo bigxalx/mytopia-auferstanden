@@ -94,10 +94,14 @@ latest active event has:
 
 ```json
 {
+  "runId": "<current-active-run-id>",
   "type": "terror_alert",
   "status": "active"
 }
 ```
+
+The event, participant membership, and parent session `activeRunId` must match.
+Membership from a previous performance cannot read or receive the current run.
 
 When the event is cleared, the app dismisses the overlay.
 

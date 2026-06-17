@@ -10,7 +10,7 @@ import {
   V2_LIVE_SESSIONS_COLLECTION_PATH,
   V2_LIVE_SHOW_WINDOWS_COLLECTION_PATH,
 } from './constants.js';
-import { firestore, messaging } from './firebase.js';
+import { firestore, messaging, oidcClient, tasksClient } from './firebase.js';
 import { FirebaseResponse, NarrativeMode } from './types.js';
 import { formatError, HttpError, readHeader, readQueryParam, sendError } from './utils.js';
 
@@ -21,6 +21,7 @@ type LiveShowWindowStatus = 'scheduled' | 'cancelled';
 type LiveSessionSource = 'schedule' | 'manual';
 
 type LiveSessionDoc = {
+  activeRunId?: string | null;
   closedAt?: Timestamp;
   closedBy?: string;
   currentEventId?: string | null;
@@ -64,7 +65,10 @@ type LiveShowWindowDoc = {
 
 type LiveParticipantDoc = {
   connectionState?: 'connected' | 'reconnecting' | 'offline';
+  joinedAt?: Timestamp;
   lastSeenAt?: Timestamp;
+  leftAt?: Timestamp;
+  runId?: string;
   uid?: string;
 };
 
@@ -80,6 +84,7 @@ const LIVE_ALERT_PUSH_TITLE = 'Dringende Live-Meldung';
 const LIVE_ALERT_PUSH_BODY = 'Öffne Mytopia für weitere Informationen.';
 const LIVE_ALERT_PUSH_CHANNEL_ID = 'live-terror-alert';
 const LIVE_ALERT_PUSH_BATCH_SIZE = 500;
+const LIVE_BOUNDARY_TASK_DELAY_MS = 5_000;
 const PERMANENT_FCM_TOKEN_ERROR_CODES = new Set([
   'messaging/invalid-registration-token',
   'messaging/registration-token-not-registered',
@@ -96,6 +101,11 @@ export async function handleLiveRequest(req: Request, res: FirebaseResponse, pat
     const sessionGetMatch = path.match(/^\/live\/sessions\/([^/]+)$/);
     const showWindowCancelMatch = path.match(/^\/live\/show-windows\/([^/]+)\/cancel$/);
     const showWindowMatch = path.match(/^\/live\/show-windows\/([^/]+)$/);
+
+    if (path === '/live/internal/window-boundary' && req.method === 'POST') {
+      await handleLiveWindowBoundaryTask(req, res);
+      return;
+    }
 
     if (path === '/live/adaptor/terror-alert/start') {
       if (!isAdaptorSignalMethod(req.method)) {
@@ -187,6 +197,77 @@ export async function handleLiveRequest(req: Request, res: FirebaseResponse, pat
   }
 }
 
+async function handleLiveWindowBoundaryTask(req: Request, res: FirebaseResponse) {
+  await verifyLiveCloudTaskInvocation(req);
+  const body = objectBody(req);
+  const action = stringValue(body.action);
+  const expectedAtMs = numberValue(body.expectedAtMs);
+
+  if (action === 'start-window') {
+    const windowId = requiredString(body.windowId, 'windowId');
+    const window = await readLiveShowWindow(windowId);
+    if (!window || window.data.status !== 'scheduled') {
+      res.status(200).json({ action: 'window_unavailable', ok: true, windowId });
+      return;
+    }
+
+    if (window.data.startsAt?.toMillis() !== expectedAtMs) {
+      res.status(200).json({ action: 'stale_task', ok: true, windowId });
+      return;
+    }
+
+    if (!isLiveShowWindowActive(window.data, Date.now())) {
+      res.status(200).json({ action: 'window_not_active', ok: true, windowId });
+      return;
+    }
+
+    const mode = resolveMode(window.data.mode);
+    const session = await ensureCurrentSessionForActiveWindow(mode);
+    res.status(200).json({
+      action: session?.data.showWindowId === windowId ? 'session_started' : 'superseded',
+      ok: true,
+      sessionId: session?.id ?? null,
+      windowId,
+    });
+    return;
+  }
+
+  if (action === 'close-run') {
+    const sessionId = requiredString(body.sessionId, 'sessionId');
+    const runId = requiredString(body.runId, 'runId');
+    const snapshot = await liveSessionRef(sessionId).get();
+    if (!snapshot.exists) {
+      res.status(200).json({ action: 'session_missing', ok: true, runId, sessionId });
+      return;
+    }
+
+    const session = snapshot.data() as LiveSessionDoc;
+    if (
+      session.status !== 'active'
+      || session.activeRunId !== runId
+      || session.endsAt?.toMillis() !== expectedAtMs
+    ) {
+      res.status(200).json({ action: 'stale_task', ok: true, runId, sessionId });
+      return;
+    }
+
+    if (typeof expectedAtMs === 'number' && Date.now() + 1_000 < expectedAtMs) {
+      throw new HttpError(409, 'Live run close task arrived before the configured end time.');
+    }
+
+    const didClose = await closeLiveSession(sessionId, 'system', runId);
+    res.status(200).json({
+      action: didClose ? 'session_closed' : 'stale_task',
+      ok: true,
+      runId,
+      sessionId,
+    });
+    return;
+  }
+
+  throw new HttpError(400, 'Unsupported live boundary task action.');
+}
+
 async function handleGetLiveAvailability(req: Request, res: FirebaseResponse) {
   const decoded = await verifyFirebaseUser(req);
   const mode = resolveMode(readQueryParam(req, 'mode'));
@@ -269,6 +350,7 @@ async function handleCreateLiveShowWindow(req: Request, res: FirebaseResponse) {
   });
 
   const snapshot = await ref.get();
+  await scheduleLiveShowWindowTasks(ref.id, snapshot.data() as LiveShowWindowDoc);
   await ensureCurrentSessionForActiveWindow(input.mode);
   logger.info('live show window created', { mode: input.mode, showWindowId: ref.id, uid: decoded.uid });
   res.status(200).json({
@@ -305,7 +387,9 @@ async function handleUpdateLiveShowWindow(req: Request, res: FirebaseResponse, w
   }, { merge: true });
 
   const updatedSnapshot = await ref.get();
-  await ensureCurrentSessionForActiveWindow(mode);
+  const updated = updatedSnapshot.data() as LiveShowWindowDoc;
+  await replaceLiveShowWindowTasks(windowId, current, updated);
+  await synchronizeCurrentSession(mode);
   logger.info('live show window updated', { mode, showWindowId: windowId, uid: decoded.uid });
   res.status(200).json({
     ok: true,
@@ -334,10 +418,13 @@ async function handleCancelLiveShowWindow(req: Request, res: FirebaseResponse, w
     updatedBy: decoded.uid,
   }, { merge: true });
 
+  await deleteLiveShowWindowTasks(windowId, data);
+
   const session = await findActiveLiveSession(mode);
   if (session?.data.showWindowId === windowId) {
-    await closeLiveSession(session.id, decoded.uid);
+    await closeLiveSession(session.id, decoded.uid, windowId);
   }
+  await ensureCurrentSessionForActiveWindow(mode);
 
   const updatedSnapshot = await ref.get();
   logger.info('live show window cancelled', { mode, showWindowId: windowId, uid: decoded.uid });
@@ -364,6 +451,9 @@ async function handleStartLiveSession(req: Request, res: FirebaseResponse) {
   const venueName = stringValue(body.venueName) ?? DEFAULT_VENUE_NAME;
   const sessionRef = liveSessionRef(sessionId);
   const joinToken = await ensureLiveSessionJoinToken(sessionId);
+  let activeRunId = '';
+  let previousRunId: string | null = null;
+  let runEndsAt = Timestamp.fromMillis(now + DEBUG_SESSION_DURATION_MS);
 
   await firestore.runTransaction(async (transaction) => {
     const sessionSnapshot = await transaction.get(sessionRef);
@@ -380,6 +470,20 @@ async function handleStartLiveSession(req: Request, res: FirebaseResponse) {
     const endsAt = isContinuingActiveSession && currentSession?.endsAt && currentSession.endsAt.toMillis() > now
       ? currentSession.endsAt
       : Timestamp.fromMillis(now + DEBUG_SESSION_DURATION_MS);
+    activeRunId = isContinuingActiveSession && currentSession?.activeRunId
+      ? currentSession.activeRunId
+      : `manual-${crypto.randomUUID()}`;
+    previousRunId = stringValue(currentSession?.activeRunId) ?? null;
+    runEndsAt = endsAt;
+
+    if (!isContinuingActiveSession && currentSession?.currentEventId) {
+      transaction.set(sessionRef.collection('events').doc(currentSession.currentEventId), {
+        clearedAt: FieldValue.serverTimestamp(),
+        clearedBy: decoded.uid,
+        status: 'cleared',
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
 
     const payload: Record<string, unknown> = {
       ...(sessionSnapshot.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
@@ -388,6 +492,7 @@ async function handleStartLiveSession(req: Request, res: FirebaseResponse) {
         closedBy: FieldValue.delete(),
       } : {}),
       currentEventId: isContinuingActiveSession ? currentSession?.currentEventId ?? null : null,
+      activeRunId,
       endsAt,
       joinTokenHash: hashJoinToken(joinToken),
       mode,
@@ -407,7 +512,15 @@ async function handleStartLiveSession(req: Request, res: FirebaseResponse) {
     transaction.set(sessionRef, payload, { merge: true });
   });
 
+  if (previousRunId && previousRunId !== activeRunId) {
+    await markParticipantsOffline(sessionId, previousRunId);
+  }
   await closeOtherActiveSessions(mode, sessionId);
+  await scheduleLiveRunCloseTask({
+    endsAt: runEndsAt,
+    runId: activeRunId,
+    sessionId,
+  });
 
   const snapshot = await sessionRef.get();
   const data = snapshot.data() as LiveSessionDoc;
@@ -516,22 +629,44 @@ async function handleJoinLiveSession(req: Request, res: FirebaseResponse) {
 
   const data = session.data;
   assertSessionCanAcceptJoin(data);
+  const runId = requiredString(data.activeRunId, 'activeRunId');
 
+  const sessionRef = liveSessionRef(sessionId);
   const participantRef = liveSessionRef(sessionId).collection('participants').doc(decoded.uid);
-  const participantSnapshot = await participantRef.get();
-  await participantRef.set(
-    {
+  await firestore.runTransaction(async (transaction) => {
+    const [currentSessionSnapshot, participantSnapshot] = await Promise.all([
+      transaction.get(sessionRef),
+      transaction.get(participantRef),
+    ]);
+    if (!currentSessionSnapshot.exists) {
+      throw new HttpError(404, 'Live session not found.');
+    }
+    const currentSession = currentSessionSnapshot.data() as LiveSessionDoc;
+    assertSessionCanAcceptJoin(currentSession);
+    if (currentSession.activeRunId !== runId) {
+      throw new HttpError(409, 'Live session run changed before the join completed.');
+    }
+
+    const participant = participantSnapshot.exists
+      ? participantSnapshot.data() as LiveParticipantDoc
+      : null;
+    const isContinuingMembership = participant?.runId === runId
+      && participant.connectionState === 'connected';
+    transaction.set(participantRef, {
       connectionState: 'connected',
-      ...(participantSnapshot.exists ? {} : { joinedAt: FieldValue.serverTimestamp() }),
+      joinedAt: isContinuingMembership
+        ? participant?.joinedAt ?? FieldValue.serverTimestamp()
+        : FieldValue.serverTimestamp(),
       joinMethod,
       lastSeenAt: FieldValue.serverTimestamp(),
+      leftAt: FieldValue.delete(),
+      runId,
       uid: decoded.uid,
       updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+    }, { merge: true });
+  });
 
-  logger.info('live session joined', { joinMethod, mode, sessionId, uid: decoded.uid });
+  logger.info('live session joined', { joinMethod, mode, runId, sessionId, uid: decoded.uid });
   res.status(200).json({
     joinMethod,
     ok: true,
@@ -543,6 +678,7 @@ async function handleLeaveLiveSession(req: Request, res: FirebaseResponse) {
   const decoded = await verifyFirebaseUser(req);
   const body = objectBody(req);
   const sessionId = requiredString(body.sessionId, 'sessionId');
+  const runId = requiredString(body.runId, 'runId');
   const sessionSnapshot = await liveSessionRef(sessionId).get();
   if (!sessionSnapshot.exists) {
     logger.info('live session participant leave skipped: session missing', { sessionId, uid: decoded.uid });
@@ -553,18 +689,27 @@ async function handleLeaveLiveSession(req: Request, res: FirebaseResponse) {
   const data = sessionSnapshot.data() as LiveSessionDoc;
   assertCanUseMode(decoded, resolveMode(data.mode));
 
-  await liveSessionRef(sessionId).collection('participants').doc(decoded.uid).set(
-    {
+  const participantRef = liveSessionRef(sessionId).collection('participants').doc(decoded.uid);
+  const didLeave = await firestore.runTransaction(async (transaction) => {
+    const participantSnapshot = await transaction.get(participantRef);
+    if (!participantSnapshot.exists) {
+      return false;
+    }
+    const participant = participantSnapshot.data() as LiveParticipantDoc;
+    if (participant.runId !== runId) {
+      return false;
+    }
+    transaction.set(participantRef, {
       connectionState: 'offline',
       lastSeenAt: FieldValue.serverTimestamp(),
       leftAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+    }, { merge: true });
+    return true;
+  });
 
-  logger.info('live session participant left', { sessionId, uid: decoded.uid });
-  res.status(200).json({ ok: true });
+  logger.info('live session participant leave processed', { didLeave, runId, sessionId, uid: decoded.uid });
+  res.status(200).json({ didLeave, ok: true });
 }
 
 async function handleAdaptorTerrorAlertStart(req: Request, res: FirebaseResponse) {
@@ -578,6 +723,7 @@ async function handleAdaptorTerrorAlertStart(req: Request, res: FirebaseResponse
     throw new HttpError(403, 'No active live window.');
   }
   assertSessionIsActive(session.data);
+  const runId = requiredString(session.data.activeRunId, 'activeRunId');
 
   const sessionRef = liveSessionRef(sessionId);
   const nextEventRef = sessionRef.collection('events').doc();
@@ -589,6 +735,10 @@ async function handleAdaptorTerrorAlertStart(req: Request, res: FirebaseResponse
     }
 
     const currentSession = sessionSnapshot.data() as LiveSessionDoc;
+    assertSessionIsActive(currentSession);
+    if (currentSession.activeRunId !== runId) {
+      throw new HttpError(409, 'Live session run changed before the event could be started.');
+    }
     const currentEventId = typeof currentSession.currentEventId === 'string'
       ? currentSession.currentEventId
       : null;
@@ -611,6 +761,7 @@ async function handleAdaptorTerrorAlertStart(req: Request, res: FirebaseResponse
       cueId: stringValue(readQueryParam(req, 'cueId')) ?? null,
       mode,
       payload,
+      runId,
       source,
       status: 'active',
       type: 'terror_alert',
@@ -633,6 +784,7 @@ async function handleAdaptorTerrorAlertStart(req: Request, res: FirebaseResponse
   if (!result.reused) {
     await sendLiveAlertPushBurstToConnectedParticipants({
       eventId: result.eventId,
+      runId,
       sessionId,
     });
   }
@@ -717,29 +869,45 @@ async function handleTriggerLiveEvent(req: Request, res: FirebaseResponse) {
     throw new HttpError(403, 'No active live window.');
   }
   assertSessionIsActive(session.data);
+  const runId = requiredString(session.data.activeRunId, 'activeRunId');
 
   const eventRef = liveSessionRef(sessionId).collection('events').doc();
   const payload = normalizeEventPayload(body.payload);
-  await eventRef.set({
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: actor.uid ?? source,
-    cueId: stringValue(body.cueId) ?? null,
-    mode,
-    payload,
-    source,
-    status: 'active',
-    type,
-    updatedAt: FieldValue.serverTimestamp(),
+  const sessionRef = liveSessionRef(sessionId);
+  await firestore.runTransaction(async (transaction) => {
+    const sessionSnapshot = await transaction.get(sessionRef);
+    if (!sessionSnapshot.exists) {
+      throw new HttpError(404, 'Live session not found.');
+    }
+    const currentSession = sessionSnapshot.data() as LiveSessionDoc;
+    assertSessionIsActive(currentSession);
+    if (currentSession.activeRunId !== runId) {
+      throw new HttpError(409, 'Live session run changed before the event could be started.');
+    }
+
+    transaction.set(eventRef, {
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: actor.uid ?? source,
+      cueId: stringValue(body.cueId) ?? null,
+      mode,
+      payload,
+      runId,
+      source,
+      status: 'active',
+      type,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.set(sessionRef, {
+      currentEventId: eventRef.id,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
   });
-  await liveSessionRef(sessionId).set({
-    currentEventId: eventRef.id,
-    updatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
 
   logger.info('live event triggered', { eventId: eventRef.id, sessionId, source, type });
   if (type === 'terror_alert') {
     await sendLiveAlertPushBurstToConnectedParticipants({
       eventId: eventRef.id,
+      runId,
       sessionId,
     });
   }
@@ -803,15 +971,17 @@ async function handleClearLiveEvent(req: Request, res: FirebaseResponse, eventId
 
 async function sendLiveAlertPushBurstToConnectedParticipants({
   eventId,
+  runId,
   sessionId,
 }: {
   eventId: string;
+  runId: string;
   sessionId: string;
 }) {
   const participantsSnapshot = await liveSessionRef(sessionId)
     .collection('participants')
     .where('connectionState', '==', 'connected')
-    .limit(LIVE_ALERT_PUSH_BATCH_SIZE)
+    .where('runId', '==', runId)
     .get();
 
   const targetUids = participantsSnapshot.docs
@@ -968,6 +1138,185 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function scheduleLiveShowWindowTasks(windowId: string, data: LiveShowWindowDoc) {
+  if (data.status !== 'scheduled' || !data.startsAt || !data.endsAt) {
+    return;
+  }
+
+  const sessionId = liveSessionIdForMode(resolveMode(data.mode));
+  await Promise.all([
+    upsertLiveBoundaryTask({
+      body: {
+        action: 'start-window',
+        expectedAtMs: data.startsAt.toMillis(),
+        windowId,
+      },
+      name: liveWindowStartTaskName(windowId, data.startsAt.toMillis()),
+      scheduleAt: data.startsAt,
+    }),
+    upsertLiveBoundaryTask({
+      body: {
+        action: 'close-run',
+        expectedAtMs: data.endsAt.toMillis(),
+        runId: windowId,
+        sessionId,
+      },
+      name: liveRunCloseTaskName(sessionId, windowId, data.endsAt.toMillis()),
+      scheduleAt: data.endsAt,
+    }),
+  ]);
+}
+
+async function replaceLiveShowWindowTasks(
+  windowId: string,
+  previous: LiveShowWindowDoc,
+  next: LiveShowWindowDoc
+) {
+  await deleteLiveShowWindowTasks(windowId, previous);
+  await scheduleLiveShowWindowTasks(windowId, next);
+}
+
+async function deleteLiveShowWindowTasks(windowId: string, data: LiveShowWindowDoc) {
+  const sessionId = liveSessionIdForMode(resolveMode(data.mode));
+  const names = [
+    data.startsAt ? liveWindowStartTaskName(windowId, data.startsAt.toMillis()) : null,
+    data.endsAt ? liveRunCloseTaskName(sessionId, windowId, data.endsAt.toMillis()) : null,
+  ].filter((value): value is string => Boolean(value));
+  await Promise.all(names.map(deleteLiveTaskIfExists));
+}
+
+async function scheduleLiveRunCloseTask({
+  endsAt,
+  runId,
+  sessionId,
+}: {
+  endsAt: Timestamp;
+  runId: string;
+  sessionId: string;
+}) {
+  await upsertLiveBoundaryTask({
+    body: {
+      action: 'close-run',
+      expectedAtMs: endsAt.toMillis(),
+      runId,
+      sessionId,
+    },
+    name: liveRunCloseTaskName(sessionId, runId, endsAt.toMillis()),
+    scheduleAt: endsAt,
+  });
+}
+
+async function upsertLiveBoundaryTask({
+  body,
+  name,
+  scheduleAt,
+}: {
+  body: Record<string, unknown>;
+  name: string;
+  scheduleAt: Timestamp;
+}) {
+  const scheduleMs = Math.max(scheduleAt.toMillis(), Date.now() + LIVE_BOUNDARY_TASK_DELAY_MS);
+  await deleteLiveTaskIfExists(name);
+  await tasksClient.createTask({
+    parent: tasksClient.queuePath(env().projectId, env().cloudTasksLocation, env().cloudTasksQueue),
+    task: {
+      httpRequest: {
+        body: Buffer.from(JSON.stringify(body)).toString('base64'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        httpMethod: 'POST',
+        oidcToken: {
+          audience: env().releaseFunctionUrl,
+          serviceAccountEmail: env().tasksServiceAccountEmail,
+        },
+        url: liveBoundaryTaskUrl(),
+      },
+      name,
+      scheduleTime: {
+        seconds: Math.ceil(scheduleMs / 1000),
+      },
+    },
+  });
+  logger.info('live boundary task upserted', {
+    action: body.action,
+    name,
+    scheduleAt: new Date(scheduleMs).toISOString(),
+  });
+}
+
+function liveBoundaryTaskUrl() {
+  const url = new URL(env().releaseFunctionUrl);
+  url.pathname = url.pathname.replace(/\/internal\/release-bundle\/?$/, '/live/internal/window-boundary');
+  return url.toString();
+}
+
+function liveWindowStartTaskName(windowId: string, startsAtMs: number) {
+  return liveTaskName(`live-start-${windowId}-${startsAtMs}`);
+}
+
+function liveRunCloseTaskName(sessionId: string, runId: string, endsAtMs: number) {
+  return liveTaskName(`live-close-${sessionId}-${runId}-${endsAtMs}`);
+}
+
+function liveTaskName(taskId: string) {
+  return tasksClient.taskPath(
+    env().projectId,
+    env().cloudTasksLocation,
+    env().cloudTasksQueue,
+    taskId.replace(/[^a-zA-Z0-9_-]/g, '-')
+  );
+}
+
+async function deleteLiveTaskIfExists(name: string) {
+  try {
+    await tasksClient.deleteTask({ name });
+  } catch (error) {
+    if (!isNotFoundTaskError(error)) {
+      throw error;
+    }
+  }
+}
+
+function isNotFoundTaskError(error: unknown) {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const code = (error as { code?: unknown }).code;
+  return code === 5 || code === '5' || code === 'NOT_FOUND';
+}
+
+async function verifyLiveCloudTaskInvocation(req: Request) {
+  const queueNameHeader = req.headers['x-cloudtasks-queuename'];
+  const queueName = Array.isArray(queueNameHeader) ? queueNameHeader[0] : queueNameHeader;
+  if (!queueName || queueName !== env().cloudTasksQueue) {
+    throw new HttpError(401, 'Invalid Cloud Tasks queue header.');
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new HttpError(401, 'Missing Cloud Tasks OIDC token.');
+  }
+
+  let payload: unknown;
+  try {
+    const ticket = await oidcClient.verifyIdToken({
+      audience: env().releaseFunctionUrl,
+      idToken: authHeader.slice('Bearer '.length),
+    });
+    payload = ticket.getPayload();
+  } catch {
+    throw new HttpError(401, 'Failed to verify Cloud Tasks OIDC token.');
+  }
+
+  const email = payload && typeof payload === 'object'
+    ? stringValue((payload as { email?: unknown }).email)
+    : undefined;
+  if (email !== env().tasksServiceAccountEmail) {
+    throw new HttpError(401, 'Unexpected service account for Cloud Tasks invocation.');
+  }
+}
+
 function liveSessionRef(sessionId: string) {
   return firestore.collection(V2_LIVE_SESSIONS_COLLECTION_PATH).doc(sessionId);
 }
@@ -997,7 +1346,7 @@ async function findActiveLiveSession(mode: NarrativeMode) {
   }
 
   if (hasSessionEnded(data)) {
-    await closeLiveSession(snapshot.id, 'system');
+    await closeLiveSession(snapshot.id, 'system', stringValue(data.activeRunId));
     return null;
   }
 
@@ -1012,15 +1361,35 @@ async function ensureCurrentSessionForActiveWindow(mode: NarrativeMode) {
 
   const sessionId = liveSessionIdForMode(mode);
   const sessionRef = liveSessionRef(sessionId);
+  const currentSnapshot = await sessionRef.get();
+  const currentSession = currentSnapshot.exists
+    ? currentSnapshot.data() as LiveSessionDoc
+    : null;
+  if (currentSession && doesSessionMatchWindow(currentSession, window.id, window.data)) {
+    return { id: sessionId, data: currentSession };
+  }
+
   const joinToken = await ensureLiveSessionJoinToken(sessionId);
+  let previousRunId: string | null = null;
   await firestore.runTransaction(async (transaction) => {
     const sessionSnapshot = await transaction.get(sessionRef);
-    const currentSession = sessionSnapshot.exists ? sessionSnapshot.data() as LiveSessionDoc : null;
-    const isContinuingWindowSession = Boolean(
-      currentSession?.status === 'active'
-      && currentSession.showWindowId === window.id
-      && !hasSessionEnded(currentSession)
-    );
+    const transactionSession = sessionSnapshot.exists
+      ? sessionSnapshot.data() as LiveSessionDoc
+      : null;
+    if (transactionSession && doesSessionMatchWindow(transactionSession, window.id, window.data)) {
+      return;
+    }
+    previousRunId = stringValue(transactionSession?.activeRunId) ?? null;
+    const currentEventId = stringValue(transactionSession?.currentEventId);
+
+    if (currentEventId && previousRunId !== window.id) {
+      transaction.set(sessionRef.collection('events').doc(currentEventId), {
+        clearedAt: FieldValue.serverTimestamp(),
+        clearedBy: 'system',
+        status: 'cleared',
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
 
     transaction.set(sessionRef, {
       ...(sessionSnapshot.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
@@ -1028,7 +1397,8 @@ async function ensureCurrentSessionForActiveWindow(mode: NarrativeMode) {
         closedAt: FieldValue.delete(),
         closedBy: FieldValue.delete(),
       } : {}),
-      currentEventId: isContinuingWindowSession ? currentSession?.currentEventId ?? null : null,
+      activeRunId: window.id,
+      currentEventId: previousRunId === window.id ? transactionSession?.currentEventId ?? null : null,
       endsAt: window.data.endsAt,
       joinTokenHash: hashJoinToken(joinToken),
       mode,
@@ -1045,9 +1415,53 @@ async function ensureCurrentSessionForActiveWindow(mode: NarrativeMode) {
     }, { merge: true });
   });
 
+  if (previousRunId && previousRunId !== window.id) {
+    await markParticipantsOffline(sessionId, previousRunId);
+  }
   await closeOtherActiveSessions(mode, sessionId);
   const snapshot = await sessionRef.get();
   return { id: snapshot.id, data: snapshot.data() as LiveSessionDoc };
+}
+
+async function synchronizeCurrentSession(mode: NarrativeMode) {
+  const activeSession = await ensureCurrentSessionForActiveWindow(mode);
+  if (activeSession) {
+    return activeSession;
+  }
+
+  const sessionId = liveSessionIdForMode(mode);
+  const snapshot = await liveSessionRef(sessionId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  const data = snapshot.data() as LiveSessionDoc;
+  if (data.status === 'active' && data.sessionSource === 'schedule') {
+    await closeLiveSession(sessionId, 'system', stringValue(data.activeRunId));
+    return null;
+  }
+
+  return data.status === 'active' && !hasSessionEnded(data)
+    ? { id: sessionId, data }
+    : null;
+}
+
+function doesSessionMatchWindow(data: LiveSessionDoc, windowId: string, window: LiveShowWindowDoc) {
+  return data.status === 'active'
+    && data.sessionSource === 'schedule'
+    && data.showWindowId === windowId
+    && data.activeRunId === windowId
+    && sameTimestamp(data.startsAt, window.startsAt)
+    && sameTimestamp(data.endsAt, window.endsAt)
+    && data.title === (window.title ?? DEFAULT_SESSION_TITLE)
+    && data.venueLatitude === (window.venueLatitude ?? DEFAULT_VENUE_LATITUDE)
+    && data.venueLongitude === (window.venueLongitude ?? DEFAULT_VENUE_LONGITUDE)
+    && data.venueName === (window.venueName ?? DEFAULT_VENUE_NAME)
+    && data.venueRadiusMeters === (window.venueRadiusMeters ?? DEFAULT_VENUE_RADIUS_METERS);
+}
+
+function sameTimestamp(left: Timestamp | undefined, right: Timestamp | undefined) {
+  return left?.toMillis() === right?.toMillis();
 }
 
 async function listLiveShowWindows(mode: NarrativeMode) {
@@ -1101,18 +1515,23 @@ async function serializeLiveSessionWithOptionalStats(sessionId: string, data: Li
     return serialized;
   }
 
-  const participantsSnapshot = await liveSessionRef(sessionId)
-    .collection('participants')
-    .where('connectionState', '==', 'connected')
-    .get();
+  const runId = stringValue(data.activeRunId);
+  const participantsSnapshot = runId
+    ? await liveSessionRef(sessionId)
+      .collection('participants')
+      .where('connectionState', '==', 'connected')
+      .where('runId', '==', runId)
+      .get()
+    : null;
   return {
     ...serialized,
-    recentParticipantCount: participantsSnapshot.size,
+    recentParticipantCount: participantsSnapshot?.size ?? 0,
   };
 }
 
 function serializeLiveSession(sessionId: string, data: LiveSessionDoc) {
   return {
+    activeRunId: data.activeRunId ?? null,
     currentEventId: data.currentEventId ?? null,
     closedAt: timestampToIso(data.closedAt),
     closedBy: data.closedBy ?? null,
@@ -1167,14 +1586,18 @@ async function readLiveSessionJoinToken(sessionId: string) {
 
 async function ensureLiveSessionJoinToken(sessionId: string) {
   const tokenRef = liveSessionJoinTokenRef(sessionId);
+  const existing = await tokenRef.get();
+  const existingToken = existing.exists
+    ? stringValue((existing.data() as LiveJoinTokenDoc).token)
+    : undefined;
+  if (existingToken) {
+    return existingToken;
+  }
+
   const token = await firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(tokenRef);
     const currentToken = snapshot.exists ? stringValue((snapshot.data() as LiveJoinTokenDoc).token) : undefined;
     if (currentToken) {
-      transaction.set(tokenRef, {
-        tokenHash: hashJoinToken(currentToken),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
       return currentToken;
     }
 
@@ -1376,38 +1799,44 @@ function liveSessionIdForMode(mode: NarrativeMode) {
   return CURRENT_SESSION_IDS[mode];
 }
 
-async function closeLiveSession(sessionId: string, closedBy: string) {
+async function closeLiveSession(sessionId: string, closedBy: string, expectedRunId?: string) {
   const sessionRef = liveSessionRef(sessionId);
-  const snapshot = await sessionRef.get();
-  if (!snapshot.exists) {
-    return;
-  }
+  const result = await firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(sessionRef);
+    if (!snapshot.exists) {
+      return { activeRunId: null, closed: false };
+    }
 
-  const data = snapshot.data() as LiveSessionDoc;
-  const currentEventId = typeof data.currentEventId === 'string' ? data.currentEventId : null;
-  const payload = {
-    closedAt: FieldValue.serverTimestamp(),
-    closedBy,
-    currentEventId: null,
-    status: 'closed',
-    updatedAt: FieldValue.serverTimestamp(),
-  };
+    const data = snapshot.data() as LiveSessionDoc;
+    const activeRunId = stringValue(data.activeRunId) ?? null;
+    if (expectedRunId && activeRunId !== expectedRunId) {
+      return { activeRunId, closed: false };
+    }
 
-  if (currentEventId) {
-    await firestore.runTransaction(async (transaction) => {
-      transaction.set(sessionRef, payload, { merge: true });
-      transaction.set(liveSessionRef(sessionId).collection('events').doc(currentEventId), {
+    const currentEventId = stringValue(data.currentEventId);
+    transaction.set(sessionRef, {
+      activeRunId: null,
+      closedAt: FieldValue.serverTimestamp(),
+      closedBy,
+      currentEventId: null,
+      status: 'closed',
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    if (currentEventId) {
+      transaction.set(sessionRef.collection('events').doc(currentEventId), {
         clearedAt: FieldValue.serverTimestamp(),
         clearedBy: closedBy,
         status: 'cleared',
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-    });
-  } else {
-    await sessionRef.set(payload, { merge: true });
-  }
+    }
+    return { activeRunId, closed: true };
+  });
 
-  await markParticipantsOffline(sessionId);
+  if (result.closed && result.activeRunId) {
+    await markParticipantsOffline(sessionId, result.activeRunId);
+  }
+  return result.closed;
 }
 
 async function closeOtherActiveSessions(mode: NarrativeMode, currentSessionId: string) {
@@ -1422,29 +1851,35 @@ async function closeOtherActiveSessions(mode: NarrativeMode, currentSessionId: s
     return;
   }
 
-  await Promise.all(staleSessions.map((doc) => closeLiveSession(doc.id, 'system')));
+  await Promise.all(staleSessions.map((doc) => {
+    const data = doc.data() as LiveSessionDoc;
+    return closeLiveSession(doc.id, 'system', stringValue(data.activeRunId));
+  }));
 }
 
-async function markParticipantsOffline(sessionId: string) {
+async function markParticipantsOffline(sessionId: string, runId: string) {
   const snapshot = await liveSessionRef(sessionId)
     .collection('participants')
     .where('connectionState', '==', 'connected')
-    .limit(500)
+    .where('runId', '==', runId)
     .get();
 
   if (snapshot.empty) {
     return;
   }
 
-  const batch = firestore.batch();
-  for (const doc of snapshot.docs) {
-    batch.set(doc.ref, {
-      connectionState: 'offline',
-      lastSeenAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+  for (const docs of chunkArray(snapshot.docs, 450)) {
+    const batch = firestore.batch();
+    for (const doc of docs) {
+      batch.set(doc.ref, {
+        connectionState: 'offline',
+        lastSeenAt: FieldValue.serverTimestamp(),
+        leftAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    await batch.commit();
   }
-  await batch.commit();
 }
 
 function timestampToIso(value: unknown) {

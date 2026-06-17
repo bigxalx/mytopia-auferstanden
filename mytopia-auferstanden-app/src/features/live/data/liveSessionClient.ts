@@ -105,10 +105,10 @@ export async function joinLiveSession({
   return payload.session;
 }
 
-export async function leaveLiveSession(sessionId: string) {
-  logLiveClientDebug('leave request', { sessionId });
+export async function leaveLiveSession(sessionId: string, runId: string) {
+  logLiveClientDebug('leave request', { runId, sessionId });
   await liveApiRequest({
-    body: { sessionId },
+    body: { runId, sessionId },
     method: 'POST',
     path: 'live/leave',
   });
@@ -119,7 +119,7 @@ export function subscribeLiveSession({
   onError,
   sessionId,
 }: {
-  listener: (session: LiveSessionDto | null) => void;
+  listener: (session: LiveSessionDto | null, metadata: { fromCache: boolean }) => void;
   onError: (error: unknown) => void;
   sessionId: string;
 }) {
@@ -132,7 +132,7 @@ export function subscribeLiveSession({
       (snapshot: any) => {
         if (!snapshot.exists()) {
           logLiveClientDebug('session snapshot missing', { sessionId });
-          listener(null);
+          listener(null, { fromCache: Boolean(snapshot.metadata?.fromCache) });
           return;
         }
         const normalized = normalizeSessionSnapshot(sessionId, snapshot.data());
@@ -145,7 +145,7 @@ export function subscribeLiveSession({
           status: normalized.status,
           updatedAt: normalized.updatedAt,
         });
-        listener(normalized);
+        listener(normalized, { fromCache: Boolean(snapshot.metadata?.fromCache) });
       },
       (error) => {
         logLiveClientDebug('session snapshot error', { message: error instanceof Error ? error.message : String(error), sessionId });
@@ -249,6 +249,7 @@ function normalizeBaseUrl(url: string) {
 
 function normalizeSessionSnapshot(sessionId: string, data: Record<string, unknown>): LiveSessionDto {
   return {
+    activeRunId: typeof data.activeRunId === 'string' ? data.activeRunId : null,
     currentEventId: typeof data.currentEventId === 'string' ? data.currentEventId : null,
     endsAt: toIsoString(data.endsAt) ?? undefined,
     mode: data.mode === 'dev' ? 'dev' : 'production',
@@ -283,6 +284,7 @@ function normalizeEventSnapshot(eventId: string, data: Record<string, unknown>):
       severity: typeof payload.severity === 'string' ? payload.severity : undefined,
       title: typeof payload.title === 'string' ? payload.title : undefined,
     },
+    runId: typeof data.runId === 'string' ? data.runId : '',
     source: data.source === 'adaptor' ? 'adaptor' : 'admin',
     status: data.status === 'cleared' ? 'cleared' : 'active',
     type: 'terror_alert',

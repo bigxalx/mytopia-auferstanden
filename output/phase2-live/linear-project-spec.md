@@ -16,9 +16,9 @@ trigger surface, app alarm takeover, and later adaptor:ex / QLab integration.
 Description:
 
 Phase 2 turns the existing app into a live show channel during performances.
-Users join the current show session through a QR/session link at the theatre.
-GPS plus time can auto-check-in users when permission and venue proximity allow,
-but QR remains the authoritative fallback. Live events are written by Firebase
+Users join the current show session through a QR/session link or live bar.
+GPS filters the live bar locally when location is available; without location,
+the active time window permits remote joining. Live events are written by Firebase
 Functions and delivered to joined app users through Firestore realtime
 listeners. The MVP starts with `Terrorwarnung`: an admin/adaptor trigger causes
 joined devices to show a full-screen alarm overlay. Users not joined to the
@@ -81,7 +81,7 @@ participants, and live events.
 Acceptance:
 
 - Session docs store metadata, venue gate, time window, active event, and mode.
-- Participant docs track joined users and heartbeat state.
+- Participant docs track explicit membership scoped to one performance run.
 - Event docs track `terror_alert` active/cleared lifecycle.
 - Direct client event writes are rejected.
 
@@ -89,8 +89,8 @@ Acceptance:
 
 Goal:
 
-Add authenticated Function routes for joining a session, heartbeats, triggering
-events, and clearing events.
+Add authenticated Function routes for joining/leaving a session, triggering
+events, clearing events, and handling scheduled run boundaries.
 
 Acceptance:
 
@@ -109,22 +109,25 @@ Acceptance:
 
 - QR opens the app live route with session id/token.
 - Signed-in users can join the session.
-- Joined state persists locally and is scoped to the current session.
+- Joined state persists locally and is scoped to the current performance run.
 - Users without GPS permission can still join via QR.
 
-### GPS+time auto-check-in
+### GPS+time join
 
 Goal:
 
-Auto-join users when they are near the venue during the active show window.
+Offer explicit joining during the active show window, using GPS locally when it
+is available and time-only joining when it is not.
 
 Acceptance:
 
-- Auto-check-in only runs when an active session advertises venue/time metadata.
+- The live bar only appears for an active session and applies the local venue
+  check when location is available.
 - Location permission denial does not block QR join.
-- Auto-check-in never targets users outside venue radius or outside time window.
+- Users without location can join remotely during the active time window.
+- Device coordinates are never sent to or stored by the backend.
 
-### Live connected/heartbeat state
+### Live connected state
 
 Goal:
 
@@ -133,8 +136,8 @@ Show reliable live connection status in the app and participant counts in admin.
 Acceptance:
 
 - App status states: `Live verbunden`, `Verbinde...`, `Offline`.
-- Heartbeat updates participant `lastSeenAt`.
-- Admin page can show connected/recent participant count.
+- Join/leave actions update participant connection metadata; there is no heartbeat.
+- Admin page shows connected participants for the active run.
 
 ### Terrorwarnung takeover UI
 
@@ -183,7 +186,7 @@ Define verification scenarios before implementation and theatre testing.
 
 Acceptance:
 
-- QR join, GPS auto-check-in, outside-show isolation, trigger/clear, reconnect,
+- QR join, GPS/time joining, run isolation, trigger/clear, reconnect,
   and adaptor dry-run scenarios are listed.
 - Verification commands are documented.
 

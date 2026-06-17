@@ -59,6 +59,11 @@ There is exactly one current live session per backend mode:
 - `production-current`
 - `dev-current`
 
+Each performance gets a unique run inside that reusable session. Scheduled runs
+use their show-window id; manual debug sessions use a generated UUID. Joins,
+event reads, push delivery, and connected-participant counts are scoped to the
+current run, so membership never carries into the next performance.
+
 The production app always targets `production-current`. The backend and
 moderation website can still expose `dev-current` for controlled admin testing,
 but app live-session discovery does not switch to dev sessions.
@@ -66,8 +71,9 @@ but app live-session discovery does not switch to dev sessions.
 The admin page does not manage parallel sessions. The normal operator workflow
 is based on live show windows, not manual session start/end. Moderators create a
 show window, usually from one hour before the performance until the end of the
-show. During that window, the backend lazily upserts the deterministic current
-session and closes it automatically when the window ends.
+show. Cloud Tasks activate and close the run at its configured boundaries. API
+boundary checks remain as a fallback, and repeated availability polling is
+read-only while the correct run is already active.
 
 Manual start/end controls remain available only inside an Advanced debug menu.
 Manual start creates a short debug session using the same deterministic session
@@ -110,6 +116,9 @@ The MVP does not use a heartbeat. A participant becomes connected only through
 an explicit join via QR/link/bottom bar, and remains connected until they
 disconnect, the app marks them offline, or the live window/session closes.
 `lastSeenAt` is therefore connection metadata, not a continuous liveness check.
+Persisted app membership includes both the deterministic session id and the run
+id. A run mismatch requires a fresh explicit join. The app also expires local
+membership at `endsAt` if the backend update is delayed.
 
 ## App Behavior
 
