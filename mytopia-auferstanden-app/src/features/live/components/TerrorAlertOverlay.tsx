@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, Vibration, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, Vibration, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -72,9 +72,18 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
         ]}
       />
 
-      <View style={styles.alertPill}>
-        <Text style={styles.alertPillText}>Alarm</Text>
+      <View accessibilityLabel="Mytopia" accessibilityRole="header" style={styles.brandLockup}>
+        <Image
+          accessible={false}
+          source={require('../../../../assets/images/mytopia-logo-monochrome.png')}
+          style={styles.brandLogo}
+        />
+        <Text style={styles.brandName}>Mytopia</Text>
       </View>
+
+      {/* <View style={styles.alertPill}>
+        <Text style={styles.alertPillText}>Alarm</Text>
+      </View> */}
 
       <Animated.View style={[styles.markShell, { transform: [{ scale: pulse }] }]}>
         <View style={styles.markInner}>
@@ -86,6 +95,7 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
 
       <View style={styles.copy}>
         <Text style={styles.kicker}>Sofort beachten</Text>
+
         <Text
           adjustsFontSizeToFit
           android_hyphenationFrequency="full"
@@ -107,7 +117,9 @@ export function TerrorAlertOverlay({ event }: { event: LiveEventDto }) {
 }
 
 function formatAlertTitle(title: string) {
-  return title.replace(/Terrorwarnung/gi, 'Terror\u00ADwarnung');
+  const unbrandedTitle = /terrorwarnung/i.test(title) ? title.replace(/^mytopia\s+/i, '') : title;
+
+  return unbrandedTitle.replace(/Terrorwarnung/gi, 'Terror\u00ADwarnung');
 }
 
 const styles = StyleSheet.create({
@@ -115,7 +127,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     backgroundColor: '#941414',
-    gap: 28,
+    gap: 64,
     justifyContent: 'center',
     paddingHorizontal: 24,
     zIndex: 1000,
@@ -134,6 +146,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0,
     textTransform: 'uppercase',
+  },
+  brandLogo: {
+    height: 42,
+    opacity: 0.88,
+    resizeMode: 'contain',
+    width: 42,
+  },
+  brandLockup: {
+    alignItems: 'center',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  brandName: {
+    color: '#fff',
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 20,
+    lineHeight: 28,
   },
   copy: {
     alignItems: 'center',
@@ -178,6 +207,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 58,
     justifyContent: 'center',
+    transform: [{ translateY: -3 }],
     width: 58,
   },
   markShell: {
