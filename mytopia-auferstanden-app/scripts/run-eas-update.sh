@@ -16,6 +16,7 @@ fi
 CHANNEL="$1"
 shift || true
 PREFLIGHT_ONLY=0
+EAS_CLI_PACKAGE="${EAS_CLI_PACKAGE:-eas-cli@20.2.0}"
 if [[ "${1:-}" == "--preflight-only" ]]; then
   PREFLIGHT_ONLY=1
   shift || true
@@ -32,7 +33,7 @@ cd "${APP_DIR}"
 
 load_app_env "${APP_DIR}"
 
-if [[ "${CHANNEL}" == "production" && -z "${EXPO_PUBLIC_APP_ENV:-}" ]]; then
+if [[ "${CHANNEL}" == "production" ]]; then
   export EXPO_PUBLIC_APP_ENV="production"
 fi
 
@@ -43,10 +44,11 @@ if [[ "${PREFLIGHT_ONLY}" -eq 1 ]]; then
   exit 0
 fi
 
+CI=1 bunx "${EAS_CLI_PACKAGE}" --version >/dev/null
 bun ./scripts/increment-ota-version.mjs
 
 echo "Publishing iOS update..."
-CI=1 bunx eas-cli update \
+CI=1 bunx "${EAS_CLI_PACKAGE}" update \
   --channel "${CHANNEL}" \
   --message "${MESSAGE}" \
   --platform ios \
@@ -54,7 +56,7 @@ CI=1 bunx eas-cli update \
   --non-interactive
 
 echo "Publishing Android update..."
-CI=1 bunx eas-cli update \
+CI=1 bunx "${EAS_CLI_PACKAGE}" update \
   --channel "${CHANNEL}" \
   --message "${MESSAGE}" \
   --platform android \

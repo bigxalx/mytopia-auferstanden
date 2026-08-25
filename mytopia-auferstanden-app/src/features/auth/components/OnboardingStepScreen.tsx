@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/src/shared/ui/AppButton';
@@ -33,12 +33,20 @@ export function OnboardingStepScreen({
 
   return (
     <View style={styles.screen}>
-      <View
-        style={[
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={[
           styles.content,
           {
             paddingBottom: Math.max(insets.bottom, 24),
             paddingTop: Math.max(insets.top, 24),
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        style={[
+          styles.scrollView,
+          {
+            backgroundColor: theme.colors.beige,
           },
         ]}
       >
@@ -78,7 +86,7 @@ export function OnboardingStepScreen({
             variant="primary"
           />
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -88,7 +96,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     gap: 28,
     paddingHorizontal: 24,
   },
@@ -145,6 +153,9 @@ const styles = StyleSheet.create({
   },
   screen: {
     backgroundColor: theme.colors.beige,
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   subtitle: {

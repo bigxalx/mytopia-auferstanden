@@ -94,29 +94,33 @@ export default function AuthLayout() {
         <View
           style={[
             styles.inner,
+            isOnboardingRoute ? styles.innerOnboarding : null,
             {
-              paddingBottom: Math.max(insets.bottom, 24),
-              paddingTop: insets.top + 24,
+              paddingBottom: isOnboardingRoute ? 0 : Math.max(insets.bottom, 24),
+              paddingTop: isOnboardingRoute ? 0 : insets.top + 24,
             },
           ]}
         >
           <View
             style={[
               styles.content,
-              isAndroidTabletWidth ? styles.contentTablet : null,
+              isAndroidTabletWidth && !isOnboardingRoute ? styles.contentTablet : null,
+              isOnboardingRoute ? styles.contentOnboarding : null,
             ]}
           >
-            <View style={styles.logoContainer}>
-              <Text
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-                numberOfLines={2}
-                style={styles.logoTitle}
-              >
-                √My Messenger
-              </Text>
-              <Text style={styles.logoSubtitle}>Auferstanden aus Ruinen</Text>
-            </View>
+            {!isOnboardingRoute ? (
+              <View style={styles.logoContainer}>
+                <Text
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                  numberOfLines={2}
+                  style={styles.logoTitle}
+                >
+                  √My Messenger
+                </Text>
+                <Text style={styles.logoSubtitle}>Auferstanden aus Ruinen</Text>
+              </View>
+            ) : null}
             <View style={styles.stackContainer}>
               <Stack
                 screenOptions={{
@@ -164,12 +168,18 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     width: "100%",
   },
+  contentOnboarding: {
+    maxWidth: "100%",
+  },
   contentTablet: {
     maxWidth: 560,
   },
   inner: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  innerOnboarding: {
+    paddingHorizontal: 0,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
